@@ -1,0 +1,31 @@
+[package]
+name = "mihomo-tui"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+anyhow = "1.0.99"
+clap = { version = "4.5.45", features = ["env", "derive", "wrap_help", "string", "cargo"] }
+color-eyre = "0.6.5"
+crossterm = { version = "0.29.0", features = ["event-stream"] }
+directories = "6.0.0"
+futures = "0.3.31"
+ratatui = { version = "0.29.0", features = ["crossterm"] }
+reqwest = { version = "0.12.23", features = ["json"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_yml = "0.0.12"
+signal-hook = "0.3.18"
+tokio = { version = "1.47.1", features = ["rt-multi-thread", "macros"] }
+tokio-tungstenite = "0.27.0"
+tokio-util = "0.7.16"
+tracing = "0.1.41"
+tracing-error = "0.2.1"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+[build-dependencies]
+anyhow = "1.0.99"
+vergen-gix = { version = "1.0.9", features = ["build", "cargo"] }
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"

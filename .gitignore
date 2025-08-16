@@ -1,0 +1,4 @@
+**__gitignore__**
+.idea/
+
+/target

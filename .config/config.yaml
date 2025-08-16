@@ -1,0 +1,8 @@
+# Mihomo external controller URL, Required
+mihomo-api: http://127.0.0.1:9093
+
+# Mihomo external controller secret, Optional
+#mihomo-secret:
+
+# Log level(silent/debug/info/warning/error), Optional, default is info.
+log-level: debug
