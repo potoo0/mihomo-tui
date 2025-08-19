@@ -15,11 +15,13 @@ mod tui;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    errors::init()?;
-    logging::init()?;
+    let config = config::Config::new()?;
 
-    let args = Cli::parse();
-    let mut app = App::new(args.tick_rate, args.frame_rate)?;
+    logging::init(config.clone())?;
+    errors::init()?;
+
+    let _ = Cli::parse();
+    let mut app = App::new(config)?;
     app.run().await?;
     Ok(())
 }

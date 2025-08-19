@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -32,15 +32,15 @@ pub enum Mode {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
+    pub fn new(config: Config) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         Ok(Self {
-            tick_rate,
-            frame_rate,
+            config,
+            tick_rate: 4.0,
+            frame_rate: 60.0,
             components: vec![Box::new(Home::new()), Box::new(FpsCounter::default())],
             should_quit: false,
             should_suspend: false,
-            config: Config::new()?,
             mode: Mode::Home,
             last_tick_key_events: Vec::new(),
             action_tx,
@@ -59,8 +59,7 @@ impl App {
             component.register_action_handler(self.action_tx.clone())?;
         }
         for component in self.components.iter_mut() {
-            // todo
-            // component.register_config_handler(self.config.clone())?;
+            component.register_config_handler(self.config.clone())?;
         }
         for component in self.components.iter_mut() {
             component.init(tui.size()?)?;
@@ -108,6 +107,12 @@ impl App {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
         let action_tx = self.action_tx.clone();
+        match key.code {
+            KeyCode::Char('q') => action_tx.send(Action::Quit)?,
+            _ => {
+                info!("Got unexpected key event: {:?}", key);
+            }
+        }
         // todo
         // let Some(keymap) = self.config.keybindings.get(&self.mode) else {
         //     return Ok(());
