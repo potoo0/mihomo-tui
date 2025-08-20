@@ -3,7 +3,7 @@ use tracing::error;
 
 pub fn init() -> Result<()> {
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default().try_into_hooks()?;
-    eyre_hook.install()?;
+    let _ = eyre_hook.install(); // FIXME Error: cannot install provided ErrorHook, a hook has already been installed
     std::panic::set_hook(Box::new(move |panic_info| {
         if let Ok(mut t) = crate::tui::Tui::new()
             && let Err(r) = t.exit()

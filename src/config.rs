@@ -2,7 +2,7 @@
 
 use color_eyre::Result;
 use directories::ProjectDirs;
-use eyre::{eyre, WrapErr};
+use eyre::{WrapErr, eyre};
 use serde::{Deserialize, Serialize};
 use std::{env, fs, path::PathBuf};
 
@@ -20,7 +20,7 @@ pub struct Config {
 impl Config {
     pub fn new() -> Result<Self> {
         let default_config: Config = serde_yml::from_str(DEFAULT_CONFIG)?;
-        let config_path = get_config_path();
+        let config_path: PathBuf = get_config_path();
         if !config_path.is_file() {
             fs::write(&config_path, DEFAULT_CONFIG)
                 .with_context(|| format!("Fail to write file `{}`", config_path.display()))?;
@@ -36,6 +36,7 @@ impl Config {
     }
 }
 
+#[cfg(not(test))]
 pub fn get_config_path() -> PathBuf {
     let dir = get_project_dir().config_dir().to_owned();
     if !dir.is_dir() {
@@ -47,43 +48,67 @@ pub fn get_config_path() -> PathBuf {
     dir.join("config.yaml")
 }
 
+#[cfg(test)]
+pub fn get_config_path() -> PathBuf {
+    use std::{
+        cell::RefCell,
+        env,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+    thread_local! {
+        static TEST_CONFIG_PATH: RefCell<Option<PathBuf>> = RefCell::new(None);
+    }
+    TEST_CONFIG_PATH.with(|cell| {
+        let mut opt = cell.borrow_mut();
+        if opt.is_none() {
+            let mut path = env::temp_dir();
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            path.push(format!(".test_{}_{}.yaml", env!("CARGO_PKG_NAME"), nanos));
+            *opt = Some(path);
+        }
+        opt.as_ref().unwrap().clone()
+    })
+}
+
 pub fn get_project_dir() -> ProjectDirs {
     ProjectDirs::from("io.github", "", env!("CARGO_PKG_NAME"))
         .ok_or(eyre!("Fail to get project directory"))
         .unwrap()
 }
 
-#[cfg(target_os = "linux")]
 #[cfg(test)]
 mod tests {
     use super::*;
-    use assert_fs::TempDir;
     use pretty_assertions::assert_eq;
 
     #[test]
     fn test_config_default() {
-        let temp = setup_temp_xdg();
+        let cfg_path = TempFile::new(get_config_path());
+        let default_config: Config = serde_yml::from_str(DEFAULT_CONFIG).unwrap();
 
         let config = Config::new().unwrap();
-        assert_eq!(config.mihomo_api, "http://127.0.0.1:9093");
-        assert_eq!(config.mihomo_secret, None);
-        assert_eq!(config.log_level, Some("error".to_owned()));
+        assert_eq!(config.mihomo_api, default_config.mihomo_api);
+        assert_eq!(config.mihomo_secret, default_config.mihomo_secret);
+        assert_eq!(config.log_file, default_config.log_file);
+        assert_eq!(config.log_level, default_config.log_level);
 
-        temp.close().unwrap();
+        drop(cfg_path);
     }
 
     #[test]
     fn test_config_existing_file() {
-        let temp = setup_temp_xdg();
+        let cfg_path = TempFile::new(get_config_path());
 
-        let cfg_path = get_config_path();
         let custom_config = r#"
 mihomo-api: "http://localhost"
 mihomo-secret: "secret"
 log-file: /tmp/log.log
 log-level: "info"
 "#;
-        fs::write(&cfg_path, custom_config).unwrap();
+        fs::write(&cfg_path.0, custom_config).unwrap();
 
         let config = Config::new().unwrap();
         assert_eq!(config.mihomo_api, "http://localhost");
@@ -91,40 +116,55 @@ log-level: "info"
         assert_eq!(config.log_file, Some("/tmp/log.log".to_owned()));
         assert_eq!(config.log_level, Some("info".to_owned()));
 
-        temp.close().unwrap();
+        drop(cfg_path);
     }
 
     #[test]
     fn test_config_ser_error() {
-        let temp = setup_temp_xdg();
+        let cfg_path = TempFile::new(get_config_path());
 
-        let cfg_path = get_config_path();
         let partial_config = r#"
 mihomo-api: "http://localhost"
 log-file: ["/tmp/log.log"]
 "#;
-        fs::write(&cfg_path, partial_config).unwrap();
+        fs::write(&cfg_path.0, partial_config).unwrap();
 
         let result = Config::new();
         assert!(result.is_err(), "expected error, got {:?}", result);
 
         let err_msg = result.unwrap_err().to_string();
-        println!(">>> {err_msg}");
         assert!(
             err_msg.contains("Fail to deserialize file"),
             "expected contains `Fail to deserialize file`, but got {}",
             err_msg
         );
 
-        temp.close().unwrap();
+        drop(cfg_path);
     }
 
-    fn setup_temp_xdg() -> TempDir {
-        // todo 使用隔离的 env var
-        let temp = TempDir::new().unwrap();
-        unsafe {
-            env::set_var("XDG_DATA_HOME", temp.path());
+    fn remove_file(path: PathBuf) {
+        if path.is_file() {
+            let _ = fs::remove_file(path);
         }
-        temp
+    }
+
+    struct TempFile(PathBuf);
+
+    impl TempFile {
+        fn new(path: PathBuf) -> Self {
+            Self(path)
+        }
+
+        fn remove(&self) {
+            if self.0.is_file() {
+                let _ = fs::remove_file(&self.0);
+            }
+        }
+    }
+
+    impl Drop for TempFile {
+        fn drop(&mut self) {
+            self.remove();
+        }
     }
 }
