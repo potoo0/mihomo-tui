@@ -1,13 +1,16 @@
 use color_eyre::Result;
 use crate::action::Action;
-use crate::components::Component;
+use crate::components::{Component, ComponentId};
 use ratatui::{
     Frame,
     layout::{Rect},
 };
-use tracing::debug;
+use ratatui::style::Style;
+use ratatui::text::Span;
+use ratatui::widgets::{Block, Borders, Paragraph};
 
-pub(crate) struct OverviewComponent {}
+#[derive(Debug, Default)]
+pub struct OverviewComponent {}
 
 impl OverviewComponent {
     pub fn new() -> Self {
@@ -16,6 +19,10 @@ impl OverviewComponent {
 }
 
 impl Component for OverviewComponent {
+    fn id(&self) -> ComponentId {
+        ComponentId::Overview
+    }
+
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         // match action {
         //     Action::Tick => debug!("OverviewComponent ticked"),
@@ -26,14 +33,12 @@ impl Component for OverviewComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
-        // let [top, _] = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(area);
-        // let message = format!(
-        //     "{:.2} ticks/sec, {:.2} FPS",
-        //     self.ticks_per_second, self.frames_per_second
-        // );
-        // let span = Span::styled(message, Style::new().dim());
-        // let paragraph = Paragraph::new(span).right_aligned();
-        // frame.render_widget(paragraph, top);
+        let outer_block = Block::default().borders(Borders::ALL);
+        frame.render_widget(outer_block, area);
+
+        let span = Span::styled("Overview", Style::new());
+        let paragraph = Paragraph::new(span).centered();
+        frame.render_widget(paragraph, area);
         Ok(())
     }
 }

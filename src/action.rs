@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
+use crate::components::ComponentId;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Action {
     Tick,
     Render,
@@ -11,4 +11,5 @@ pub enum Action {
     ClearScreen,
     Error(String),
     Help,
+    TabSwitch{from: ComponentId, to: ComponentId},
 }

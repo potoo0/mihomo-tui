@@ -17,6 +17,7 @@ reqwest = { version = "0.12.23", features = ["json"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_yml = "0.0.12"
 signal-hook = "0.3.18"
+strum = { version = "0.27.2", features = ["derive"] }
 tokio = { version = "1.47.1", features = ["rt-multi-thread", "macros"] }
 tokio-tungstenite = "0.27.0"
 tokio-util = "0.7.16"

@@ -1,7 +1,8 @@
-mod fps;
-mod home;
+mod footer_component;
+mod header_component;
 mod overview_component;
 pub mod root_component;
+mod shortcut;
 
 use color_eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
@@ -9,15 +10,42 @@ use ratatui::{
     Frame,
     layout::{Rect, Size},
 };
+use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, config::Config, tui::Event};
+
+const TABS: [ComponentId; 3] = [
+    ComponentId::Overview,
+    ComponentId::Connections,
+    ComponentId::Logs,
+];
+const SUPERSCRIPT_NUMS: [&str; 10] = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
+
+#[derive(PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
+pub enum ComponentId {
+    Root,
+    Header,
+    Footer,
+    Overview,
+    Connections,
+    Logs,
+}
+
+impl Default for ComponentId {
+    fn default() -> Self {
+        Self::Overview
+    }
+}
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
 pub trait Component {
+    /// Get the unique identifier for the component.
+    fn id(&self) -> ComponentId;
+
     /// Register an action handler that can send actions for processing if necessary.
     ///
     /// # Arguments
