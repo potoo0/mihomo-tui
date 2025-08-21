@@ -1,4 +1,6 @@
 **__gitignore__**
 .idea/
+.vscode/
+.specstory/
 
 /target
