@@ -1,93 +1,94 @@
-#![allow(dead_code)] // Remove this once you start using the code
+use std::path::PathBuf;
+use std::{env, fs};
 
-use anyhow::{anyhow, Context};
 use color_eyre::Result;
+use color_eyre::eyre::{WrapErr, eyre};
 use directories::ProjectDirs;
-use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Serialize};
-use std::sync::OnceLock;
-use std::{env, fs, path::PathBuf};
-use tracing::error;
+use url::Url;
 
 const DEFAULT_CONFIG: &str = include_str!("../.config/config.yaml");
 
-#[derive(Debug, PartialEq, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
-    pub mihomo_api: String,
+    pub mihomo_api: Url,
     pub mihomo_secret: Option<String>,
-    pub log_level: String,
+    pub log_file: Option<String>,
+    pub log_level: Option<String>,
 }
 
 impl Config {
-    pub fn new() -> Result<Self> {
+    pub fn new(path: Option<PathBuf>) -> Result<Self> {
+        // If config file path is provided, read from it directly
+        if let Some(ref config_path) = path {
+            return Self::read_from_file(config_path);
+        }
+
         let default_config: Config = serde_yml::from_str(DEFAULT_CONFIG)?;
-        // let data_dir = get_data_dir();
-        let config_dir = get_project_dir();
+        let config_path: PathBuf = get_config_path();
+        // If config file does not exist, create one with default content
+        if !config_path.is_file() {
+            fs::write(&config_path, DEFAULT_CONFIG)
+                .with_context(|| format!("Fail to write file `{}`", config_path.display()))?;
+            return Ok(default_config);
+        }
 
-        let cfg = default_config;
-        // let mut builder = config::Config::builder()
-        //     .set_default("data_dir", data_dir.to_str().unwrap())?
-        //     .set_default("config_dir", config_dir.to_str().unwrap())?;
-        //
-        // let config_files = [
-        //     ("config.json5", config::FileFormat::Json5),
-        //     ("config.json", config::FileFormat::Json),
-        //     ("config.yaml", config::FileFormat::Yaml),
-        //     ("config.toml", config::FileFormat::Toml),
-        //     ("config.ini", config::FileFormat::Ini),
-        // ];
-        // let mut found_config = false;
-        // for (file, format) in &config_files {
-        //     let source = config::File::from(config_dir.join(file))
-        //         .format(*format)
-        //         .required(false);
-        //     builder = builder.add_source(source);
-        //     if config_dir.join(file).exists() {
-        //         found_config = true
-        //     }
-        // }
-        // if !found_config {
-        //     error!("No configuration file found. Application may not behave as expected");
-        // }
-        //
-        // let mut cfg: Self = builder.build()?.try_deserialize()?;
-        //
-        // for (mode, default_bindings) in default_config.keybindings.iter() {
-        //     let user_bindings = cfg.keybindings.entry(*mode).or_default();
-        //     for (key, cmd) in default_bindings.iter() {
-        //         user_bindings
-        //             .entry(key.clone())
-        //             .or_insert_with(|| cmd.clone());
-        //     }
-        // }
-        // for (mode, default_styles) in default_config.styles.iter() {
-        //     let user_styles = cfg.styles.entry(*mode).or_default();
-        //     for (style_key, style) in default_styles.iter() {
-        //         user_styles.entry(style_key.clone()).or_insert(*style);
-        //     }
-        // }
+        Self::read_from_file(&config_path)
+    }
 
+    fn read_from_file(path: &PathBuf) -> Result<Self> {
+        if !path.is_file() {
+            return Err(eyre!("Config file `{}` does not exist", path.display()));
+        }
+        let result = fs::File::open(path)
+            .with_context(|| format!("Fail to open file `{}`", path.display()))?;
+        let cfg: Config = serde_yml::from_reader(result)
+            .with_context(|| format!("Fail to deserialize file `{}`", path.display()))?;
         Ok(cfg)
     }
 }
 
-pub fn get_project_dir() -> &'static PathBuf {
-    static INSTANCE: OnceLock<PathBuf> = OnceLock::new();
-    INSTANCE.get_or_init(|| {
-        let dir = ProjectDirs::from("io.github", "", env!("CARGO_PKG_NAME"))
-            .ok_or(anyhow!("Fail to get project directory"))
-            .unwrap()
-            .data_local_dir()
-            .to_owned();
-        if !dir.is_dir() {
-            fs::create_dir_all(&dir)
-                .with_context(|| format!("Fail to create directory `{}`", dir.display()))
-                .unwrap();
-        }
+#[cfg(not(test))]
+pub fn get_config_path() -> PathBuf {
+    let dir = get_project_dir().config_dir().to_owned();
+    if !dir.is_dir() {
+        fs::create_dir_all(&dir)
+            .with_context(|| format!("Fail to create directory `{}`", dir.display()))
+            .unwrap();
+    }
 
-        dir
+    dir.join("config.yaml")
+}
+
+#[cfg(test)]
+pub fn get_config_path() -> PathBuf {
+    use std::cell::RefCell;
+    use std::env;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    thread_local! {
+        static TEST_CONFIG_PATH: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+    }
+    TEST_CONFIG_PATH.with(|cell| {
+        let mut opt = cell.borrow_mut();
+        if opt.is_none() {
+            let mut path = env::temp_dir();
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            path.push(format!(".test_{}_{}.yaml", env!("CARGO_PKG_NAME"), nanos));
+            *opt = Some(path);
+        }
+        opt.as_ref().unwrap().clone()
     })
+}
+
+#[allow(dead_code)]
+pub fn get_project_dir() -> ProjectDirs {
+    ProjectDirs::from("io.github", "", env!("CARGO_PKG_NAME"))
+        .ok_or(eyre!("Fail to determine project directory"))
+        .unwrap()
 }
 
 #[cfg(test)]
@@ -97,13 +98,79 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_style_default() {
-        let config = Config::new().unwrap();
-        let expected = Config {
-            mihomo_api: "".into(),
-            mihomo_secret: None,
-            log_level: "debug".into(),
-        };
-        assert_eq!(&config, &expected);
+    fn test_config_default() {
+        let cfg_path = TempFile::new(get_config_path());
+        let default_config: Config = serde_yml::from_str(DEFAULT_CONFIG).unwrap();
+
+        let config = Config::new(None).unwrap();
+        assert_eq!(config.mihomo_api, default_config.mihomo_api);
+        assert_eq!(config.mihomo_secret, default_config.mihomo_secret);
+        assert_eq!(config.log_file, default_config.log_file);
+        assert_eq!(config.log_level, default_config.log_level);
+
+        drop(cfg_path);
+    }
+
+    #[test]
+    fn test_config_existing_file() {
+        let cfg_path = TempFile::new(get_config_path());
+
+        let custom_config = r#"
+mihomo-api: "http://localhost"
+mihomo-secret: "secret"
+log-file: /tmp/log.log
+log-level: "info"
+"#;
+        fs::write(&cfg_path.0, custom_config).unwrap();
+
+        let config = Config::new(None).unwrap();
+        assert_eq!(config.mihomo_api, Url::parse("http://localhost").unwrap());
+        assert_eq!(config.mihomo_secret, Some("secret".to_owned()));
+        assert_eq!(config.log_file, Some("/tmp/log.log".to_owned()));
+        assert_eq!(config.log_level, Some("info".to_owned()));
+
+        drop(cfg_path);
+    }
+
+    #[test]
+    fn test_config_ser_error() {
+        let cfg_path = TempFile::new(get_config_path());
+
+        let partial_config = r#"
+mihomo-api: "localhost"
+"#;
+        fs::write(&cfg_path.0, partial_config).unwrap();
+
+        let result = Config::new(None);
+        assert!(result.is_err(), "expected error, got {:?}", result);
+
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("Fail to deserialize file"),
+            "expected contains `Fail to deserialize file`, but got {}",
+            err_msg
+        );
+
+        drop(cfg_path);
+    }
+
+    struct TempFile(PathBuf);
+
+    impl TempFile {
+        fn new(path: PathBuf) -> Self {
+            Self(path)
+        }
+
+        fn remove(&self) {
+            if self.0.is_file() {
+                let _ = fs::remove_file(&self.0);
+            }
+        }
+    }
+
+    impl Drop for TempFile {
+        fn drop(&mut self) {
+            self.remove();
+        }
     }
 }

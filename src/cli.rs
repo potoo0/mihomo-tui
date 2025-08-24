@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -9,12 +11,8 @@ use clap::Parser;
     ),
     about
 )]
-pub struct Cli {
-    /// Tick rate, i.e. number of ticks per second
-    #[arg(short, long, value_name = "FLOAT", default_value_t = 4.0)]
-    pub tick_rate: f64,
-
-    /// Frame rate, i.e. number of frames per second
-    #[arg(short, long, value_name = "FLOAT", default_value_t = 60.0)]
-    pub frame_rate: f64,
+pub struct Args {
+    /// Path to config file
+    #[arg(short, long, value_name = "CONFIG_FILE")]
+    pub config: Option<PathBuf>,
 }

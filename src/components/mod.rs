@@ -1,21 +1,61 @@
+mod connections_component;
+mod footer_component;
+mod header_component;
+mod logs_component;
+mod overview_component;
+pub mod root_component;
+pub mod shortcut;
+mod state;
+
 use color_eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
-use ratatui::{
-    Frame,
-    layout::{Rect, Size},
-};
+use ratatui::Frame;
+use ratatui::layout::{Rect, Size};
+pub use state::AppState;
+use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, config::Config, tui::Event};
+use crate::action::Action;
+use crate::components::shortcut::Shortcut;
+use crate::config::Config;
+use crate::tui::Event;
 
-pub mod fps;
-pub mod home;
+const TABS: [ComponentId; 3] = [
+    ComponentId::Overview,
+    ComponentId::Connections,
+    ComponentId::Logs,
+];
+const SUPERSCRIPT_NUMS: [&str; 10] = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
+
+#[derive(PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
+pub enum ComponentId {
+    Root,
+    Header,
+    Footer,
+    Overview,
+    Connections,
+    Logs,
+}
+
+impl Default for ComponentId {
+    fn default() -> Self {
+        Self::Overview
+    }
+}
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
 pub trait Component {
+    /// Get the unique identifier for the component.
+    fn id(&self) -> ComponentId;
+
+    /// Get a list of shortcuts associated with the component.
+    fn shortcuts(&self) -> Vec<Shortcut> {
+        vec![]
+    }
+
     /// Register an action handler that can send actions for processing if necessary.
     ///
     /// # Arguments
@@ -128,5 +168,22 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()>;
+    fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()>;
+
+    // /// Check if the component is currently visible.
+    // fn is_visible(&self) -> bool {
+    //     true
+    // }
+    //
+    // /// Hide the component if it is visible.
+    // fn hide(&mut self) {}
+    //
+    // /// Show the component if it is hidden.
+    // ///
+    // /// # Returns
+    // ///
+    // /// * `Result<()>` - An Ok result or an error.
+    // fn show(&mut self) -> Result<()> {
+    //     Ok(())
+    // }
 }
