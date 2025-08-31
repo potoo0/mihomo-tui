@@ -1,21 +1,19 @@
-mod connections;
-
 use std::collections::HashMap;
 
+use color_eyre::Result;
 use color_eyre::eyre::{Context, eyre};
-use color_eyre::{Result, eyre};
-use futures::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
-use strum::Display;
-use tokio::net::TcpStream;
+use serde::de::DeserializeOwned;
+use tokio_stream::{Stream, StreamExt};
+use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use tracing::debug;
 use url::Url;
 
-use crate::models::{Log, Version};
+use crate::config::Config;
+use crate::models::{ConnectionWrapper, Log, LogLevel, Memory, Traffic, Version};
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -25,20 +23,10 @@ pub struct Api {
     client: Client,
 }
 
-#[derive(Debug, Clone, Copy, Display)]
-pub enum LogLevel {
-    #[strum(to_string = "error")]
-    Error,
-    #[strum(to_string = "warning")]
-    Warning,
-    #[strum(to_string = "info")]
-    Info,
-    #[strum(to_string = "debug")]
-    Debug,
-}
-
 impl Api {
-    pub fn new(api: Url, secret: Option<String>) -> Result<Api> {
+    pub fn new(config: &Config) -> Result<Api> {
+        let api = config.mihomo_api.clone();
+        let secret = config.mihomo_secret.clone();
         let client = Self::create_client(&secret)?;
 
         Ok(Self {
@@ -86,62 +74,77 @@ impl Api {
         Ok(body)
     }
 
-    pub async fn create_consumer(
+    pub async fn create_stream<T>(
         &self,
         path: &str,
         query_params: Option<HashMap<String, String>>,
-    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+    ) -> Result<impl Stream<Item = Result<T>>>
+    where
+        T: DeserializeOwned,
+    {
         let mut url = self.api.clone().join(path)?;
         let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
         url.set_scheme(scheme)
             .map_err(|_| eyre!("Fail to set scheme"))?;
+        // append query params
         if let Some(ref token) = self.bearer_token {
             url.query_pairs_mut().append_pair("token", token);
         }
         if let Some(params) = query_params {
             url.query_pairs_mut().extend_pairs(params);
         }
+        // url to request, append header UA
         let mut request = IntoClientRequest::into_client_request(&url)?;
         request
             .headers_mut()
             .insert(header::USER_AGENT, USER_AGENT.parse()?);
         debug!(
-            "create_consumer, url: {}, headers: {:?}",
+            "create_stream, url: {}, headers: {:?}",
             url,
             request.headers()
         );
         let (stream, _) = connect_async(request).await?;
+        let stream = stream.filter_map(|msg| match msg {
+            Ok(Message::Text(txt)) => match serde_json::from_str::<T>(&txt) {
+                Ok(v) => Some(Ok(v)),
+                Err(e) => Some(Err(eyre!(e))),
+            },
+            _ => None,
+        });
         Ok(stream)
     }
 
-    pub async fn create_logs_consumer(
+    pub async fn get_logs(
         &self,
         level: Option<LogLevel>,
     ) -> Result<impl Stream<Item = Result<Log>>> {
         let params = level.map(|l| HashMap::from([("level".to_string(), l.to_string())]));
-        let stream = self.create_consumer("/logs", params).await?;
-        let stream = stream.filter_map(|msg| async move {
-            match msg {
-                Ok(Message::Text(txt)) => match serde_json::from_str::<Log>(&txt) {
-                    Ok(v) => Some(Ok(v)),
-                    Err(e) => Some(Err(eyre::eyre!(e))),
-                },
-                _ => None,
-            }
-        });
-        Ok(stream)
+        self.create_stream::<Log>("/logs", params).await
+    }
+
+    pub async fn get_connections(&self) -> Result<impl Stream<Item = Result<ConnectionWrapper>>> {
+        self.create_stream::<ConnectionWrapper>("/connections", None)
+            .await
+    }
+
+    pub async fn get_memory(&self) -> Result<impl Stream<Item = Result<Memory>>> {
+        self.create_stream::<Memory>("/memory", None).await
+    }
+
+    pub async fn get_traffic(&self) -> Result<impl Stream<Item = Result<Traffic>>> {
+        self.create_stream::<Traffic>("/traffic", None).await
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
-    use std::sync::Once;
+    use std::sync::{Arc, Once};
 
-    use futures::{SinkExt, StreamExt, future};
+    use tokio::select;
     use tokio::sync::mpsc;
+    use tokio_stream::{Stream, StreamExt};
     use tokio_util::sync::CancellationToken;
-    use url::Url;
 
     use super::*;
     use crate::config::Config;
@@ -157,7 +160,40 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_logs_consumer() {
+    async fn test_ws() {
+        init_logger();
+        let api = Arc::new(init_api());
+
+        macro_rules! spawn_consumer {
+            ($name:literal, $method:ident, $api:expr, $n:expr) => {{
+                let api = Arc::clone(&$api);
+                tokio::spawn(async move {
+                    let mut stream = api.$method().await.unwrap();
+                    let mut count = 0;
+                    while let Some(msg) = stream.next().await {
+                        debug!("[{:>12}]\tmsg: {:?}", $name, msg);
+                        count += 1;
+                        if count >= $n {
+                            break;
+                        }
+                    }
+                })
+            }};
+        }
+
+        let handles = vec![
+            spawn_consumer!("connections", get_connections, api, 10),
+            spawn_consumer!("memory", get_memory, api, 10),
+            spawn_consumer!("traffic", get_traffic, api, 10),
+        ];
+
+        for h in handles {
+            let _ = h.await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_logs() {
         init_logger();
         let api = init_api();
 
@@ -168,19 +204,18 @@ mod tests {
         tokio::task::Builder::new()
             .name("consumer")
             .spawn(async move {
-                let stream = api
-                    .create_logs_consumer(Some(LogLevel::Debug))
-                    .await
-                    .unwrap();
-                let _ = stream
-                    .take_until(token_cloned.cancelled())
-                    .for_each(|msg| {
-                        // let msg = msg.unwrap();
-                        // let msg_text = msg.to_text().unwrap();
-                        msg_tx.send(msg).unwrap();
-                        future::ready(())
-                    })
-                    .await;
+                let mut stream = api.get_logs(Some(LogLevel::Debug)).await.unwrap();
+
+                loop {
+                    select! {
+                        _ = token_cloned.cancelled() => {
+                            break;
+                        },
+                        Some(msg) = stream.next() => {
+                            msg_tx.send(msg).unwrap();
+                        }
+                    }
+                }
             })
             .unwrap();
 
@@ -188,9 +223,8 @@ mod tests {
         while let Some(msg) = msg_rx.recv().await {
             if cnt > 10 {
                 token.cancel();
-                break;
             }
-            println!("msg: {msg:?}");
+            debug!("msg: {msg:?}");
             cnt += 1;
         }
     }
@@ -202,23 +236,12 @@ mod tests {
         assert!(version.is_ok());
     }
 
-    #[tokio::test]
-    async fn test_get_version_fail() {
-        let api = Api::new(
-            Url::parse("http://localhost:19093").unwrap(),
-            Some("1".to_string()),
-        )
-        .unwrap();
-        let version = api.get_version().await;
-        assert!(version.is_err());
-    }
-
     fn init_api() -> Api {
         let config = Config::new(Some(PathBuf::from(
             "/home/wsl/.config/mihomo-tui/config.yaml",
         )))
         .unwrap();
-        Api::new(config.mihomo_api, config.mihomo_secret).unwrap()
+        Api::new(&config).unwrap()
     }
 
     // todo remove
@@ -227,15 +250,21 @@ mod tests {
         // let auth_value = HeaderValue::try_from(format!("Bearer {}", "token")).unwrap();
         // println!("is_sensitive: {}", auth_value.is_sensitive());
 
-        let mut map = HeaderMap::new();
+        // let mut map = HeaderMap::new();
+        //
+        // map.insert("HOST", "hello".parse().unwrap());
+        // map.insert("HOST", "goodbye".parse().unwrap());
+        // map.insert("CONTENT_LENGTH", "123".parse().unwrap());
+        // map.append("CONTENT_LENGTH", "456".parse().unwrap());
+        //
+        // for (key, value) in map.iter() {
+        //     println!("{:?}: {:?}", key, value);
+        // }
 
-        map.insert("HOST", "hello".parse().unwrap());
-        map.insert("HOST", "goodbye".parse().unwrap());
-        map.insert("CONTENT_LENGTH", "123".parse().unwrap());
-        map.append("CONTENT_LENGTH", "456".parse().unwrap());
-
-        for (key, value) in map.iter() {
-            println!("{:?}: {:?}", key, value);
-        }
+        let raw = r#"
+            {"inuse": 0, "oslimit": 0, "version": "v1.10.5"}
+        "#;
+        let v: Memory = serde_json::from_str(raw).unwrap();
+        println!("v: {:?}", v);
     }
 }

@@ -5,6 +5,7 @@ use color_eyre::Result;
 use color_eyre::eyre::{WrapErr, eyre};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 use url::Url;
 
 const DEFAULT_CONFIG: &str = include_str!("../.config/config.yaml");
@@ -31,6 +32,7 @@ impl Config {
         if !config_path.is_file() {
             fs::write(&config_path, DEFAULT_CONFIG)
                 .with_context(|| format!("Fail to write file `{}`", config_path.display()))?;
+            info!("Created default config file at `{}`", config_path.display());
             return Ok(default_config);
         }
 
@@ -86,7 +88,7 @@ pub fn get_config_path() -> PathBuf {
 
 #[allow(dead_code)]
 pub fn get_project_dir() -> ProjectDirs {
-    ProjectDirs::from("io.github", "", env!("CARGO_PKG_NAME"))
+    ProjectDirs::from("io.github", "potoo0", env!("CARGO_PKG_NAME"))
         .ok_or(eyre!("Fail to determine project directory"))
         .unwrap()
 }

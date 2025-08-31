@@ -1,27 +1,192 @@
+use std::sync::Arc;
+
 use color_eyre::Result;
 use ratatui::Frame;
-use ratatui::layout::Rect;
-use ratatui::style::Style;
-use ratatui::text::Span;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Style, Stylize};
+use ratatui::symbols::Marker;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Axis, Block, Cell, Chart, Dataset, GraphType, Row, Table};
 
 use crate::components::{AppState, Component, ComponentId};
+use crate::palette;
+use crate::utils::byte_size::{ByteSizeOptExt, human_bytes};
+use crate::utils::{axis_bounds, axis_labels};
+
+type Series = Vec<(f64, f64)>;
 
 #[derive(Debug, Default)]
 pub struct OverviewComponent {}
+
+impl OverviewComponent {
+    fn render_header(&mut self, frame: &mut Frame, area: Rect, state: &AppState) {
+        let conn_stat = Arc::clone(&state.conn_stat).lock().unwrap().clone();
+        let conn_stat = conn_stat.as_ref();
+        let traffic = {
+            let guard = state.traffic.lock().unwrap();
+            guard.back().map(|t| (t.up, t.down))
+        };
+
+        let header = Row::new([
+            Cell::from(Line::from("Rate").centered()),
+            Cell::from(Line::from("Total").centered()),
+            Cell::from(Line::from("Conns").centered()),
+            Cell::from(Line::from("Memory").centered()),
+        ]);
+
+        let cells_content = vec![
+            Line::from(vec![
+                Span::styled("↑ ", Style::default().fg(palette::UP)),
+                Span::raw(
+                    traffic
+                        .map(|(v, _)| human_bytes(v as f64, Some("/s")))
+                        .unwrap_or("-".into()),
+                )
+                .bold(),
+                Span::raw(" / ").dark_gray(),
+                Span::raw(
+                    traffic
+                        .map(|(_, v)| human_bytes(v as f64, Some("/s")))
+                        .unwrap_or("-".into()),
+                )
+                .bold(),
+                Span::styled(" ↓", Style::default().fg(palette::DOWN)),
+            ]),
+            Line::from(vec![
+                Span::styled("↑ ", Style::default().fg(palette::UP)),
+                Span::raw(conn_stat.map(|s| s.up_total).fmt(None)).bold(),
+                Span::raw(" / ").dark_gray(),
+                Span::raw(conn_stat.map(|s| s.down_total).fmt(None)).bold(),
+                Span::styled(" ↓", Style::default().fg(palette::DOWN)),
+            ]),
+            Line::from(
+                conn_stat
+                    .map(|s| format!("{}", s.conns_size))
+                    .unwrap_or("-".into()),
+            )
+            .centered(),
+            Line::from(conn_stat.map(|s| s.memory).fmt(None)).centered(),
+        ];
+        let table = Table::new(
+            vec![Row::new(
+                cells_content.into_iter().map(|c| Cell::from(c.centered())),
+            )],
+            [
+                Constraint::Ratio(2, 5),
+                Constraint::Ratio(2, 5),
+                Constraint::Ratio(1, 5),
+                Constraint::Ratio(1, 5),
+            ],
+        )
+        .header(header)
+        .column_spacing(2)
+        .block(Block::bordered());
+        frame.render_widget(table, area);
+    }
+
+    fn render_charts(&mut self, frame: &mut Frame, area: Rect, state: &AppState) {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(area);
+
+        let traffic = Self::split_traffic(state);
+        self.render_traffic_chart(frame, chunks[0], traffic);
+        let memory: Series = state
+            .memory
+            .lock()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(i, m)| (i as f64, m.used as f64))
+            .collect();
+        self.render_memory_chart(frame, chunks[1], memory);
+    }
+
+    fn split_traffic(state: &AppState) -> (Series, Series) {
+        let traffic = state.traffic.lock().unwrap();
+        let mut down_points = Vec::with_capacity(traffic.len());
+        let mut up_points = Vec::with_capacity(traffic.len());
+
+        for (i, t) in traffic.iter().enumerate() {
+            down_points.push((i as f64, t.down as f64));
+            up_points.push((i as f64, t.up as f64));
+        }
+
+        (down_points, up_points)
+    }
+
+    fn render_traffic_chart(&mut self, frame: &mut Frame, area: Rect, traffic: (Series, Series)) {
+        let datasets = vec![
+            Dataset::default()
+                .marker(Marker::Braille)
+                .style(palette::UP)
+                .graph_type(GraphType::Line)
+                .data(&traffic.0),
+            Dataset::default()
+                .marker(Marker::Dot)
+                .style(palette::DOWN)
+                .graph_type(GraphType::Line)
+                .data(&traffic.1),
+        ];
+
+        let max_y = traffic
+            .0
+            .iter()
+            .chain(traffic.1.iter())
+            .map(|(_, y)| *y)
+            .reduce(f64::max)
+            .unwrap_or(0.0);
+        let chart = Chart::new(datasets)
+            .block(Block::bordered().title(Line::from("Traffic chart").cyan().bold().centered()))
+            .x_axis(Axis::default().bounds([0.0, traffic.0.len() as f64]))
+            .y_axis(
+                Axis::default()
+                    .style(Style::default().gray())
+                    .bounds([0f64, max_y])
+                    .style(Style::default().dark_gray())
+                    .labels(axis_labels(0f64, max_y)),
+            );
+        frame.render_widget(chart, area);
+    }
+
+    fn render_memory_chart(&mut self, frame: &mut Frame, area: Rect, data: Vec<(f64, f64)>) {
+        let dataset = Dataset::default()
+            .marker(Marker::Braille)
+            .graph_type(GraphType::Line)
+            .data(&data);
+
+        let bounds = axis_bounds(&data);
+        let chart = Chart::new(vec![dataset])
+            .block(Block::bordered().title(Line::from("Memory chart").cyan().bold().centered()))
+            .x_axis(Axis::default().bounds([0.0, data.len() as f64]))
+            .y_axis(
+                Axis::default()
+                    .style(Style::default().gray())
+                    .bounds([bounds.0, bounds.1])
+                    .style(Style::default().dark_gray())
+                    .labels(axis_labels(bounds.0, bounds.1)),
+            );
+        frame.render_widget(chart, area);
+    }
+}
 
 impl Component for OverviewComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Overview
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
-        let outer_block = Block::default().borders(Borders::ALL);
-        frame.render_widget(outer_block, area);
+    fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()> {
+        // let outer_block = Block::default().borders(Borders::ALL);
+        // frame.render_widget(outer_block, area);
 
-        let span = Span::styled("Overview", Style::new());
-        let paragraph = Paragraph::new(span).centered();
-        frame.render_widget(paragraph, area);
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(4), Constraint::Min(0)])
+            .split(area);
+
+        self.render_header(frame, chunks[0], state);
+        self.render_charts(frame, chunks[1], state);
         Ok(())
     }
 }

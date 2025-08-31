@@ -12,7 +12,7 @@ use clap::Parser;
     about
 )]
 pub struct Args {
-    /// Path to config file
+    /// Path to config file, leave empty to use default path
     #[arg(short, long, value_name = "CONFIG_FILE")]
     pub config: Option<PathBuf>,
 }

@@ -11,11 +11,11 @@ use crossterm::event::{
     Event as CrosstermEvent, EventStream, KeyEvent, KeyEventKind, MouseEvent,
 };
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
-use futures::{FutureExt, StreamExt};
 use ratatui::backend::CrosstermBackend as Backend;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
 use tokio::time::interval;
+use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
@@ -118,7 +118,7 @@ impl Tui {
                 }
                 _ = tick_interval.tick() => Event::Tick,
                 _ = render_interval.tick() => Event::Render,
-                crossterm_event = event_stream.next().fuse() => match crossterm_event {
+                crossterm_event = event_stream.next() => match crossterm_event {
                     Some(Ok(event)) => match event {
                         CrosstermEvent::Key(key) if key.kind == KeyEventKind::Press => Event::Key(key),
                         CrosstermEvent::Mouse(mouse) => Event::Mouse(mouse),

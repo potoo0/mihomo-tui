@@ -1,3 +1,4 @@
+mod connection_detail_component;
 mod connections_component;
 mod footer_component;
 mod header_component;
@@ -17,7 +18,6 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::components::shortcut::Shortcut;
-use crate::config::Config;
 use crate::tui::Event;
 
 const TABS: [ComponentId; 3] = [
@@ -33,6 +33,7 @@ pub enum ComponentId {
     Header,
     Footer,
     Overview,
+    ConnectionDetail,
     Connections,
     Logs,
 }
@@ -70,19 +71,19 @@ pub trait Component {
         Ok(())
     }
 
-    /// Register a configuration handler that provides configuration settings if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - Configuration settings.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
-        let _ = config; // to appease clippy
-        Ok(())
-    }
+    // /// Register a configuration handler that provides configuration settings if necessary.
+    // ///
+    // /// # Arguments
+    // ///
+    // /// * `config` - Configuration settings.
+    // ///
+    // /// # Returns
+    // ///
+    // /// * `Result<()>` - An Ok result or an error.
+    // fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    //     let _ = config; // to appease clippy
+    //     Ok(())
+    // }
 
     /// Initialize the component with a specified area if necessary.
     ///
