@@ -1,21 +1,23 @@
 use color_eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Direction, Layout, Margin, Rect};
+use ratatui::layout::{Constraint, Margin, Rect};
 use ratatui::prelude::Span;
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::widgets::{
-    Block, BorderType, Borders, Cell, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table,
+    Block, BorderType, Cell, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table,
     TableState,
 };
 use throbber_widgets_tui::{Throbber, ThrobberState};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
+use crate::components::columns::CONNECTION_COLS;
 use crate::components::shortcut::Shortcut;
 use crate::components::{AppState, Component, ComponentId};
-use crate::utils::byte_size::human_bytes;
 
 const ROW_HEIGHT: usize = 1;
+const COLS_LEN: usize = CONNECTION_COLS.len();
 
 #[derive(Debug, Clone, Copy)]
 struct LiveMode(bool);
@@ -28,22 +30,19 @@ impl Default for LiveMode {
 
 #[derive(Debug, Default)]
 pub struct ConnectionsComponent {
+    should_send_sort: bool,
+    sort_desc: bool,
+    selected_column: usize, // starting with 1, default no sorting
     viewport: u16,
     live_mode: LiveMode,
     item_size: usize,
     table_state: TableState,
     scroll_state: ScrollbarState,
     throbber_state: ThrobberState,
+    action_tx: Option<UnboundedSender<Action>>,
 }
 
 impl ConnectionsComponent {
-    fn render_header(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) {
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title(Span::styled("Filter", Color::Cyan));
-        frame.render_widget(block, area);
-    }
-
     fn render_table(&mut self, frame: &mut Frame, area: Rect, state: &AppState) {
         let records = {
             let conns = state.connections.lock().unwrap();
@@ -55,55 +54,43 @@ impl ConnectionsComponent {
             .content_length(self.item_size * ROW_HEIGHT);
 
         self.viewport = area.height.saturating_sub(2); // borders
-        let block = Block::default()
-            .borders(Borders::ALL)
+        let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .title(Span::styled(
-                format!("Connections ({})", self.item_size),
+                format!("connections ({})", self.item_size),
                 Style::default().fg(Color::Cyan),
             ));
-        let header = [
-            "Host",
-            "Rule",
-            "Chains",
-            "DownRate",
-            "UpRate",
-            "DownTotal",
-            "UpTotal",
-            "SourceIP",
-        ]
-        .into_iter()
-        .map(|v| Cell::from(v).bold())
-        .collect::<Row>()
-        .height(1)
-        .bottom_margin(1);
+        let header = CONNECTION_COLS
+            .iter()
+            .map(|def| def.title)
+            .enumerate()
+            .map(|(index, title)| {
+                if index + 1 == self.selected_column {
+                    let arrow = if self.sort_desc { "▿" } else { "▵" };
+                    Cell::from(format!("{} {}", title, arrow)).bold().cyan()
+                } else {
+                    Cell::from(title).bold()
+                }
+            })
+            .collect::<Row>()
+            .height(1)
+            .bottom_margin(1);
         let selected_row_style = Style::default()
             .add_modifier(Modifier::REVERSED)
             .fg(Color::Cyan);
 
         // TODO: Implement virtualized rendering: only render rows within the visible viewport
-        let rows = records.iter().map(|item| {
-            let cells = vec![
-                Cell::from(item.metadata.host.as_str()),
-                Cell::from(item.rule.as_str()),
-                Cell::from(item.chains.join(" > ")),
-                Cell::from("-"), // todo: calculate rate
-                Cell::from("-"),
-                Cell::from(human_bytes(item.download as f64, None)),
-                Cell::from(human_bytes(item.upload as f64, None)),
-                Cell::from(item.metadata.source_ip.as_str()),
-            ];
-            Row::new(cells).height(ROW_HEIGHT as u16)
-        });
-        let host_width = records
+        let rows: Vec<Row> = records
             .iter()
-            .map(|item| item.metadata.host.len())
-            .max()
-            .unwrap_or(0);
+            .map(|item| {
+                Row::new(CONNECTION_COLS.iter().map(|def| (def.accessor)(item)))
+                    .height(ROW_HEIGHT as u16)
+            })
+            .collect();
         let table = Table::new(
             rows,
             [
-                Constraint::Length(host_width as u16),
+                Constraint::Min(30),
                 Constraint::Max(15),
                 Constraint::Min(10),
                 Constraint::Max(15),
@@ -204,37 +191,66 @@ impl Component for ConnectionsComponent {
         ]
     }
 
+    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+        self.action_tx = Some(tx);
+        Ok(())
+    }
+
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        // TODO handle G, g, j, k, ...
-        let shift_pressed = key.modifiers.contains(KeyModifiers::SHIFT);
         match key.code {
             KeyCode::Esc => {
                 self.table_state.select(None);
                 self.scroll_state = self.scroll_state.position(0);
-                Ok(Some(Action::LiveMode(true)))
+                return Ok(Some(Action::LiveMode(true)));
             }
             KeyCode::Char('g') => {
                 self.first_row();
-                Ok(Some(Action::LiveMode(false)))
+                return Ok(Some(Action::LiveMode(false)));
             }
             KeyCode::Char('G') => {
                 self.last_row();
-                Ok(Some(Action::LiveMode(false)))
+                return Ok(Some(Action::LiveMode(false)));
             }
             KeyCode::Char('j') | KeyCode::Down => {
                 self.next_row();
-                Ok(Some(Action::LiveMode(false)))
+                return Ok(Some(Action::LiveMode(false)));
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 self.prev_row();
-                Ok(Some(Action::LiveMode(false)))
+                return Ok(Some(Action::LiveMode(false)));
             }
-            KeyCode::Enter => Ok(self
-                .table_state
-                .selected()
-                .map(Action::RequestConnectionDetail)),
-            _ => Ok(None),
-        }
+            KeyCode::Char('h') | KeyCode::Left => {
+                if self.selected_column == 0 {
+                    self.selected_column = COLS_LEN - 1;
+                } else {
+                    self.selected_column -= 1;
+                }
+                self.should_send_sort = true;
+            }
+            KeyCode::Char('l') | KeyCode::Right => {
+                // todo consider skipping non-sortable columns
+                if self.selected_column == COLS_LEN {
+                    self.selected_column = 0;
+                } else {
+                    self.selected_column += 1;
+                }
+                self.should_send_sort = true;
+            }
+            KeyCode::Char('r') => {
+                self.sort_desc = !self.sort_desc;
+                self.should_send_sort = true;
+            }
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
+            KeyCode::Enter => {
+                return Ok(self
+                    .table_state
+                    .selected()
+                    .map(Action::RequestConnectionDetail));
+            }
+            _ => (),
+        };
+
+        Ok(None)
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
@@ -242,6 +258,18 @@ impl Component for ConnectionsComponent {
             Action::Tick => {
                 if self.live_mode.0 {
                     self.throbber_state.calc_next();
+                }
+                if self.should_send_sort {
+                    self.should_send_sort = false;
+                    let ordering: Option<(usize, bool)> = if self.selected_column > 0 {
+                        Some((self.selected_column - 1, self.sort_desc))
+                    } else {
+                        None
+                    };
+                    self.action_tx
+                        .as_ref()
+                        .unwrap()
+                        .send(Action::Ordering(ordering))?;
                 }
             }
             Action::LiveMode(live) => {
@@ -254,14 +282,8 @@ impl Component for ConnectionsComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()> {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(4), Constraint::Min(0)])
-            .split(area);
-
-        self.render_header(frame, chunks[0], state);
-        self.render_table(frame, chunks[1], state);
-        self.render_scrollbar(frame, chunks[1]);
+        self.render_table(frame, area, state);
+        self.render_scrollbar(frame, area);
 
         Ok(())
     }

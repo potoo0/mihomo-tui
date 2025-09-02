@@ -1,7 +1,7 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::prelude::{Span, Style};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Paragraph};
 
 use crate::components::{AppState, Component, ComponentId};
 
@@ -14,7 +14,7 @@ impl Component for LogsComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> color_eyre::Result<()> {
-        let outer_block = Block::default().borders(Borders::ALL);
+        let outer_block = Block::bordered().border_type(BorderType::Rounded);
         frame.render_widget(outer_block, area);
 
         let span = Span::styled("Log", Style::new());

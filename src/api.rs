@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use color_eyre::Result;
 use color_eyre::eyre::{Context, eyre};
+use futures_util::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
 use serde::de::DeserializeOwned;
-use tokio_stream::{Stream, StreamExt};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -104,12 +104,14 @@ impl Api {
             request.headers()
         );
         let (stream, _) = connect_async(request).await?;
-        let stream = stream.filter_map(|msg| match msg {
-            Ok(Message::Text(txt)) => match serde_json::from_str::<T>(&txt) {
-                Ok(v) => Some(Ok(v)),
-                Err(e) => Some(Err(eyre!(e))),
-            },
-            _ => None,
+        let stream = stream.filter_map(|msg| async {
+            match msg {
+                Ok(Message::Text(txt)) => match serde_json::from_str::<T>(&txt) {
+                    Ok(v) => Some(Ok(v)),
+                    Err(e) => Some(Err(eyre!(e))),
+                },
+                _ => None,
+            }
         });
         Ok(stream)
     }
@@ -141,9 +143,8 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::{Arc, Once};
 
-    use tokio::select;
+    use futures_util::{StreamExt, future, pin_mut};
     use tokio::sync::mpsc;
-    use tokio_stream::{Stream, StreamExt};
     use tokio_util::sync::CancellationToken;
 
     use super::*;
@@ -168,27 +169,39 @@ mod tests {
             ($name:literal, $method:ident, $api:expr, $n:expr) => {{
                 let api = Arc::clone(&$api);
                 tokio::spawn(async move {
-                    let mut stream = api.$method().await.unwrap();
-                    let mut count = 0;
-                    while let Some(msg) = stream.next().await {
-                        debug!("[{:>12}]\tmsg: {:?}", $name, msg);
-                        count += 1;
-                        if count >= $n {
-                            break;
-                        }
-                    }
+                    api.$method()
+                        .await
+                        .unwrap()
+                        .take($n)
+                        .for_each(|msg| {
+                            debug!("[{:>12}]\tmsg: {:?}", $name, msg);
+                            future::ready(())
+                        })
+                        .await
                 })
             }};
         }
 
         let handles = vec![
-            spawn_consumer!("connections", get_connections, api, 10),
             spawn_consumer!("memory", get_memory, api, 10),
             spawn_consumer!("traffic", get_traffic, api, 10),
         ];
 
         for h in handles {
             let _ = h.await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_connections() {
+        init_logger();
+        let api = init_api();
+
+        let stream = api.get_connections().await.unwrap().take(10);
+        pin_mut!(stream);
+        while let Some(msg) = stream.next().await {
+            let value = msg.unwrap().connections[0].metadata.clone();
+            debug!("meta: {value:?}");
         }
     }
 
@@ -204,18 +217,15 @@ mod tests {
         tokio::task::Builder::new()
             .name("consumer")
             .spawn(async move {
-                let mut stream = api.get_logs(Some(LogLevel::Debug)).await.unwrap();
-
-                loop {
-                    select! {
-                        _ = token_cloned.cancelled() => {
-                            break;
-                        },
-                        Some(msg) = stream.next() => {
-                            msg_tx.send(msg).unwrap();
-                        }
-                    }
-                }
+                api.get_logs(Some(LogLevel::Debug))
+                    .await
+                    .unwrap()
+                    .take_until(token_cloned.cancelled())
+                    .for_each(|msg| {
+                        msg_tx.send(msg).unwrap();
+                        future::ready(())
+                    })
+                    .await
             })
             .unwrap();
 

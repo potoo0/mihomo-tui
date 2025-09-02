@@ -1,10 +1,11 @@
-use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Tabs;
 use ratatui::{Frame, symbols};
 
 use crate::action::Action;
+use crate::components::highlight::{Fragment, HighlightedLine};
 use crate::components::{AppState, Component, ComponentId, SUPERSCRIPT_NUMS, TABS};
 
 #[derive(Default)]
@@ -18,11 +19,11 @@ impl HeaderComponent {
             .iter()
             .enumerate()
             .map(|(i, cid)| {
-                let superscript = SUPERSCRIPT_NUMS[i + 1 % SUPERSCRIPT_NUMS.len()];
-                Line::from(vec![
-                    Span::styled(superscript, Style::default().fg(Color::Rgb(175, 95, 95))),
-                    Span::from(cid.to_string()),
+                HighlightedLine::new(vec![
+                    Fragment::Hl(SUPERSCRIPT_NUMS[i + 1 % SUPERSCRIPT_NUMS.len()]),
+                    Fragment::RawOwned(cid.to_string()),
                 ])
+                .into()
             })
             .collect();
         let selected_index = TABS
@@ -66,9 +67,7 @@ impl Component for HeaderComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> color_eyre::Result<()> {
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        let chunks = Layout::horizontal([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area);
 
         frame.render_widget(self.tab_widget(), chunks[0]);

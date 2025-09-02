@@ -1,48 +1,54 @@
+use std::borrow::Cow;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
 use color_eyre::Result;
+use futures_util::{StreamExt, TryStreamExt, future};
+use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::prelude::Rect;
-use tokio::select;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::action::Action;
 use crate::api::Api;
+use crate::components::columns::CONNECTION_COLS;
 use crate::components::root_component::RootComponent;
 use crate::components::{AppState, Component};
 use crate::config::Config;
-use crate::models::Version;
+use crate::models::{Connection, Version};
 use crate::tui::{Event, Tui};
 
 pub struct App {
-    config: Config,
+    _config: Config,
     api: Arc<Api>,
     token: CancellationToken,
     state: AppState,
+    matcher: Arc<SkimMatcherV2>,
     root: RootComponent,
+
     should_quit: bool,
     should_suspend: bool,
-    live_mode: Arc<AtomicBool>,
     action_tx: UnboundedSender<Action>,
     action_rx: UnboundedReceiver<Action>,
 }
 
 impl App {
-    pub fn new(config: Config, api: Api) -> Result<Self> {
+    pub fn new(_config: Config, api: Api) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let state = AppState::default();
+        let state = AppState::new(true);
+        let matcher = SkimMatcherV2::default();
         Ok(Self {
-            config,
+            _config,
             api: Arc::new(api),
             token: CancellationToken::new(),
             state,
+            matcher: Arc::new(matcher),
             root: RootComponent::new(),
+
             should_quit: false,
             should_suspend: false,
-            live_mode: Arc::new(AtomicBool::new(true)),
             action_tx,
             action_rx,
         })
@@ -89,33 +95,29 @@ impl App {
         info!("Loading memory");
         let token = self.token.clone();
         let api = Arc::clone(&self.api);
-        let memory_vec = Arc::clone(&self.state.memory);
+        let store = Arc::clone(&self.state.memory);
 
         tokio::task::Builder::new()
             .name("memory-loader")
             .spawn(async move {
-                match api.get_memory().await {
-                    Ok(mut stream) => loop {
-                        select! {
-                            _ = token.cancelled() => {
-                                break;
-                            },
-                            Some(msg) = stream.next() => {
-                                match msg {
-                                    Ok(memory) if memory.used > 0 => {
-                                        let mut guard = memory_vec.lock().unwrap();
-                                        guard.push_back(memory);
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to get memory: {e}");
-                                    },
-                                    _ => {}
-                                }
-                            }
+                let stream = match api.get_memory().await {
+                    Ok(stream) => stream,
+                    Err(e) => {
+                        warn!("Failed to get memory stream: {e}");
+                        return;
+                    }
+                };
+                stream
+                    .take_until(token.cancelled())
+                    .inspect_err(|e| warn!("Failed to parse memory: {e}"))
+                    .filter_map(|res| future::ready(res.ok()))
+                    .for_each(|record| {
+                        if record.used > 0 {
+                            store.lock().unwrap().push_back(record);
                         }
-                    },
-                    Err(e) => warn!("get memory stream failed: {e}"),
-                }
+                        future::ready(())
+                    })
+                    .await;
             })?;
         Ok(())
     }
@@ -124,32 +126,27 @@ impl App {
         info!("Loading traffic");
         let token = self.token.clone();
         let api = Arc::clone(&self.api);
-        let holder = Arc::clone(&self.state.traffic);
+        let store = Arc::clone(&self.state.traffic);
 
         tokio::task::Builder::new()
             .name("traffic-loader")
             .spawn(async move {
-                match api.get_traffic().await {
-                    Ok(mut stream) => loop {
-                        select! {
-                            _ = token.cancelled() => {
-                                break;
-                            },
-                            Some(msg) = stream.next() => {
-                                match msg {
-                                    Ok(record) => {
-                                        let mut guard = holder.lock().unwrap();
-                                        guard.push_back(record);
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to get traffic: {e}");
-                                    },
-                                }
-                            }
-                        }
-                    },
-                    Err(e) => warn!("get traffic stream failed: {e}"),
-                }
+                let stream = match api.get_traffic().await {
+                    Ok(stream) => stream,
+                    Err(e) => {
+                        warn!("Failed to get traffic stream: {e}");
+                        return;
+                    }
+                };
+                stream
+                    .take_until(token.cancelled())
+                    .inspect_err(|e| warn!("Failed to parse traffic: {e}"))
+                    .filter_map(|res| future::ready(res.ok()))
+                    .for_each(|record| {
+                        store.lock().unwrap().push_back(record);
+                        future::ready(())
+                    })
+                    .await;
             })?;
         Ok(())
     }
@@ -158,45 +155,78 @@ impl App {
         info!("Loading connections");
         let token = self.token.clone();
         let api = Arc::clone(&self.api);
-        let live_mode = Arc::clone(&self.live_mode);
+        let live_mode = Arc::clone(&self.state.live_mode);
         let conn_stat = Arc::clone(&self.state.conn_stat);
         let connections_vec = Arc::clone(&self.state.connections);
+        let matcher = Arc::clone(&self.matcher);
+        let filter_pattern = Arc::clone(&self.state.filter_pattern);
+        let ordering = Arc::clone(&self.state.ordering);
 
         tokio::task::Builder::new()
             .name("connections-loader")
             .spawn(async move {
-                match api.get_connections().await {
-                    Ok(mut stream) => loop {
-                        select! {
-                            _ = token.cancelled() => {
-                                break;
-                            },
-                            Some(msg) = stream.next() => {
-                                match msg {
-                                    Ok(record) => {
-                                        if live_mode.load(Ordering::Relaxed) {
-                                        {
-                                            let mut stat_guard = conn_stat.lock().unwrap();
-                                            *stat_guard = Some((&record).into());
-                                        }
-                                        {
-                                            let mut guard = connections_vec.lock().unwrap();
-                                            guard.clear();
-                                            guard.extend(record.connections);
-                                        }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        warn!("Failed to get connections: {e}");
-                                    },
-                                }
+                let stream = match api.get_connections().await {
+                    Ok(stream) => stream,
+                    Err(e) => {
+                        warn!("Failed to get connections stream: {e}");
+                        return;
+                    }
+                };
+                stream
+                    .take_until(token.cancelled())
+                    .inspect_err(|e| warn!("Failed to parse connections: {e}"))
+                    .filter_map(|res| future::ready(res.ok()))
+                    .for_each(|record| {
+                        if live_mode.load(Ordering::Relaxed) {
+                            *conn_stat.lock().unwrap() = Some((&record).into());
+                            {
+                                let pat = filter_pattern.read().unwrap().clone();
+                                let pat = pat.as_deref();
+                                let connections =
+                                    Self::filter_connections(&matcher, pat, record.connections);
+                                let ord = *ordering.read().unwrap();
+                                let connections = if let Some((col, desc)) = ord {
+                                    let mut conns = connections;
+                                    let col_def = &CONNECTION_COLS[col];
+                                    conns.sort_by(|a, b| col_def.ordering(a, b, desc));
+                                    conns
+                                } else {
+                                    connections
+                                };
+
+                                let mut guard = connections_vec.lock().unwrap();
+                                guard.clear();
+                                guard.extend(connections);
                             }
                         }
-                    },
-                    Err(e) => warn!("get connections stream failed: {e}"),
-                }
+                        future::ready(())
+                    })
+                    .await;
             })?;
         Ok(())
+    }
+
+    fn filter_connections(
+        matcher: &SkimMatcherV2,
+        pattern: Option<&str>,
+        src: Vec<Connection>,
+    ) -> Vec<Connection> {
+        let pat = match pattern {
+            Some(p) if !p.is_empty() => p,
+            _ => return src,
+        };
+
+        src.into_iter()
+            .filter(|c| {
+                CONNECTION_COLS
+                    .iter()
+                    .filter(|col| col.filterable)
+                    .any(|col| {
+                        let text: Cow<'_, str> = (col.accessor)(c);
+                        matcher.fuzzy_match(&text, pat).is_some()
+                    })
+            })
+            .collect()
     }
 
     async fn handle_events(&mut self, tui: &mut Tui) -> Result<()> {
@@ -234,12 +264,34 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
-                Action::LiveMode(live) => self.live_mode.store(live, Ordering::Relaxed),
+                Action::LiveMode(live) => self.state.live_mode.store(live, Ordering::Relaxed),
+                Action::TabSwitch(to) => {
+                    self.state.focused = to;
+                    *self.state.filter_pattern.write().unwrap() = None;
+                    *self.state.ordering.write().unwrap() = None;
+                }
                 Action::RequestConnectionDetail(index) => {
                     let guard = self.state.connections.lock().unwrap();
                     if let Some(conn) = guard.get(index) {
                         self.action_tx
-                            .send(Action::ConnectionDetail(conn.clone()))?;
+                            .send(Action::ConnectionDetail(Box::new(conn.clone())))?;
+                    }
+                }
+                Action::SearchInputChanged(ref pattern) => {
+                    debug!("Search changed: {:?} at {:?}", pattern, self.state.focused);
+                    *self.state.filter_pattern.write().unwrap() = pattern.clone();
+                }
+                Action::Ordering(ref ord) => {
+                    debug!("Ordering changed: {:?} at {:?}", ord, self.state.focused);
+                    *self.state.ordering.write().unwrap() = *ord;
+                    if let Some((col, desc)) = *ord
+                        && !self.state.live_mode.load(Ordering::Relaxed)
+                    {
+                        let mut guard = self.state.connections.lock().unwrap();
+                        let mut conns: Vec<Connection> = guard.drain(..).collect();
+                        let col_def = &CONNECTION_COLS[col];
+                        conns.sort_by(|a, b| col_def.ordering(a, b, desc));
+                        guard.extend(conns);
                     }
                 }
                 _ => {}
@@ -266,5 +318,37 @@ impl App {
             }
         })?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_fuzzy_match() {
+        use fuzzy_matcher::FuzzyMatcher;
+        use fuzzy_matcher::skim::SkimMatcherV2;
+
+        let matcher = SkimMatcherV2::default();
+        let text = "nginx: worker process";
+
+        let pattern = "nginx";
+        let score = matcher.fuzzy_match(text, pattern);
+        assert!(score.is_some());
+        println!("Score: {:?}", score);
+
+        let pattern = "wrk";
+        let score = matcher.fuzzy_match(text, pattern);
+        assert!(score.is_some());
+        println!("Score: {:?}", score);
+
+        let pattern = "apache";
+        let score = matcher.fuzzy_match(text, pattern);
+        assert!(score.is_none());
+        println!("Score: {:?}", score);
+
+        let pattern = "krw";
+        let score = matcher.fuzzy_match(text, pattern);
+        assert!(score.is_none());
+        println!("Score: {:?}", score);
     }
 }

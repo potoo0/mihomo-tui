@@ -1,8 +1,10 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
+use ratatui::style::Color;
+use ratatui::symbols::line;
 use ratatui::widgets::{
-    Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Block, BorderType, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
 };
 use serde::Serialize;
 use serde_json::Serializer;
@@ -77,9 +79,15 @@ impl Component for ConnectionDetailComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> color_eyre::Result<Option<Action>> {
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter => return Ok(Some(Action::Quit)),
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return Ok(Some(Action::Quit));
+            }
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter => {
+                self.hide();
+                return Ok(Some(Action::Unfocus));
+            }
             KeyCode::Char('j') | KeyCode::Down => {
-                self.scroll = self.scroll.saturating_add(1);
+                self.scroll = self.scroll.saturating_add(1).min(self.total_lines - 1);
                 self.scroll_state = self.scroll_state.position(self.scroll);
             }
             KeyCode::Char('k') | KeyCode::Up => {
@@ -87,7 +95,10 @@ impl Component for ConnectionDetailComponent {
                 self.scroll_state = self.scroll_state.position(self.scroll);
             }
             KeyCode::PageDown | KeyCode::Char(' ') => {
-                self.scroll = self.scroll.saturating_add(self.viewport);
+                self.scroll = self
+                    .scroll
+                    .saturating_add(self.viewport)
+                    .min(self.total_lines - 1);
                 self.scroll_state = self.scroll_state.position(self.scroll);
             }
             KeyCode::PageUp => {
@@ -101,7 +112,7 @@ impl Component for ConnectionDetailComponent {
 
     fn update(&mut self, action: Action) -> color_eyre::Result<Option<Action>> {
         if let Action::ConnectionDetail(connection) = action {
-            self.show(connection)
+            self.show(*connection)
         };
 
         Ok(None)
@@ -112,27 +123,28 @@ impl Component for ConnectionDetailComponent {
             return Ok(());
         }
 
-        let area = Self::popup_area(area, 80, 80);
-        self.viewport = area.height.saturating_sub(2) as usize;
+        let area = Self::popup_area(area, 80, 75);
+        self.viewport = area.height.saturating_sub(2) as usize; // minus borders
 
         // content
-        let para = Paragraph::new(self.data.as_str())
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::LightBlue)
+            .title(" detail ");
+        let paragraph = Paragraph::new(self.data.as_str())
             .scroll((self.scroll as u16, 0))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title("Connection Detail"),
-            );
+            .block(block);
 
         frame.render_widget(Clear, area); // clears out the background
-        frame.render_widget(para, area);
+        frame.render_widget(paragraph, area);
 
         // scrollbar
-        let sb = Scrollbar::default()
+        let scrollbar = Scrollbar::default()
             .orientation(ScrollbarOrientation::VerticalRight)
+            .track_symbol(Some(line::VERTICAL))
             .begin_symbol(Some("↑"))
             .end_symbol(Some("↓"));
-        frame.render_stateful_widget(sb, area, &mut self.scroll_state);
+        frame.render_stateful_widget(scrollbar, area, &mut self.scroll_state);
 
         Ok(())
     }

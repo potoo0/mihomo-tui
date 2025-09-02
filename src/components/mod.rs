@@ -1,10 +1,14 @@
+pub mod columns;
 mod connection_detail_component;
 mod connections_component;
 mod footer_component;
 mod header_component;
+mod help_component;
+mod highlight;
 mod logs_component;
 mod overview_component;
 pub mod root_component;
+mod search_component;
 pub mod shortcut;
 mod state;
 
@@ -29,6 +33,7 @@ const SUPERSCRIPT_NUMS: [&str; 10] = ["⁰", "¹", "²", "³", "⁴", "⁵", "�
 
 #[derive(PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
 pub enum ComponentId {
+    Help,
     Root,
     Header,
     Footer,
@@ -36,6 +41,7 @@ pub enum ComponentId {
     ConnectionDetail,
     Connections,
     Logs,
+    Search,
 }
 
 impl Default for ComponentId {

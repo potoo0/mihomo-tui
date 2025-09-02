@@ -26,7 +26,8 @@ impl ByteSizeOptExt for Option<ByteSize> {
 }
 
 pub fn human_bytes(bytes: f64, suffix: Option<&str>) -> String {
-    let mut size = bytes;
+    let sign = if bytes.is_sign_negative() { "-" } else { "" };
+    let mut size = bytes.abs();
     let mut unit_index = 0;
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
@@ -34,8 +35,8 @@ pub fn human_bytes(bytes: f64, suffix: Option<&str>) -> String {
     }
     let suffix = suffix.unwrap_or("");
     if unit_index == 0 {
-        format!("{} {}{}", size as u64, UNITS[unit_index], suffix)
+        format!("{}{} {}{}", sign, size as u64, UNITS[unit_index], suffix)
     } else {
-        format!("{:.1} {}{}", size, UNITS[unit_index], suffix)
+        format!("{}{:.1} {}{}", sign, size, UNITS[unit_index], suffix)
     }
 }

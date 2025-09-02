@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use color_eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Rect};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 
@@ -12,8 +12,10 @@ use crate::components::connection_detail_component::ConnectionDetailComponent;
 use crate::components::connections_component::ConnectionsComponent;
 use crate::components::footer_component::FooterComponent;
 use crate::components::header_component::HeaderComponent;
+use crate::components::help_component::HelpComponent;
 use crate::components::logs_component::LogsComponent;
 use crate::components::overview_component::OverviewComponent;
+use crate::components::search_component::SearchComponent;
 use crate::components::{AppState, Component, ComponentId, TABS};
 
 #[derive(Default)]
@@ -22,6 +24,7 @@ pub struct RootComponent {
     components: HashMap<ComponentId, Box<dyn Component>>,
     action_tx: Option<UnboundedSender<Action>>,
     popup: Option<ComponentId>,
+    focused: Option<ComponentId>,
 }
 
 impl RootComponent {
@@ -47,13 +50,29 @@ impl RootComponent {
                 ComponentId::Overview => Box::new(OverviewComponent::default()),
                 ComponentId::Connections => Box::new(ConnectionsComponent::default()),
                 ComponentId::Logs => Box::new(LogsComponent::default()),
+                ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
+                ComponentId::Search => Box::new(SearchComponent::default()),
                 _ => panic!("unsupported component {:?}", id),
             };
             c.register_action_handler(self.action_tx.as_ref().unwrap().clone())
                 .unwrap();
             c
         })
+    }
+
+    fn open_popup(&mut self, id: ComponentId) -> Result<()> {
+        self.popup = Some(id);
+
+        // get and init component, send shortcuts of current tab to footer
+        let shortcuts = self.get_or_init(id).shortcuts();
+        let tx = self.action_tx.as_ref().unwrap();
+        tx.send(Action::Shortcuts(shortcuts))?;
+
+        // focus the popup component
+        tx.send(Action::Focus(id))?;
+
+        Ok(())
     }
 }
 
@@ -68,23 +87,18 @@ impl Component for RootComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        // handle popup first: if it's returned Action::Quit, close the popup; otherwise propagate
-        // the action
-        if let Some(popup) = self.popup {
-            if let Some(action) = self.get_or_init(popup).handle_key_event(key)? {
-                if matches!(action, Action::Quit) {
-                    self.popup = None;
-                    return Ok(None);
-                }
-                return Ok(Some(action));
-            }
-            return Ok(None);
+        // The focused component exclusively handles key events.
+        if let Some(focused) = self.focused {
+            return self.get_or_init(focused).handle_key_event(key);
         }
 
         match key.code {
-            KeyCode::Char('q') => {
-                self.action_tx.as_ref().unwrap().send(Action::Quit)?;
-                return Ok(None);
+            KeyCode::Char('q') => return Ok(Some(Action::Quit)),
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return Ok(Some(Action::Quit));
+            }
+            KeyCode::Char('h') => {
+                return Ok(Some(Action::Help));
             }
             KeyCode::Char(c) if c.is_ascii_digit() => {
                 let index = (c as u8 - b'0') as usize;
@@ -116,14 +130,21 @@ impl Component for RootComponent {
                     .unwrap()
                     .send(Action::Shortcuts(shortcuts))?;
             }
-            Action::ConnectionDetail(_) => {
-                self.popup = Some(ComponentId::ConnectionDetail);
-                // get and init component, send shortcuts of current tab to footer
-                let shortcuts = self.get_or_init(self.popup.unwrap()).shortcuts();
-                self.action_tx
-                    .as_ref()
-                    .unwrap()
-                    .send(Action::Shortcuts(shortcuts))?;
+            Action::Help => self.open_popup(ComponentId::Help)?,
+            Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
+            Action::Focus(focused) => self.focused = Some(focused),
+            Action::Unfocus => {
+                self.focused = None;
+                // close popup when unfocused
+                if self.popup.is_some() {
+                    self.popup = None;
+                    // send shortcuts of current tab to footer
+                    let shortcuts = self.get_or_init(self.current_tab).shortcuts();
+                    self.action_tx
+                        .as_ref()
+                        .unwrap()
+                        .send(Action::Shortcuts(shortcuts))?;
+                }
             }
             _ => {}
         }
@@ -135,24 +156,34 @@ impl Component for RootComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()> {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Min(0),
-                Constraint::Length(1),
-            ])
-            .split(area);
+        let chunks = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(1),
+        ])
+        .split(area);
 
         self.get_or_init(ComponentId::Header)
             .draw(frame, chunks[0], state)?;
-        self.get_or_init(self.current_tab)
-            .draw(frame, chunks[1], state)?;
+        self.get_or_init(ComponentId::Footer)
+            .draw(frame, chunks[2], state)?;
+
+        if self.current_tab == ComponentId::Connections || self.current_tab == ComponentId::Logs {
+            let inner_chunks =
+                Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
+            self.get_or_init(ComponentId::Search)
+                .draw(frame, inner_chunks[0], state)?;
+            self.get_or_init(self.current_tab)
+                .draw(frame, inner_chunks[1], state)?;
+        } else {
+            self.get_or_init(self.current_tab)
+                .draw(frame, chunks[1], state)?;
+        }
+
         self.popup
             .map(|c| self.get_or_init(c).draw(frame, chunks[1], state))
             .transpose()?;
-        self.get_or_init(ComponentId::Footer)
-            .draw(frame, chunks[2], state)?;
+
         Ok(())
     }
 }
