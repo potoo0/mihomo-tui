@@ -23,11 +23,13 @@ impl Config {
     pub fn new(path: Option<PathBuf>) -> Result<Self> {
         // If config file path is provided, read from it directly
         if let Some(ref config_path) = path {
+            info!("Using config file at `{}`", config_path.display());
             return Self::read_from_file(config_path);
         }
 
         let default_config: Config = serde_yml::from_str(DEFAULT_CONFIG)?;
         let config_path: PathBuf = get_config_path();
+        info!("Using default config file at `{}`", config_path.display());
         // If config file does not exist, create one with default content
         if !config_path.is_file() {
             fs::write(&config_path, DEFAULT_CONFIG)

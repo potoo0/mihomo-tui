@@ -34,9 +34,12 @@ $ mihomo-tui -h
 Usage: mihomo-tui [OPTIONS]
 
 Options:
-  -c, --config <CONFIG_FILE>  Path to config file, leave empty to use default path
-  -h, --help                  Print help
-  -V, --version               Print version
+  -c, --config <CONFIG_FILE>
+          Path to config file (default: /home/wsl/.config/mihomo-tui/config.yaml)
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 ```
 
 ## Configuration

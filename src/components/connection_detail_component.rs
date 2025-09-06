@@ -1,3 +1,4 @@
+use const_format::concatcp;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
@@ -14,6 +15,7 @@ use crate::action::Action;
 use crate::components::shortcut::Shortcut;
 use crate::components::{AppState, Component, ComponentId};
 use crate::models::Connection;
+use crate::utils::symbols::arrow;
 
 const INDENT: &[u8; 4] = b"    "; // 4 spaces
 
@@ -28,7 +30,7 @@ pub struct ConnectionDetailComponent {
 }
 
 impl ConnectionDetailComponent {
-    fn show(&mut self, data: Connection) {
+    fn show(&mut self, data: &Connection) {
         self.show = true;
         self.scroll = 0;
 
@@ -43,7 +45,7 @@ impl ConnectionDetailComponent {
         self.data = String::default();
     }
 
-    fn pretty(data: Connection) -> String {
+    fn pretty(data: &Connection) -> String {
         let mut buf = Vec::with_capacity(512);
         let formatter = PrettyFormatter::with_indent(INDENT);
         let mut ser = Serializer::with_formatter(&mut buf, formatter);
@@ -70,8 +72,8 @@ impl Component for ConnectionDetailComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new("j|↓", "Scroll Down"),
-            Shortcut::new("k|↑", "Scroll Up"),
+            Shortcut::new(concatcp!("j/", arrow::DOWN), "Scroll Down"),
+            Shortcut::new(concatcp!("k/", arrow::UP), "Scroll Up"),
             Shortcut::new("Space|PageDown", "Page Down"),
             Shortcut::new("PageUp", "Page Up"),
         ]
@@ -109,7 +111,7 @@ impl Component for ConnectionDetailComponent {
 
     fn update(&mut self, action: Action) -> color_eyre::Result<Option<Action>> {
         if let Action::ConnectionDetail(connection) = action {
-            self.show(*connection)
+            self.show(connection.as_ref())
         };
 
         Ok(None)
@@ -135,11 +137,10 @@ impl Component for ConnectionDetailComponent {
         frame.render_widget(paragraph, area);
 
         // scrollbar
-        let scrollbar = Scrollbar::default()
-            .orientation(ScrollbarOrientation::VerticalRight)
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .track_symbol(Some(line::VERTICAL))
-            .begin_symbol(Some("↑"))
-            .end_symbol(Some("↓"));
+            .begin_symbol(Some(arrow::UP))
+            .end_symbol(Some(arrow::DOWN));
         frame.render_stateful_widget(scrollbar, area, &mut self.scroll_state);
 
         Ok(())

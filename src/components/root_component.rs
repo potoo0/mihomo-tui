@@ -1,13 +1,21 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use futures_util::{StreamExt, TryStreamExt, future};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::style::Stylize;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::debug;
+use tokio::sync::{broadcast, watch};
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, info, warn};
 
 use crate::action::Action;
+use crate::api::Api;
 use crate::components::connection_detail_component::ConnectionDetailComponent;
 use crate::components::connections_component::ConnectionsComponent;
 use crate::components::footer_component::FooterComponent;
@@ -17,38 +25,62 @@ use crate::components::logs_component::LogsComponent;
 use crate::components::overview_component::OverviewComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{AppState, Component, ComponentId, TABS};
+use crate::models::{Connection, ConnectionStats};
 
-#[derive(Default)]
+/// Minimum terminal area `(width, height)` to render the UI properly.
+const MIN_AREA: (u16, u16) = (100, 18);
+
 pub struct RootComponent {
+    token: CancellationToken,
+    api: Option<Arc<Api>>,
     current_tab: ComponentId,
-    components: HashMap<ComponentId, Box<dyn Component>>,
-    action_tx: Option<UnboundedSender<Action>>,
     popup: Option<ComponentId>,
     focused: Option<ComponentId>,
+    components: HashMap<ComponentId, Box<dyn Component>>,
+    action_tx: Option<UnboundedSender<Action>>,
+
+    stats_tx: watch::Sender<Option<ConnectionStats>>,
+    stats_rx: watch::Receiver<Option<ConnectionStats>>,
+    conns_tx: broadcast::Sender<Vec<Connection>>,
 }
 
 impl RootComponent {
     pub fn new() -> Self {
-        let components: Vec<Box<dyn Component>> = vec![
-            Box::new(HeaderComponent::default()),
-            Box::new(FooterComponent::default()),
-            Box::new(OverviewComponent::default()), // corresponds to ComponentId::Default
-        ];
+        let components: Vec<Box<dyn Component>> =
+            vec![Box::new(HeaderComponent::default()), Box::new(FooterComponent::default())];
         let components = components.into_iter().map(|c| (c.id(), c)).collect::<HashMap<_, _>>();
-        Self { components, ..Self::default() }
+        let (stats_tx, stats_rx) = watch::channel::<Option<ConnectionStats>>(None);
+        let (conns_tx, _) = broadcast::channel::<Vec<Connection>>(4);
+
+        Self {
+            token: CancellationToken::new(),
+            api: Default::default(),
+            current_tab: Default::default(),
+            popup: Default::default(),
+            focused: Default::default(),
+            components,
+            action_tx: Default::default(),
+
+            stats_tx,
+            stats_rx,
+            conns_tx,
+        }
     }
 
     fn get_or_init(&mut self, id: ComponentId) -> &mut Box<dyn Component> {
         self.components.entry(id).or_insert_with(|| {
             let mut c: Box<dyn Component> = match id {
-                ComponentId::Overview => Box::new(OverviewComponent::default()),
-                ComponentId::Connections => Box::new(ConnectionsComponent::default()),
+                ComponentId::Overview => Box::new(OverviewComponent::new(self.stats_rx.clone())),
+                ComponentId::Connections => {
+                    Box::new(ConnectionsComponent::new(self.conns_tx.subscribe()))
+                }
                 ComponentId::Logs => Box::new(LogsComponent::default()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::Search => Box::new(SearchComponent::default()),
                 _ => panic!("unsupported component {:?}", id),
             };
+            c.init(Arc::clone(self.api.as_ref().unwrap())).unwrap();
             c.register_action_handler(self.action_tx.as_ref().unwrap().clone()).unwrap();
             c
         })
@@ -67,11 +99,60 @@ impl RootComponent {
 
         Ok(())
     }
+
+    fn load_connections(&mut self) -> Result<()> {
+        info!("Loading connections");
+        let token = self.token.clone();
+        let api = Arc::clone(self.api.as_ref().unwrap());
+        let stats_tx = self.stats_tx.clone();
+        let conns_tx = self.conns_tx.clone();
+
+        tokio::task::Builder::new().name("connections_wrapper-loader").spawn(async move {
+            let stream = match api.get_connections().await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    warn!("Failed to get connections stream: {e}");
+                    return;
+                }
+            };
+            stream
+                .take_until(token.cancelled())
+                .inspect_err(|e| warn!("Failed to parse connections: {e}"))
+                .filter_map(|res| future::ready(res.ok()))
+                .for_each(|record| {
+                    let _ = stats_tx.send(Some((&record).into()));
+                    let _ = conns_tx.send(record.connections);
+                    future::ready(())
+                })
+                .await;
+        })?;
+        Ok(())
+    }
+
+    fn area_msg_line<'a>(width: u16, height: u16) -> Line<'a> {
+        Line::default().spans(vec![
+            "Width = ".bold(),
+            Span::raw(width.to_string()).cyan(),
+            " Height = ".bold(),
+            Span::raw(height.to_string()).cyan(),
+        ])
+    }
 }
 
 impl Component for RootComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Root
+    }
+
+    fn init(&mut self, api: Arc<Api>) -> Result<()> {
+        self.api = Some(Arc::clone(&api));
+        self.token = CancellationToken::new();
+        // initialize existing components
+        for component in self.components.values_mut() {
+            component.init(Arc::clone(&api))?;
+        }
+        self.load_connections()?;
+        Ok(())
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
@@ -108,6 +189,7 @@ impl Component for RootComponent {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
+            Action::Quit => self.token.cancel(),
             Action::TabSwitch(to) => {
                 self.current_tab = to;
                 // get and init component, send shortcuts of current tab to footer
@@ -137,6 +219,19 @@ impl Component for RootComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()> {
+        if area.width < MIN_AREA.0 || area.height < MIN_AREA.1 {
+            let lines = vec![
+                Line::from("Terminal size too small:").centered(),
+                Self::area_msg_line(area.width, area.height).centered(),
+                Line::raw(""),
+                Line::from("Expected:").centered(),
+                Self::area_msg_line(MIN_AREA.0, MIN_AREA.1).centered(),
+            ];
+            let paragraph = Paragraph::new(lines)
+                .block(Block::default().title(Span::raw("Error").red()).borders(Borders::ALL));
+            frame.render_widget(paragraph, area);
+            return Ok(());
+        }
         let chunks =
             Layout::vertical([Constraint::Length(1), Constraint::Min(0), Constraint::Length(1)])
                 .split(area);

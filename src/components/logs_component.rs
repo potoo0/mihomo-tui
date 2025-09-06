@@ -1,6 +1,7 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::prelude::{Span, Style};
+use ratatui::style::Style;
+use ratatui::text::Span;
 use ratatui::widgets::{Block, BorderType, Paragraph};
 
 use crate::components::{AppState, Component, ComponentId};

@@ -1,25 +1,17 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use color_eyre::Result;
-use futures_util::{StreamExt, TryStreamExt, future};
-use fuzzy_matcher::FuzzyMatcher;
-use fuzzy_matcher::skim::SkimMatcherV2;
-use ratatui::prelude::Rect;
+use ratatui::layout::Rect;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, trace, warn};
+use tracing::trace;
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::columns::CONNECTION_COLS;
 use crate::components::root_component::RootComponent;
-use crate::components::state::{AppState, TabState};
+use crate::components::state::AppState;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
-use crate::models::search_query::OrderBy;
-use crate::models::{Connection, Version};
 use crate::tui::{Event, Tui};
 
 pub struct App {
@@ -27,7 +19,6 @@ pub struct App {
     api: Arc<Api>,
     token: CancellationToken,
     state: AppState,
-    matcher: Arc<SkimMatcherV2>,
     root: RootComponent,
 
     should_quit: bool,
@@ -39,14 +30,12 @@ pub struct App {
 impl App {
     pub fn new(_config: Config, api: Api) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let state = AppState::new(HashMap::from([(ComponentId::default(), TabState::default())]));
-        let matcher = SkimMatcherV2::default();
+        let state = AppState::default();
         Ok(Self {
             _config,
             api: Arc::new(api),
             token: CancellationToken::new(),
             state,
-            matcher: Arc::new(matcher),
             root: RootComponent::new(),
 
             should_quit: false,
@@ -57,19 +46,16 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        self.state.version = Some(self.load_version().await?);
-        self.load_memory().await?;
-        self.load_traffic().await?;
-        self.load_connections().await?;
-
         let mut tui = Tui::new()?;
         tui.enter()?;
 
+        self.root.init(Arc::clone(&self.api))?;
         self.root.register_action_handler(self.action_tx.clone())?;
         // self.root.register_config_handler(self.config.clone())?;
-        self.root.init(tui.size()?)?;
 
         let action_tx = self.action_tx.clone();
+        // send initial tab
+        action_tx.send(Action::TabSwitch(ComponentId::default()))?;
         loop {
             self.handle_events(&mut tui).await?;
             self.handle_actions(&mut tui)?;
@@ -86,147 +72,6 @@ impl App {
         }
         tui.exit()?;
         Ok(())
-    }
-
-    async fn load_version(&mut self) -> Result<Version> {
-        info!("Loading version");
-        self.api.get_version().await
-    }
-
-    async fn load_memory(&mut self) -> Result<()> {
-        info!("Loading memory");
-        let token = self.token.clone();
-        let api = Arc::clone(&self.api);
-        let store = Arc::clone(&self.state.memory);
-
-        tokio::task::Builder::new().name("memory-loader").spawn(async move {
-            let stream = match api.get_memory().await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    warn!("Failed to get memory stream: {e}");
-                    return;
-                }
-            };
-            stream
-                .take_until(token.cancelled())
-                .inspect_err(|e| warn!("Failed to parse memory: {e}"))
-                .filter_map(|res| future::ready(res.ok()))
-                .for_each(|record| {
-                    if record.used > 0 {
-                        store.lock().unwrap().push_back(record);
-                    }
-                    future::ready(())
-                })
-                .await;
-        })?;
-        Ok(())
-    }
-
-    async fn load_traffic(&mut self) -> Result<()> {
-        info!("Loading traffic");
-        let token = self.token.clone();
-        let api = Arc::clone(&self.api);
-        let store = Arc::clone(&self.state.traffic);
-
-        tokio::task::Builder::new().name("traffic-loader").spawn(async move {
-            let stream = match api.get_traffic().await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    warn!("Failed to get traffic stream: {e}");
-                    return;
-                }
-            };
-            stream
-                .take_until(token.cancelled())
-                .inspect_err(|e| warn!("Failed to parse traffic: {e}"))
-                .filter_map(|res| future::ready(res.ok()))
-                .for_each(|record| {
-                    store.lock().unwrap().push_back(record);
-                    future::ready(())
-                })
-                .await;
-        })?;
-        Ok(())
-    }
-
-    async fn load_connections(&mut self) -> Result<()> {
-        info!("Loading connections");
-        let token = self.token.clone();
-        let api = Arc::clone(&self.api);
-        let conn_stat = Arc::clone(&self.state.conn_stat);
-        let connections_vec = Arc::clone(&self.state.connections);
-
-        let tab = Arc::clone(&self.state.tab);
-        let tab_state = Arc::clone(&self.state.tab_state);
-        let matcher = Arc::clone(&self.matcher);
-
-        tokio::task::Builder::new().name("connections-loader").spawn(async move {
-            let stream = match api.get_connections().await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    warn!("Failed to get connections stream: {e}");
-                    return;
-                }
-            };
-            stream
-                .take_until(token.cancelled())
-                .inspect_err(|e| warn!("Failed to parse connections: {e}"))
-                .filter_map(|res| future::ready(res.ok()))
-                .for_each(|record| {
-                    let (live, pattern, order_by) = {
-                        let tab = *tab.read().unwrap();
-                        let map = tab_state.read().unwrap();
-                        map.get(&tab)
-                            .map(|s| {
-                                (s.live_mode, s.search_query.query.clone(), s.search_query.order_by)
-                            })
-                            .unwrap_or((true, None, None)) // default to live mode
-                    };
-                    if live {
-                        *conn_stat.lock().unwrap() = Some((&record).into());
-                        {
-                            let pat = pattern.as_deref();
-                            let connections =
-                                Self::filter_connections(&matcher, pat, record.connections);
-                            let connections = if let Some(OrderBy(col, desc)) = order_by {
-                                let mut conns = connections;
-                                let col_def = &CONNECTION_COLS[col];
-                                conns.sort_by(|a, b| col_def.ordering(a, b, desc));
-                                conns
-                            } else {
-                                connections
-                            };
-
-                            let mut guard = connections_vec.lock().unwrap();
-                            guard.clear();
-                            guard.extend(connections);
-                        }
-                    }
-                    future::ready(())
-                })
-                .await;
-        })?;
-        Ok(())
-    }
-
-    fn filter_connections(
-        matcher: &SkimMatcherV2,
-        pattern: Option<&str>,
-        src: Vec<Connection>,
-    ) -> Vec<Connection> {
-        let pat = match pattern {
-            Some(p) if !p.is_empty() => p,
-            _ => return src,
-        };
-
-        src.into_iter()
-            .filter(|c| {
-                CONNECTION_COLS.iter().filter(|col| col.filterable).any(|col| {
-                    let text: Cow<'_, str> = (col.accessor)(c);
-                    matcher.fuzzy_match(&text, pat).is_some()
-                })
-            })
-            .collect()
     }
 
     async fn handle_events(&mut self, tui: &mut Tui) -> Result<()> {
@@ -248,15 +93,6 @@ impl App {
         Ok(())
     }
 
-    #[inline]
-    fn with_current_tab(&self, f: impl FnOnce(&mut TabState)) {
-        let tab = *self.state.tab.read().unwrap();
-
-        let mut tab_state = self.state.tab_state.write().unwrap();
-        let entry = tab_state.entry(tab).or_default();
-        f(entry);
-    }
-
     fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
@@ -273,48 +109,6 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
-                Action::LiveMode(live) => {
-                    self.with_current_tab(|tab_state| tab_state.live_mode = live);
-                }
-                Action::TabSwitch(to) => {
-                    *self.state.tab.write().unwrap() = to;
-                    // initialize tab state if not exists
-                    let _ = self.state.tab_state.write().unwrap().entry(to).or_default();
-                }
-                Action::RequestConnectionDetail(index) => {
-                    let guard = self.state.connections.lock().unwrap();
-                    if let Some(conn) = guard.get(index) {
-                        self.action_tx.send(Action::ConnectionDetail(Box::new(conn.clone())))?;
-                    }
-                }
-                Action::SearchInputChanged(ref pattern) => {
-                    debug!("Search changed: {:?} at {:?}", pattern, self.state.tab);
-                    self.with_current_tab(|tab_state| {
-                        tab_state.search_query.query = pattern.clone()
-                    });
-                }
-                Action::Ordering(ref ord) => {
-                    debug!("Ordering changed: {:?} at {:?}", ord, self.state.tab);
-                    self.with_current_tab(|tab_state| tab_state.search_query.order_by = *ord);
-                    if let Some(OrderBy(index, desc)) = ord {
-                        let tab = *self.state.tab.read().unwrap();
-                        let live_mode = self
-                            .state
-                            .tab_state
-                            .read()
-                            .unwrap()
-                            .get(&tab)
-                            .map(|v| v.live_mode)
-                            .unwrap_or(true);
-                        if live_mode {
-                            let mut guard = self.state.connections.lock().unwrap();
-                            let mut conns: Vec<Connection> = guard.drain(..).collect();
-                            let col_def = &CONNECTION_COLS[*index];
-                            conns.sort_by(|a, b| col_def.ordering(a, b, *desc));
-                            guard.extend(conns);
-                        }
-                    }
-                }
                 _ => {}
             }
             if let Some(action) = self.root.update(action.clone())? {
@@ -337,37 +131,5 @@ impl App {
             }
         })?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_fuzzy_match() {
-        use fuzzy_matcher::FuzzyMatcher;
-        use fuzzy_matcher::skim::SkimMatcherV2;
-
-        let matcher = SkimMatcherV2::default();
-        let text = "nginx: worker process";
-
-        let pattern = "nginx";
-        let score = matcher.fuzzy_match(text, pattern);
-        assert!(score.is_some());
-        println!("Score: {:?}", score);
-
-        let pattern = "wrk";
-        let score = matcher.fuzzy_match(text, pattern);
-        assert!(score.is_some());
-        println!("Score: {:?}", score);
-
-        let pattern = "apache";
-        let score = matcher.fuzzy_match(text, pattern);
-        assert!(score.is_none());
-        println!("Score: {:?}", score);
-
-        let pattern = "krw";
-        let score = matcher.fuzzy_match(text, pattern);
-        assert!(score.is_none());
-        println!("Score: {:?}", score);
     }
 }

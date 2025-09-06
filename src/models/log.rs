@@ -16,6 +16,6 @@ pub enum LogLevel {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Log {
-    pub payload: String,
     pub r#type: LogLevel,
+    pub payload: String,
 }

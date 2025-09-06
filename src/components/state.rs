@@ -1,44 +1,77 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use crate::models::sort::{SortDir, SortSpec};
 
-use circular_buffer::CircularBuffer;
-
-use crate::components::ComponentId;
-use crate::models::search_query::SearchQuery;
-use crate::models::{Connection, ConnectionStat, Memory, Traffic, Version};
-
-const BUFFER_SIZE: usize = 100;
-const CONNS_BUFFER_SIZE: usize = 500;
-
-#[derive(Debug, Clone, Default)]
-pub struct AppState {
-    pub version: Option<Version>,
-    pub memory: Arc<Mutex<CircularBuffer<BUFFER_SIZE, Memory>>>,
-    pub traffic: Arc<Mutex<CircularBuffer<BUFFER_SIZE, Traffic>>>,
-    pub conn_stat: Arc<Mutex<Option<ConnectionStat>>>,
-    pub connections: Arc<Mutex<CircularBuffer<CONNS_BUFFER_SIZE, Connection>>>,
-
-    pub tab: Arc<RwLock<ComponentId>>,
-    pub tab_state: Arc<RwLock<HashMap<ComponentId, TabState>>>,
-    // pub live_mode: Arc<AtomicBool>,
-    // pub filter_pattern: Arc<RwLock<Option<String>>>,
-    // pub ordering: Arc<RwLock<Option<(usize, bool)>>>,
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SearchState {
+    pub pattern: Option<String>,
+    pub sort: Option<SortSpec>,
+    /// Maximum number of sortable columns, for column navigation
+    pub max_cols: usize,
 }
 
-#[derive(Debug, Clone)]
-pub struct TabState {
-    pub live_mode: bool,
-    pub search_query: SearchQuery,
-}
+impl SearchState {
+    pub fn new(max_cols: usize) -> Self {
+        Self { pattern: None, sort: None, max_cols }
+    }
 
-impl Default for TabState {
-    fn default() -> Self {
-        Self { live_mode: true, search_query: SearchQuery::default() }
+    pub fn sort_rev(&mut self) {
+        if let Some(ob) = self.sort.as_mut() {
+            ob.dir = ob.dir.toggle();
+        }
+    }
+
+    pub fn sort_next(&mut self) {
+        if self.max_cols == 0 {
+            return;
+        }
+        if let Some(s) = self.sort.as_mut() {
+            s.col = (s.col + 1) % self.max_cols;
+        } else {
+            self.sort = Some(SortSpec { col: 0, dir: Default::default() });
+        }
+    }
+
+    pub fn sort_prev(&mut self) {
+        if self.max_cols == 0 {
+            return;
+        }
+        if let Some(s) = self.sort.as_mut() {
+            s.col = (s.col + self.max_cols - 1) % self.max_cols;
+        } else {
+            self.sort = Some(SortSpec { col: self.max_cols - 1, dir: SortDir::Asc });
+        }
     }
 }
 
-impl AppState {
-    pub fn new(tab_state: HashMap<ComponentId, TabState>) -> Self {
-        Self { tab_state: Arc::new(RwLock::new(tab_state)), ..Default::default() }
+#[derive(Debug, Clone, Default)]
+pub struct AppState {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sort_navigation() {
+        let mut state = SearchState::new(3);
+        assert_eq!(state.sort, None);
+
+        // Test next
+        for idx in 0..3 {
+            state.sort_next();
+            assert_eq!(state.sort.map(|v| v.col), Some(idx));
+        }
+        // wrap around to first sortable column
+        state.sort_next();
+        assert_eq!(state.sort.map(|v| v.col), Some(0));
+
+        // Reset
+        state.sort = None;
+        // Test prev
+        for idx in (0..3).rev() {
+            state.sort_prev();
+            assert_eq!(state.sort.map(|v| v.col), Some(idx));
+        }
+        // wrap around to last sortable column
+        state.sort_prev();
+        assert_eq!(state.sort.map(|v| v.col), Some(2));
     }
 }

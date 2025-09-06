@@ -1,7 +1,9 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use circular_buffer::CircularBuffer;
 use color_eyre::Result;
 use const_format::concatcp;
+use futures_util::{StreamExt, TryStreamExt, future};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Style, Stylize};
@@ -10,8 +12,14 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Axis, Block, BorderType, Cell, Chart, Dataset, GraphType, Padding, Row, Table,
 };
+use tokio::sync::watch::Receiver;
+use tokio_util::sync::CancellationToken;
+use tracing::{info, warn};
 
-use crate::components::{AppState, Component, ComponentId};
+use crate::action::Action;
+use crate::api::Api;
+use crate::components::{AppState, BUFFER_SIZE, Component, ComponentId};
+use crate::models::{ConnectionStats, Memory, Traffic};
 use crate::palette;
 use crate::utils::axis::{axis_bounds, axis_labels};
 use crate::utils::byte_size::{ByteSizeOptExt, human_bytes};
@@ -22,15 +30,97 @@ const DOWN: &str = concatcp!(" ", arrow::DOWN);
 
 type Series = Vec<(f64, f64)>;
 
-#[derive(Debug, Default)]
-pub struct OverviewComponent {}
+#[derive(Debug)]
+pub struct OverviewComponent {
+    api: Option<Arc<Api>>,
+    token: CancellationToken,
+
+    stats_rx: Receiver<Option<ConnectionStats>>,
+    memory: Arc<Mutex<CircularBuffer<BUFFER_SIZE, Memory>>>,
+    traffic: Arc<Mutex<CircularBuffer<BUFFER_SIZE, Traffic>>>,
+}
 
 impl OverviewComponent {
-    fn render_header(&mut self, frame: &mut Frame, area: Rect, state: &AppState) {
-        let conn_stat = Arc::clone(&state.conn_stat).lock().unwrap().clone();
-        let conn_stat = conn_stat.as_ref();
+    pub fn new(stats_rx: Receiver<Option<ConnectionStats>>) -> Self {
+        Self {
+            api: Default::default(),
+            token: Default::default(),
+
+            stats_rx,
+            memory: Default::default(),
+            traffic: Default::default(),
+        }
+    }
+
+    fn load_memory(&mut self) -> Result<()> {
+        info!("Loading memory");
+        let token = self.token.clone();
+        let api = Arc::clone(self.api.as_ref().unwrap());
+        let store = Arc::clone(&self.memory);
+
+        tokio::task::Builder::new().name("memory-loader").spawn(async move {
+            let stream = match api.get_memory().await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    warn!("Failed to get memory stream: {e}");
+                    return;
+                }
+            };
+            stream
+                .take_until(token.cancelled())
+                .inspect_err(|e| warn!("Failed to parse memory: {e}"))
+                .filter_map(|res| future::ready(res.ok()))
+                .for_each(|record| {
+                    if record.used > 0 {
+                        store.lock().unwrap().push_back(record);
+                    }
+                    future::ready(())
+                })
+                .await;
+        })?;
+        Ok(())
+    }
+
+    fn load_traffic(&mut self) -> Result<()> {
+        info!("Loading traffic");
+        let token = self.token.clone();
+        let api = Arc::clone(self.api.as_ref().unwrap());
+        let store = Arc::clone(&self.traffic);
+
+        tokio::task::Builder::new().name("traffic-loader").spawn(async move {
+            let stream = match api.get_traffic().await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    warn!("Failed to get traffic stream: {e}");
+                    return;
+                }
+            };
+            stream
+                .take_until(token.cancelled())
+                .inspect_err(|e| warn!("Failed to parse traffic: {e}"))
+                .filter_map(|res| future::ready(res.ok()))
+                .for_each(|record| {
+                    store.lock().unwrap().push_back(record);
+                    future::ready(())
+                })
+                .await;
+        })?;
+        Ok(())
+    }
+
+    fn render_header(&mut self, frame: &mut Frame, area: Rect) {
+        let conn_stats = {
+            let stats = self.stats_rx.borrow();
+            let stats = stats.as_ref();
+            (
+                stats.map(|s| s.up_total).fmt(None),
+                stats.map(|s| s.down_total).fmt(None),
+                stats.map(|s| s.conns_size.to_string()).unwrap_or("-".into()),
+                stats.map(|s| s.memory).fmt(None),
+            )
+        };
         let traffic = {
-            let guard = state.traffic.lock().unwrap();
+            let guard = self.traffic.lock().unwrap();
             guard.back().map(|t| (t.up, t.down))
         };
 
@@ -57,14 +147,13 @@ impl OverviewComponent {
             ]),
             Line::from(vec![
                 Span::styled(UP, Style::default().fg(palette::UP)),
-                Span::raw(conn_stat.map(|s| s.up_total).fmt(None)).bold(),
+                Span::raw(conn_stats.0).bold(),
                 Span::raw(" / ").dark_gray(),
-                Span::raw(conn_stat.map(|s| s.down_total).fmt(None)).bold(),
+                Span::raw(conn_stats.1).bold(),
                 Span::styled(DOWN, Style::default().fg(palette::DOWN)),
             ]),
-            Line::from(conn_stat.map(|s| s.conns_size.to_string()).unwrap_or("-".into()))
-                .centered(),
-            Line::from(conn_stat.map(|s| s.memory).fmt(None)).centered(),
+            Line::from(conn_stats.2).centered(),
+            Line::from(conn_stats.3).centered(),
         ];
 
         let table = Table::new(
@@ -82,7 +171,7 @@ impl OverviewComponent {
         frame.render_widget(table, area);
     }
 
-    fn render_charts(&mut self, frame: &mut Frame, area: Rect, state: &AppState) {
+    fn render_charts(&mut self, frame: &mut Frame, area: Rect) {
         let outer =
             Block::bordered().border_type(BorderType::Rounded).padding(Padding::new(1, 1, 1, 1));
         frame.render_widget(outer.clone(), area);
@@ -94,9 +183,9 @@ impl OverviewComponent {
         ])
         .split(outer.inner(area));
 
-        let traffic = Self::split_traffic(state);
+        let traffic = self.split_traffic();
         self.render_traffic_chart(frame, chunks[0], traffic);
-        let memory: Series = state
+        let memory: Series = self
             .memory
             .lock()
             .unwrap()
@@ -107,8 +196,8 @@ impl OverviewComponent {
         self.render_memory_chart(frame, chunks[2], memory);
     }
 
-    fn split_traffic(state: &AppState) -> [Series; 2] {
-        let traffic = state.traffic.lock().unwrap();
+    fn split_traffic(&mut self) -> [Series; 2] {
+        let traffic = self.traffic.lock().unwrap();
         let mut up_points = Vec::with_capacity(traffic.len());
         let mut down_points = Vec::with_capacity(traffic.len());
 
@@ -186,11 +275,26 @@ impl Component for OverviewComponent {
         ComponentId::Overview
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()> {
+    fn init(&mut self, api: Arc<Api>) -> Result<()> {
+        self.api = Some(api);
+        self.token = CancellationToken::new();
+        self.load_memory()?;
+        self.load_traffic()?;
+        Ok(())
+    }
+
+    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        if Some(Action::Quit) == Some(action) {
+            self.token.cancel();
+        }
+        Ok(None)
+    }
+
+    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
         let chunks = Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).split(area);
 
-        self.render_header(frame, chunks[0], state);
-        self.render_charts(frame, chunks[1], state);
+        self.render_header(frame, chunks[0]);
+        self.render_charts(frame, chunks[1]);
         Ok(())
     }
 }

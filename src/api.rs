@@ -13,10 +13,11 @@ use tracing::debug;
 use url::Url;
 
 use crate::config::Config;
-use crate::models::{ConnectionWrapper, Log, LogLevel, Memory, Traffic, Version};
+use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, Traffic, Version};
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
+#[derive(Debug)]
 pub struct Api {
     api: Url,
     bearer_token: Option<String>,
@@ -113,8 +114,8 @@ impl Api {
         self.create_stream::<Log>("/logs", params).await
     }
 
-    pub async fn get_connections(&self) -> Result<impl Stream<Item = Result<ConnectionWrapper>>> {
-        self.create_stream::<ConnectionWrapper>("/connections", None).await
+    pub async fn get_connections(&self) -> Result<impl Stream<Item = Result<ConnectionsWrapper>>> {
+        self.create_stream::<ConnectionsWrapper>("/connections", None).await
     }
 
     pub async fn get_memory(&self) -> Result<impl Stream<Item = Result<Memory>>> {

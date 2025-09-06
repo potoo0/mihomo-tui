@@ -1,44 +1,46 @@
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use color_eyre::Result;
+use color_eyre::eyre::OptionExt;
 use const_format::concatcp;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Margin, Rect};
-use ratatui::prelude::Span;
 use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::symbols::line;
+use ratatui::text::Span;
 use ratatui::widgets::{
     Block, BorderType, Cell, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table,
     TableState,
 };
 use throbber_widgets_tui::{Throbber, ThrobberState};
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio_util::sync::CancellationToken;
 
 use crate::action::Action;
-use crate::components::columns::CONNECTION_COLS;
+use crate::api::Api;
+use crate::components::connections::{CONNECTION_COLS, Connections};
 use crate::components::shortcut::Shortcut;
+use crate::components::state::SearchState;
 use crate::components::{AppState, Component, ComponentId};
-use crate::models::search_query::OrderBy;
+use crate::models::Connection;
+use crate::models::sort::SortDir;
 use crate::utils::symbols::{arrow, triangle};
 
 const ROW_HEIGHT: usize = 1;
 
-#[derive(Debug, Clone, Copy)]
-struct LiveMode(bool);
-
-impl Default for LiveMode {
-    fn default() -> Self {
-        Self(true)
-    }
-}
-
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct ConnectionsComponent {
-    should_send_sort: bool,
-    sort_desc: bool,
-    selected_column: usize, // starting with 1, default no sorting
+    token: CancellationToken,
+    conns_rx: Option<Receiver<Vec<Connection>>>,
+    store: Arc<Connections>,
+    search_state: Arc<Mutex<SearchState>>,
+    live_mode: Arc<AtomicBool>,
+
     viewport: u16,
-    live_mode: LiveMode,
     item_size: usize,
     table_state: TableState,
     scroll_state: ScrollbarState,
@@ -47,11 +49,51 @@ pub struct ConnectionsComponent {
 }
 
 impl ConnectionsComponent {
-    fn render_table(&mut self, frame: &mut Frame, area: Rect, state: &AppState) {
-        let records = {
-            let conns = state.connections.lock().unwrap();
-            conns.to_vec()
-        };
+    pub fn new(conns_rx: Receiver<Vec<Connection>>) -> Self {
+        let search_state = SearchState::new(CONNECTION_COLS.len());
+        Self {
+            conns_rx: Some(conns_rx),
+            search_state: Arc::new(Mutex::new(search_state)),
+            live_mode: Arc::new(AtomicBool::new(true)),
+            ..Default::default()
+        }
+    }
+
+    fn loader_connections(&mut self) -> Result<()> {
+        let store = Arc::clone(&self.store);
+        let search_state = Arc::clone(&self.search_state);
+        let live_mode = Arc::clone(&self.live_mode);
+
+        let mut rx = self
+            .conns_rx
+            .as_ref()
+            .ok_or_eyre("ConnectionsComponent expects a Receiver<Vec<Connection>>")?
+            .resubscribe();
+        let token = self.token.clone();
+        tokio::task::Builder::new().name("connections-loader").spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    res = rx.recv() => match res {
+                        Ok(records) => {
+                            store.push(false, records);
+                            if live_mode.load(Ordering::Relaxed) {
+                                let search_state = search_state.lock().unwrap().clone();
+                                store.compute_view(&search_state);
+                            }
+                        },
+                        Err(RecvError::Lagged(_)) => continue,
+                        Err(RecvError::Closed) => break,
+                    }
+                }
+            }
+        })?;
+
+        Ok(())
+    }
+
+    fn render_table(&mut self, frame: &mut Frame, area: Rect) {
+        let records = self.store.view();
         self.item_size = records.len();
         self.scroll_state = self.scroll_state.content_length(self.item_size * ROW_HEIGHT);
 
@@ -60,13 +102,19 @@ impl ConnectionsComponent {
             format!("connections ({})", self.item_size),
             Style::default().fg(Color::Cyan),
         ));
+        let sort = self.search_state.lock().unwrap().sort;
         let header = CONNECTION_COLS
             .iter()
             .map(|def| def.title)
             .enumerate()
             .map(|(index, title)| {
-                if index + 1 == self.selected_column {
-                    let arrow = if self.sort_desc { triangle::DOWN } else { triangle::UP };
+                if let Some(sort) = sort
+                    && index == sort.col
+                {
+                    let arrow = match sort.dir {
+                        SortDir::Asc => triangle::UP,
+                        SortDir::Desc => triangle::DOWN,
+                    };
                     Cell::from(format!("{} {}", title, arrow)).bold().cyan()
                 } else {
                     Cell::from(title).bold()
@@ -95,7 +143,7 @@ impl ConnectionsComponent {
                 Constraint::Max(15),
                 Constraint::Max(15),
                 Constraint::Max(15),
-                Constraint::Max(15),
+                Constraint::Max(20),
             ],
         )
         .block(block)
@@ -105,8 +153,11 @@ impl ConnectionsComponent {
 
         frame.render_stateful_widget(table, area, &mut self.table_state);
 
-        let (throbber_label, throbber_color) =
-            if self.live_mode.0 { ("Live  ", Color::Green) } else { ("Paused", Color::Red) };
+        let (throbber_label, throbber_color) = if self.live_mode.load(Ordering::Relaxed) {
+            ("Live  ", Color::Green)
+        } else {
+            ("Paused", Color::Red)
+        };
         let symbol = Throbber::default()
             .label(throbber_label)
             .style(Style::default().bg(throbber_color).bold())
@@ -122,8 +173,8 @@ impl ConnectionsComponent {
 
     fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_stateful_widget(
-            Scrollbar::default()
-                .orientation(ScrollbarOrientation::VerticalRight)
+            Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                .track_symbol(Some(line::VERTICAL))
                 .begin_symbol(Some(arrow::UP))
                 .end_symbol(Some(arrow::DOWN)),
             area.inner(Margin::new(1, 1)),
@@ -172,50 +223,19 @@ impl ConnectionsComponent {
         self.scroll_state = self.scroll_state.position(i * ROW_HEIGHT);
     }
 
-    fn sortable_cols() -> &'static [usize] {
-        static SORTABLE_COLS: OnceLock<Vec<usize>> = OnceLock::new();
-        SORTABLE_COLS.get_or_init(|| {
-            CONNECTION_COLS
-                .iter()
-                .enumerate()
-                .filter(|(_, col)| col.sortable)
-                .map(|(i, _)| i)
-                .collect()
-        })
+    fn live_mode(&mut self, live_mode: bool) {
+        self.live_mode.store(live_mode, Ordering::Relaxed);
+        if live_mode {
+            self.table_state.select(None);
+            self.scroll_state = self.scroll_state.position(0);
+        }
     }
 
-    /// Wrap around to the previous sortable column.
-    /// If no column is selected, select the last sortable column.
-    pub fn prev_column(&mut self) {
-        let cols = Self::sortable_cols();
-        if cols.is_empty() {
-            return;
+    fn handle_search_state_changed(&self, state: &SearchState) {
+        // recompute view only when not in live mode
+        if !self.live_mode.load(Ordering::Relaxed) {
+            self.store.compute_view(state);
         }
-        // jump to last column if no column is selected
-        if self.selected_column == 0 {
-            self.selected_column = cols[cols.len() - 1] + 1;
-            return;
-        }
-        let actual_idx = self.selected_column - 1;
-        let pos = cols.iter().position(|&i| i == actual_idx).unwrap_or(0);
-        self.selected_column = cols[(pos + cols.len() - 1) % cols.len()] + 1
-    }
-
-    /// Wrap around to the next sortable column.
-    /// If no column is selected, select the first sortable column.
-    pub fn next_column(&mut self) {
-        let cols = Self::sortable_cols();
-        if cols.is_empty() {
-            return;
-        }
-        // jump to first column if no column is selected
-        if self.selected_column == 0 {
-            self.selected_column = cols[0] + 1;
-            return;
-        }
-        let actual_idx = self.selected_column - 1;
-        let pos = cols.iter().position(|&i| i == actual_idx).unwrap_or(0);
-        self.selected_column = cols[(pos + 1) % cols.len()] + 1
     }
 }
 
@@ -235,6 +255,12 @@ impl Component for ConnectionsComponent {
         ]
     }
 
+    fn init(&mut self, _api: Arc<Api>) -> Result<()> {
+        self.token = CancellationToken::new();
+        self.loader_connections()?;
+        Ok(())
+    }
+
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
@@ -242,42 +268,46 @@ impl Component for ConnectionsComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
-            KeyCode::Esc => {
-                self.table_state.select(None);
-                self.scroll_state = self.scroll_state.position(0);
-                return Ok(Some(Action::LiveMode(true)));
-            }
+            KeyCode::Esc => self.live_mode(true),
             KeyCode::Char('g') => {
                 self.first_row();
-                return Ok(Some(Action::LiveMode(false)));
+                self.live_mode(false);
             }
             KeyCode::Char('G') => {
                 self.last_row();
-                return Ok(Some(Action::LiveMode(false)));
+                self.live_mode(false);
             }
             KeyCode::Char('j') | KeyCode::Down => {
                 self.next_row();
-                return Ok(Some(Action::LiveMode(false)));
+                self.live_mode(false);
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 self.prev_row();
-                return Ok(Some(Action::LiveMode(false)));
+                self.live_mode(false);
             }
             KeyCode::Char('h') | KeyCode::Left => {
-                self.prev_column();
-                self.should_send_sort = true;
+                let mut guard = self.search_state.lock().unwrap();
+                guard.sort_prev();
+                self.handle_search_state_changed(&guard.clone());
             }
             KeyCode::Char('l') | KeyCode::Right => {
-                self.next_column();
-                self.should_send_sort = true;
+                let mut guard = self.search_state.lock().unwrap();
+                guard.sort_next();
+                self.handle_search_state_changed(&guard.clone());
             }
             KeyCode::Char('r') => {
-                self.sort_desc = !self.sort_desc;
-                self.should_send_sort = true;
+                let mut guard = self.search_state.lock().unwrap();
+                guard.sort_rev();
+                self.handle_search_state_changed(&guard.clone());
             }
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
             KeyCode::Enter => {
-                return Ok(self.table_state.selected().map(Action::RequestConnectionDetail));
+                let action = self
+                    .table_state
+                    .selected()
+                    .and_then(|idx| self.store.get(idx))
+                    .map(Action::ConnectionDetail);
+                return Ok(action);
             }
             _ => (),
         };
@@ -287,22 +317,14 @@ impl Component for ConnectionsComponent {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
+            Action::Quit => self.token.cancel(),
             Action::Tick => {
-                if self.live_mode.0 {
+                if self.live_mode.load(Ordering::Relaxed) {
                     self.throbber_state.calc_next();
                 }
-                if self.should_send_sort {
-                    self.should_send_sort = false;
-                    let ordering: Option<OrderBy> = if self.selected_column > 0 {
-                        Some(OrderBy(self.selected_column - 1, self.sort_desc))
-                    } else {
-                        None
-                    };
-                    self.action_tx.as_ref().unwrap().send(Action::Ordering(ordering))?;
-                }
             }
-            Action::LiveMode(live) => {
-                self.live_mode.0 = live;
+            Action::SearchInputChanged(pattern) => {
+                self.search_state.lock().unwrap().pattern = pattern;
             }
             _ => {}
         }
@@ -310,8 +332,8 @@ impl Component for ConnectionsComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()> {
-        self.render_table(frame, area, state);
+    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
+        self.render_table(frame, area);
         self.render_scrollbar(frame, area);
 
         Ok(())
@@ -327,14 +349,14 @@ mod tests {
         let mut component = ConnectionsComponent { item_size: 3, ..Default::default() };
         assert_eq!(component.table_state.selected(), None);
 
-        // Test next_row
+        // Test next
         let next_rows_case = vec![Some(0), Some(1), Some(2)];
         for expected in next_rows_case {
             component.next_row();
             assert_eq!(component.table_state.selected(), expected);
         }
 
-        // Test prev_row
+        // Test prev
         let prev_rows_case = vec![Some(1), Some(0), Some(2), Some(1)];
         for expected in prev_rows_case {
             component.prev_row();
@@ -343,31 +365,31 @@ mod tests {
     }
 
     #[test]
-    fn test_column_navigation() {
-        let mut component = ConnectionsComponent::default();
-        assert_eq!(component.selected_column, 0);
+    fn test_fuzzy_match() {
+        use fuzzy_matcher::FuzzyMatcher;
+        use fuzzy_matcher::skim::SkimMatcherV2;
 
-        let cols = ConnectionsComponent::sortable_cols();
-        assert!(!cols.is_empty());
+        let matcher = SkimMatcherV2::default();
+        let text = "nginx: worker process";
 
-        // Test next_column
-        for &val in cols.iter() {
-            component.next_column();
-            assert_eq!(component.selected_column - 1, val);
-        }
-        // wrap around to first sortable column
-        component.next_column();
-        assert_eq!(component.selected_column, 1);
+        let pattern = "nginx";
+        let score = matcher.fuzzy_match(text, pattern);
+        assert!(score.is_some());
+        println!("Score: {:?}", score);
 
-        // Reset to no column selected
-        component.selected_column = 0;
-        // Test prev_column
-        for &val in cols.iter().rev() {
-            component.prev_column();
-            assert_eq!(component.selected_column - 1, val);
-        }
-        // wrap around to last sortable column
-        component.prev_column();
-        assert_eq!(component.selected_column - 1, cols[cols.len() - 1]);
+        let pattern = "wrk";
+        let score = matcher.fuzzy_match(text, pattern);
+        assert!(score.is_some());
+        println!("Score: {:?}", score);
+
+        let pattern = "apache";
+        let score = matcher.fuzzy_match(text, pattern);
+        assert!(score.is_none());
+        println!("Score: {:?}", score);
+
+        let pattern = "krw";
+        let score = matcher.fuzzy_match(text, pattern);
+        assert!(score.is_none());
+        println!("Score: {:?}", score);
     }
 }

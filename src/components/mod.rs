@@ -1,10 +1,11 @@
-pub mod columns;
 mod connection_detail_component;
+mod connections;
 mod connections_component;
 mod footer_component;
 mod header_component;
 mod help_component;
 mod highlight;
+mod logs;
 mod logs_component;
 mod overview_component;
 pub mod root_component;
@@ -12,37 +13,38 @@ mod search_component;
 pub mod shortcut;
 pub mod state;
 
+use std::sync::Arc;
+
 use color_eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::Frame;
-use ratatui::layout::{Rect, Size};
+use ratatui::layout::Rect;
 use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
+use crate::api::Api;
 use crate::components::shortcut::Shortcut;
 use crate::components::state::AppState;
 use crate::tui::Event;
 
 const TABS: [ComponentId; 3] = [ComponentId::Overview, ComponentId::Connections, ComponentId::Logs];
+const BUFFER_SIZE: usize = 100;
+const CONNS_BUFFER_SIZE: usize = 500;
+const LOGS_BUFFER_SIZE: usize = 500;
 
-#[derive(PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
+#[derive(Default, PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
 pub enum ComponentId {
     Help,
     Root,
     Header,
     Footer,
+    #[default]
     Overview,
     ConnectionDetail,
     Connections,
     Logs,
     Search,
-}
-
-impl Default for ComponentId {
-    fn default() -> Self {
-        Self::Overview
-    }
 }
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
@@ -56,6 +58,20 @@ pub trait Component {
     /// Get a list of shortcuts associated with the component.
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![]
+    }
+
+    /// Initialize the component with a specified area if necessary.
+    ///
+    /// # Arguments
+    ///
+    /// * `api` - An mihomo API instance.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<()>` - An Ok result or an error.
+    fn init(&mut self, api: Arc<Api>) -> Result<()> {
+        let _ = api; // to appease clippy
+        Ok(())
     }
 
     /// Register an action handler that can send actions for processing if necessary.
@@ -85,20 +101,6 @@ pub trait Component {
     //     let _ = config; // to appease clippy
     //     Ok(())
     // }
-
-    /// Initialize the component with a specified area if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `area` - Rectangular area to initialize the component within.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn init(&mut self, area: Size) -> Result<()> {
-        let _ = area; // to appease clippy
-        Ok(())
-    }
 
     /// Handle incoming events and produce actions if necessary.
     ///

@@ -1,11 +1,11 @@
 mod connection;
 mod log;
 mod memory;
-pub mod search_query;
+pub mod sort;
 mod traffic;
 mod version;
 
-pub use connection::{Connection, ConnectionStat, ConnectionWrapper};
+pub use connection::{Connection, ConnectionStats, ConnectionsWrapper};
 pub use log::{Log, LogLevel};
 pub use memory::Memory;
 pub use traffic::Traffic;
