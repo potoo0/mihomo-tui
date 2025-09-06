@@ -34,14 +34,8 @@ impl RootComponent {
             Box::new(FooterComponent::default()),
             Box::new(OverviewComponent::default()), // corresponds to ComponentId::Default
         ];
-        let components = components
-            .into_iter()
-            .map(|c| (c.id(), c))
-            .collect::<HashMap<_, _>>();
-        Self {
-            components,
-            ..Self::default()
-        }
+        let components = components.into_iter().map(|c| (c.id(), c)).collect::<HashMap<_, _>>();
+        Self { components, ..Self::default() }
     }
 
     fn get_or_init(&mut self, id: ComponentId) -> &mut Box<dyn Component> {
@@ -55,8 +49,7 @@ impl RootComponent {
                 ComponentId::Search => Box::new(SearchComponent::default()),
                 _ => panic!("unsupported component {:?}", id),
             };
-            c.register_action_handler(self.action_tx.as_ref().unwrap().clone())
-                .unwrap();
+            c.register_action_handler(self.action_tx.as_ref().unwrap().clone()).unwrap();
             c
         })
     }
@@ -103,19 +96,13 @@ impl Component for RootComponent {
             KeyCode::Char(c) if c.is_ascii_digit() => {
                 let index = (c as u8 - b'0') as usize;
                 if let Some(component_id) = TABS.get(index.saturating_sub(1)) {
-                    self.action_tx
-                        .as_ref()
-                        .unwrap()
-                        .send(Action::TabSwitch(*component_id))?;
+                    self.action_tx.as_ref().unwrap().send(Action::TabSwitch(*component_id))?;
                 }
                 return Ok(None);
             }
             _ => {}
         }
-        debug!(
-            "Try handling key event: tab={:?}, key={:?}",
-            self.current_tab, key
-        );
+        debug!("Try handling key event: tab={:?}, key={:?}", self.current_tab, key);
         self.get_or_init(self.current_tab).handle_key_event(key)
     }
 
@@ -125,10 +112,7 @@ impl Component for RootComponent {
                 self.current_tab = to;
                 // get and init component, send shortcuts of current tab to footer
                 let shortcuts = self.get_or_init(self.current_tab).shortcuts();
-                self.action_tx
-                    .as_ref()
-                    .unwrap()
-                    .send(Action::Shortcuts(shortcuts))?;
+                self.action_tx.as_ref().unwrap().send(Action::Shortcuts(shortcuts))?;
             }
             Action::Help => self.open_popup(ComponentId::Help)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
@@ -140,10 +124,7 @@ impl Component for RootComponent {
                     self.popup = None;
                     // send shortcuts of current tab to footer
                     let shortcuts = self.get_or_init(self.current_tab).shortcuts();
-                    self.action_tx
-                        .as_ref()
-                        .unwrap()
-                        .send(Action::Shortcuts(shortcuts))?;
+                    self.action_tx.as_ref().unwrap().send(Action::Shortcuts(shortcuts))?;
                 }
             }
             _ => {}
@@ -156,33 +137,23 @@ impl Component for RootComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()> {
-        let chunks = Layout::vertical([
-            Constraint::Length(1),
-            Constraint::Min(0),
-            Constraint::Length(1),
-        ])
-        .split(area);
+        let chunks =
+            Layout::vertical([Constraint::Length(1), Constraint::Min(0), Constraint::Length(1)])
+                .split(area);
 
-        self.get_or_init(ComponentId::Header)
-            .draw(frame, chunks[0], state)?;
-        self.get_or_init(ComponentId::Footer)
-            .draw(frame, chunks[2], state)?;
+        self.get_or_init(ComponentId::Header).draw(frame, chunks[0], state)?;
+        self.get_or_init(ComponentId::Footer).draw(frame, chunks[2], state)?;
 
         if self.current_tab == ComponentId::Connections || self.current_tab == ComponentId::Logs {
             let inner_chunks =
                 Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
-            self.get_or_init(ComponentId::Search)
-                .draw(frame, inner_chunks[0], state)?;
-            self.get_or_init(self.current_tab)
-                .draw(frame, inner_chunks[1], state)?;
+            self.get_or_init(ComponentId::Search).draw(frame, inner_chunks[0], state)?;
+            self.get_or_init(self.current_tab).draw(frame, inner_chunks[1], state)?;
         } else {
-            self.get_or_init(self.current_tab)
-                .draw(frame, chunks[1], state)?;
+            self.get_or_init(self.current_tab).draw(frame, chunks[1], state)?;
         }
 
-        self.popup
-            .map(|c| self.get_or_init(c).draw(frame, chunks[1], state))
-            .transpose()?;
+        self.popup.map(|c| self.get_or_init(c).draw(frame, chunks[1], state)).transpose()?;
 
         Ok(())
     }

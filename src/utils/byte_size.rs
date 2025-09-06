@@ -1,4 +1,4 @@
-use crate::utils::UNITS;
+pub const UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
 
 #[derive(Debug, Clone, Copy)]
 pub struct ByteSize(pub f64);

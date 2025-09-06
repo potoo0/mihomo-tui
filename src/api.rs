@@ -29,11 +29,7 @@ impl Api {
         let secret = config.mihomo_secret.clone();
         let client = Self::create_client(&secret)?;
 
-        Ok(Self {
-            api,
-            bearer_token: secret,
-            client,
-        })
+        Ok(Self { api, bearer_token: secret, client })
     }
 
     /// Create default headers for the API client.
@@ -84,8 +80,7 @@ impl Api {
     {
         let mut url = self.api.clone().join(path)?;
         let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
-        url.set_scheme(scheme)
-            .map_err(|_| eyre!("Fail to set scheme"))?;
+        url.set_scheme(scheme).map_err(|_| eyre!("Fail to set scheme"))?;
         // append query params
         if let Some(ref token) = self.bearer_token {
             url.query_pairs_mut().append_pair("token", token);
@@ -95,14 +90,8 @@ impl Api {
         }
         // url to request, append header UA
         let mut request = IntoClientRequest::into_client_request(&url)?;
-        request
-            .headers_mut()
-            .insert(header::USER_AGENT, USER_AGENT.parse()?);
-        debug!(
-            "create_stream, url: {}, headers: {:?}",
-            url,
-            request.headers()
-        );
+        request.headers_mut().insert(header::USER_AGENT, USER_AGENT.parse()?);
+        debug!("create_stream, url: {}, headers: {:?}", url, request.headers());
         let (stream, _) = connect_async(request).await?;
         let stream = stream.filter_map(|msg| async {
             match msg {
@@ -125,8 +114,7 @@ impl Api {
     }
 
     pub async fn get_connections(&self) -> Result<impl Stream<Item = Result<ConnectionWrapper>>> {
-        self.create_stream::<ConnectionWrapper>("/connections", None)
-            .await
+        self.create_stream::<ConnectionWrapper>("/connections", None).await
     }
 
     pub async fn get_memory(&self) -> Result<impl Stream<Item = Result<Memory>>> {
@@ -247,34 +235,8 @@ mod tests {
     }
 
     fn init_api() -> Api {
-        let config = Config::new(Some(PathBuf::from(
-            "/home/wsl/.config/mihomo-tui/config.yaml",
-        )))
-        .unwrap();
+        let config =
+            Config::new(Some(PathBuf::from("/home/wsl/.config/mihomo-tui/config.yaml"))).unwrap();
         Api::new(&config).unwrap()
-    }
-
-    // todo remove
-    #[test]
-    fn test_tmp() {
-        // let auth_value = HeaderValue::try_from(format!("Bearer {}", "token")).unwrap();
-        // println!("is_sensitive: {}", auth_value.is_sensitive());
-
-        // let mut map = HeaderMap::new();
-        //
-        // map.insert("HOST", "hello".parse().unwrap());
-        // map.insert("HOST", "goodbye".parse().unwrap());
-        // map.insert("CONTENT_LENGTH", "123".parse().unwrap());
-        // map.append("CONTENT_LENGTH", "456".parse().unwrap());
-        //
-        // for (key, value) in map.iter() {
-        //     println!("{:?}: {:?}", key, value);
-        // }
-
-        let raw = r#"
-            {"inuse": 0, "oslimit": 0, "version": "v1.10.5"}
-        "#;
-        let v: Memory = serde_json::from_str(raw).unwrap();
-        println!("v: {:?}", v);
     }
 }

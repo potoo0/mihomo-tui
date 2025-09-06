@@ -1,6 +1,6 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use color_eyre::Result;
 use futures_util::{StreamExt, TryStreamExt, future};
@@ -15,8 +15,10 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::columns::CONNECTION_COLS;
 use crate::components::root_component::RootComponent;
-use crate::components::{AppState, Component};
+use crate::components::state::{AppState, TabState};
+use crate::components::{Component, ComponentId};
 use crate::config::Config;
+use crate::models::search_query::OrderBy;
 use crate::models::{Connection, Version};
 use crate::tui::{Event, Tui};
 
@@ -37,7 +39,7 @@ pub struct App {
 impl App {
     pub fn new(_config: Config, api: Api) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let state = AppState::new(true);
+        let state = AppState::new(HashMap::from([(ComponentId::default(), TabState::default())]));
         let matcher = SkimMatcherV2::default();
         Ok(Self {
             _config,
@@ -97,28 +99,26 @@ impl App {
         let api = Arc::clone(&self.api);
         let store = Arc::clone(&self.state.memory);
 
-        tokio::task::Builder::new()
-            .name("memory-loader")
-            .spawn(async move {
-                let stream = match api.get_memory().await {
-                    Ok(stream) => stream,
-                    Err(e) => {
-                        warn!("Failed to get memory stream: {e}");
-                        return;
+        tokio::task::Builder::new().name("memory-loader").spawn(async move {
+            let stream = match api.get_memory().await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    warn!("Failed to get memory stream: {e}");
+                    return;
+                }
+            };
+            stream
+                .take_until(token.cancelled())
+                .inspect_err(|e| warn!("Failed to parse memory: {e}"))
+                .filter_map(|res| future::ready(res.ok()))
+                .for_each(|record| {
+                    if record.used > 0 {
+                        store.lock().unwrap().push_back(record);
                     }
-                };
-                stream
-                    .take_until(token.cancelled())
-                    .inspect_err(|e| warn!("Failed to parse memory: {e}"))
-                    .filter_map(|res| future::ready(res.ok()))
-                    .for_each(|record| {
-                        if record.used > 0 {
-                            store.lock().unwrap().push_back(record);
-                        }
-                        future::ready(())
-                    })
-                    .await;
-            })?;
+                    future::ready(())
+                })
+                .await;
+        })?;
         Ok(())
     }
 
@@ -128,26 +128,24 @@ impl App {
         let api = Arc::clone(&self.api);
         let store = Arc::clone(&self.state.traffic);
 
-        tokio::task::Builder::new()
-            .name("traffic-loader")
-            .spawn(async move {
-                let stream = match api.get_traffic().await {
-                    Ok(stream) => stream,
-                    Err(e) => {
-                        warn!("Failed to get traffic stream: {e}");
-                        return;
-                    }
-                };
-                stream
-                    .take_until(token.cancelled())
-                    .inspect_err(|e| warn!("Failed to parse traffic: {e}"))
-                    .filter_map(|res| future::ready(res.ok()))
-                    .for_each(|record| {
-                        store.lock().unwrap().push_back(record);
-                        future::ready(())
-                    })
-                    .await;
-            })?;
+        tokio::task::Builder::new().name("traffic-loader").spawn(async move {
+            let stream = match api.get_traffic().await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    warn!("Failed to get traffic stream: {e}");
+                    return;
+                }
+            };
+            stream
+                .take_until(token.cancelled())
+                .inspect_err(|e| warn!("Failed to parse traffic: {e}"))
+                .filter_map(|res| future::ready(res.ok()))
+                .for_each(|record| {
+                    store.lock().unwrap().push_back(record);
+                    future::ready(())
+                })
+                .await;
+        })?;
         Ok(())
     }
 
@@ -155,54 +153,59 @@ impl App {
         info!("Loading connections");
         let token = self.token.clone();
         let api = Arc::clone(&self.api);
-        let live_mode = Arc::clone(&self.state.live_mode);
         let conn_stat = Arc::clone(&self.state.conn_stat);
         let connections_vec = Arc::clone(&self.state.connections);
+
+        let tab = Arc::clone(&self.state.tab);
+        let tab_state = Arc::clone(&self.state.tab_state);
         let matcher = Arc::clone(&self.matcher);
-        let filter_pattern = Arc::clone(&self.state.filter_pattern);
-        let ordering = Arc::clone(&self.state.ordering);
 
-        tokio::task::Builder::new()
-            .name("connections-loader")
-            .spawn(async move {
-                let stream = match api.get_connections().await {
-                    Ok(stream) => stream,
-                    Err(e) => {
-                        warn!("Failed to get connections stream: {e}");
-                        return;
-                    }
-                };
-                stream
-                    .take_until(token.cancelled())
-                    .inspect_err(|e| warn!("Failed to parse connections: {e}"))
-                    .filter_map(|res| future::ready(res.ok()))
-                    .for_each(|record| {
-                        if live_mode.load(Ordering::Relaxed) {
-                            *conn_stat.lock().unwrap() = Some((&record).into());
-                            {
-                                let pat = filter_pattern.read().unwrap().clone();
-                                let pat = pat.as_deref();
-                                let connections =
-                                    Self::filter_connections(&matcher, pat, record.connections);
-                                let ord = *ordering.read().unwrap();
-                                let connections = if let Some((col, desc)) = ord {
-                                    let mut conns = connections;
-                                    let col_def = &CONNECTION_COLS[col];
-                                    conns.sort_by(|a, b| col_def.ordering(a, b, desc));
-                                    conns
-                                } else {
-                                    connections
-                                };
+        tokio::task::Builder::new().name("connections-loader").spawn(async move {
+            let stream = match api.get_connections().await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    warn!("Failed to get connections stream: {e}");
+                    return;
+                }
+            };
+            stream
+                .take_until(token.cancelled())
+                .inspect_err(|e| warn!("Failed to parse connections: {e}"))
+                .filter_map(|res| future::ready(res.ok()))
+                .for_each(|record| {
+                    let (live, pattern, order_by) = {
+                        let tab = *tab.read().unwrap();
+                        let map = tab_state.read().unwrap();
+                        map.get(&tab)
+                            .map(|s| {
+                                (s.live_mode, s.search_query.query.clone(), s.search_query.order_by)
+                            })
+                            .unwrap_or((true, None, None)) // default to live mode
+                    };
+                    if live {
+                        *conn_stat.lock().unwrap() = Some((&record).into());
+                        {
+                            let pat = pattern.as_deref();
+                            let connections =
+                                Self::filter_connections(&matcher, pat, record.connections);
+                            let connections = if let Some(OrderBy(col, desc)) = order_by {
+                                let mut conns = connections;
+                                let col_def = &CONNECTION_COLS[col];
+                                conns.sort_by(|a, b| col_def.ordering(a, b, desc));
+                                conns
+                            } else {
+                                connections
+                            };
 
-                                let mut guard = connections_vec.lock().unwrap();
-                                guard.clear();
-                                guard.extend(connections);
-                            }
+                            let mut guard = connections_vec.lock().unwrap();
+                            guard.clear();
+                            guard.extend(connections);
                         }
-                        future::ready(())
-                    })
-                    .await;
-            })?;
+                    }
+                    future::ready(())
+                })
+                .await;
+        })?;
         Ok(())
     }
 
@@ -218,13 +221,10 @@ impl App {
 
         src.into_iter()
             .filter(|c| {
-                CONNECTION_COLS
-                    .iter()
-                    .filter(|col| col.filterable)
-                    .any(|col| {
-                        let text: Cow<'_, str> = (col.accessor)(c);
-                        matcher.fuzzy_match(&text, pat).is_some()
-                    })
+                CONNECTION_COLS.iter().filter(|col| col.filterable).any(|col| {
+                    let text: Cow<'_, str> = (col.accessor)(c);
+                    matcher.fuzzy_match(&text, pat).is_some()
+                })
             })
             .collect()
     }
@@ -248,6 +248,15 @@ impl App {
         Ok(())
     }
 
+    #[inline]
+    fn with_current_tab(&self, f: impl FnOnce(&mut TabState)) {
+        let tab = *self.state.tab.read().unwrap();
+
+        let mut tab_state = self.state.tab_state.write().unwrap();
+        let entry = tab_state.entry(tab).or_default();
+        f(entry);
+    }
+
     fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
@@ -264,34 +273,46 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
-                Action::LiveMode(live) => self.state.live_mode.store(live, Ordering::Relaxed),
+                Action::LiveMode(live) => {
+                    self.with_current_tab(|tab_state| tab_state.live_mode = live);
+                }
                 Action::TabSwitch(to) => {
-                    self.state.focused = to;
-                    *self.state.filter_pattern.write().unwrap() = None;
-                    *self.state.ordering.write().unwrap() = None;
+                    *self.state.tab.write().unwrap() = to;
+                    // initialize tab state if not exists
+                    let _ = self.state.tab_state.write().unwrap().entry(to).or_default();
                 }
                 Action::RequestConnectionDetail(index) => {
                     let guard = self.state.connections.lock().unwrap();
                     if let Some(conn) = guard.get(index) {
-                        self.action_tx
-                            .send(Action::ConnectionDetail(Box::new(conn.clone())))?;
+                        self.action_tx.send(Action::ConnectionDetail(Box::new(conn.clone())))?;
                     }
                 }
                 Action::SearchInputChanged(ref pattern) => {
-                    debug!("Search changed: {:?} at {:?}", pattern, self.state.focused);
-                    *self.state.filter_pattern.write().unwrap() = pattern.clone();
+                    debug!("Search changed: {:?} at {:?}", pattern, self.state.tab);
+                    self.with_current_tab(|tab_state| {
+                        tab_state.search_query.query = pattern.clone()
+                    });
                 }
                 Action::Ordering(ref ord) => {
-                    debug!("Ordering changed: {:?} at {:?}", ord, self.state.focused);
-                    *self.state.ordering.write().unwrap() = *ord;
-                    if let Some((col, desc)) = *ord
-                        && !self.state.live_mode.load(Ordering::Relaxed)
-                    {
-                        let mut guard = self.state.connections.lock().unwrap();
-                        let mut conns: Vec<Connection> = guard.drain(..).collect();
-                        let col_def = &CONNECTION_COLS[col];
-                        conns.sort_by(|a, b| col_def.ordering(a, b, desc));
-                        guard.extend(conns);
+                    debug!("Ordering changed: {:?} at {:?}", ord, self.state.tab);
+                    self.with_current_tab(|tab_state| tab_state.search_query.order_by = *ord);
+                    if let Some(OrderBy(index, desc)) = ord {
+                        let tab = *self.state.tab.read().unwrap();
+                        let live_mode = self
+                            .state
+                            .tab_state
+                            .read()
+                            .unwrap()
+                            .get(&tab)
+                            .map(|v| v.live_mode)
+                            .unwrap_or(true);
+                        if live_mode {
+                            let mut guard = self.state.connections.lock().unwrap();
+                            let mut conns: Vec<Connection> = guard.drain(..).collect();
+                            let col_def = &CONNECTION_COLS[*index];
+                            conns.sort_by(|a, b| col_def.ordering(a, b, *desc));
+                            guard.extend(conns);
+                        }
                     }
                 }
                 _ => {}
@@ -312,9 +333,7 @@ impl App {
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         tui.draw(|frame| {
             if let Err(err) = self.root.draw(frame, frame.area(), &self.state) {
-                let _ = self
-                    .action_tx
-                    .send(Action::Error(format!("Failed to draw: {:?}", err)));
+                let _ = self.action_tx.send(Action::Error(format!("Failed to draw: {:?}", err)));
             }
         })?;
         Ok(())

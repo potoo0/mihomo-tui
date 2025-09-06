@@ -1,4 +1,7 @@
+use std::sync::OnceLock;
+
 use color_eyre::Result;
+use const_format::concatcp;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Margin, Rect};
@@ -15,9 +18,10 @@ use crate::action::Action;
 use crate::components::columns::CONNECTION_COLS;
 use crate::components::shortcut::Shortcut;
 use crate::components::{AppState, Component, ComponentId};
+use crate::models::search_query::OrderBy;
+use crate::utils::symbols::{arrow, triangle};
 
 const ROW_HEIGHT: usize = 1;
-const COLS_LEN: usize = CONNECTION_COLS.len();
 
 #[derive(Debug, Clone, Copy)]
 struct LiveMode(bool);
@@ -49,24 +53,20 @@ impl ConnectionsComponent {
             conns.to_vec()
         };
         self.item_size = records.len();
-        self.scroll_state = self
-            .scroll_state
-            .content_length(self.item_size * ROW_HEIGHT);
+        self.scroll_state = self.scroll_state.content_length(self.item_size * ROW_HEIGHT);
 
         self.viewport = area.height.saturating_sub(2); // borders
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .title(Span::styled(
-                format!("connections ({})", self.item_size),
-                Style::default().fg(Color::Cyan),
-            ));
+        let block = Block::bordered().border_type(BorderType::Rounded).title(Span::styled(
+            format!("connections ({})", self.item_size),
+            Style::default().fg(Color::Cyan),
+        ));
         let header = CONNECTION_COLS
             .iter()
             .map(|def| def.title)
             .enumerate()
             .map(|(index, title)| {
                 if index + 1 == self.selected_column {
-                    let arrow = if self.sort_desc { "▿" } else { "▵" };
+                    let arrow = if self.sort_desc { triangle::DOWN } else { triangle::UP };
                     Cell::from(format!("{} {}", title, arrow)).bold().cyan()
                 } else {
                     Cell::from(title).bold()
@@ -75,9 +75,7 @@ impl ConnectionsComponent {
             .collect::<Row>()
             .height(1)
             .bottom_margin(1);
-        let selected_row_style = Style::default()
-            .add_modifier(Modifier::REVERSED)
-            .fg(Color::Cyan);
+        let selected_row_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
 
         // TODO: Implement virtualized rendering: only render rows within the visible viewport
         let rows: Vec<Row> = records
@@ -107,27 +105,27 @@ impl ConnectionsComponent {
 
         frame.render_stateful_widget(table, area, &mut self.table_state);
 
-        if self.live_mode.0 {
-            let full = Throbber::default()
-                .label("Live")
-                .style(Style::default().bg(Color::Green).bold())
-                .throbber_style(Style::default().bg(Color::Green).bold())
-                .throbber_set(throbber_widgets_tui::BRAILLE_SIX)
-                .use_type(throbber_widgets_tui::WhichUse::Spin);
-            frame.render_stateful_widget(
-                full,
-                Rect::new(area.right().saturating_sub(7), area.y, 6, 1),
-                &mut self.throbber_state,
-            );
-        }
+        let (throbber_label, throbber_color) =
+            if self.live_mode.0 { ("Live  ", Color::Green) } else { ("Paused", Color::Red) };
+        let symbol = Throbber::default()
+            .label(throbber_label)
+            .style(Style::default().bg(throbber_color).bold())
+            .throbber_style(Style::default().bg(throbber_color).bold())
+            .throbber_set(throbber_widgets_tui::BRAILLE_SIX)
+            .use_type(throbber_widgets_tui::WhichUse::Spin);
+        frame.render_stateful_widget(
+            symbol,
+            Rect::new(area.right().saturating_sub(9), area.y, 8, 1),
+            &mut self.throbber_state,
+        );
     }
 
     fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_stateful_widget(
             Scrollbar::default()
                 .orientation(ScrollbarOrientation::VerticalRight)
-                .begin_symbol(Some("↑"))
-                .end_symbol(Some("↓")),
+                .begin_symbol(Some(arrow::UP))
+                .end_symbol(Some(arrow::DOWN)),
             area.inner(Margin::new(1, 1)),
             &mut self.scroll_state,
         );
@@ -173,6 +171,52 @@ impl ConnectionsComponent {
         self.table_state.select(Some(i));
         self.scroll_state = self.scroll_state.position(i * ROW_HEIGHT);
     }
+
+    fn sortable_cols() -> &'static [usize] {
+        static SORTABLE_COLS: OnceLock<Vec<usize>> = OnceLock::new();
+        SORTABLE_COLS.get_or_init(|| {
+            CONNECTION_COLS
+                .iter()
+                .enumerate()
+                .filter(|(_, col)| col.sortable)
+                .map(|(i, _)| i)
+                .collect()
+        })
+    }
+
+    /// Wrap around to the previous sortable column.
+    /// If no column is selected, select the last sortable column.
+    pub fn prev_column(&mut self) {
+        let cols = Self::sortable_cols();
+        if cols.is_empty() {
+            return;
+        }
+        // jump to last column if no column is selected
+        if self.selected_column == 0 {
+            self.selected_column = cols[cols.len() - 1] + 1;
+            return;
+        }
+        let actual_idx = self.selected_column - 1;
+        let pos = cols.iter().position(|&i| i == actual_idx).unwrap_or(0);
+        self.selected_column = cols[(pos + cols.len() - 1) % cols.len()] + 1
+    }
+
+    /// Wrap around to the next sortable column.
+    /// If no column is selected, select the first sortable column.
+    pub fn next_column(&mut self) {
+        let cols = Self::sortable_cols();
+        if cols.is_empty() {
+            return;
+        }
+        // jump to first column if no column is selected
+        if self.selected_column == 0 {
+            self.selected_column = cols[0] + 1;
+            return;
+        }
+        let actual_idx = self.selected_column - 1;
+        let pos = cols.iter().position(|&i| i == actual_idx).unwrap_or(0);
+        self.selected_column = cols[(pos + 1) % cols.len()] + 1
+    }
 }
 
 impl Component for ConnectionsComponent {
@@ -185,8 +229,8 @@ impl Component for ConnectionsComponent {
             Shortcut::new("↵", "Detail"),
             Shortcut::new("g", "First"),
             Shortcut::new("G", "Last"),
-            Shortcut::new("j/↓", "Down"),
-            Shortcut::new("k/↑", "Up"),
+            Shortcut::new(concatcp!("j/", arrow::DOWN), "Down"),
+            Shortcut::new(concatcp!("k/", arrow::UP), "Up"),
             Shortcut::new("Esc", "Live Mode"),
         ]
     }
@@ -220,20 +264,11 @@ impl Component for ConnectionsComponent {
                 return Ok(Some(Action::LiveMode(false)));
             }
             KeyCode::Char('h') | KeyCode::Left => {
-                if self.selected_column == 0 {
-                    self.selected_column = COLS_LEN - 1;
-                } else {
-                    self.selected_column -= 1;
-                }
+                self.prev_column();
                 self.should_send_sort = true;
             }
             KeyCode::Char('l') | KeyCode::Right => {
-                // todo consider skipping non-sortable columns
-                if self.selected_column == COLS_LEN {
-                    self.selected_column = 0;
-                } else {
-                    self.selected_column += 1;
-                }
+                self.next_column();
                 self.should_send_sort = true;
             }
             KeyCode::Char('r') => {
@@ -242,10 +277,7 @@ impl Component for ConnectionsComponent {
             }
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
             KeyCode::Enter => {
-                return Ok(self
-                    .table_state
-                    .selected()
-                    .map(Action::RequestConnectionDetail));
+                return Ok(self.table_state.selected().map(Action::RequestConnectionDetail));
             }
             _ => (),
         };
@@ -261,15 +293,12 @@ impl Component for ConnectionsComponent {
                 }
                 if self.should_send_sort {
                     self.should_send_sort = false;
-                    let ordering: Option<(usize, bool)> = if self.selected_column > 0 {
-                        Some((self.selected_column - 1, self.sort_desc))
+                    let ordering: Option<OrderBy> = if self.selected_column > 0 {
+                        Some(OrderBy(self.selected_column - 1, self.sort_desc))
                     } else {
                         None
                     };
-                    self.action_tx
-                        .as_ref()
-                        .unwrap()
-                        .send(Action::Ordering(ordering))?;
+                    self.action_tx.as_ref().unwrap().send(Action::Ordering(ordering))?;
                 }
             }
             Action::LiveMode(live) => {
@@ -286,5 +315,59 @@ impl Component for ConnectionsComponent {
         self.render_scrollbar(frame, area);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_row_navigation() {
+        let mut component = ConnectionsComponent { item_size: 3, ..Default::default() };
+        assert_eq!(component.table_state.selected(), None);
+
+        // Test next_row
+        let next_rows_case = vec![Some(0), Some(1), Some(2)];
+        for expected in next_rows_case {
+            component.next_row();
+            assert_eq!(component.table_state.selected(), expected);
+        }
+
+        // Test prev_row
+        let prev_rows_case = vec![Some(1), Some(0), Some(2), Some(1)];
+        for expected in prev_rows_case {
+            component.prev_row();
+            assert_eq!(component.table_state.selected(), expected);
+        }
+    }
+
+    #[test]
+    fn test_column_navigation() {
+        let mut component = ConnectionsComponent::default();
+        assert_eq!(component.selected_column, 0);
+
+        let cols = ConnectionsComponent::sortable_cols();
+        assert!(!cols.is_empty());
+
+        // Test next_column
+        for &val in cols.iter() {
+            component.next_column();
+            assert_eq!(component.selected_column - 1, val);
+        }
+        // wrap around to first sortable column
+        component.next_column();
+        assert_eq!(component.selected_column, 1);
+
+        // Reset to no column selected
+        component.selected_column = 0;
+        // Test prev_column
+        for &val in cols.iter().rev() {
+            component.prev_column();
+            assert_eq!(component.selected_column - 1, val);
+        }
+        // wrap around to last sortable column
+        component.prev_column();
+        assert_eq!(component.selected_column - 1, cols[cols.len() - 1]);
     }
 }

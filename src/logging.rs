@@ -19,10 +19,7 @@ pub fn init(config: &Config) -> Result<()> {
         .append(true)
         .open(&log_file)
         .with_context(|| format!("Fail to open file `{}`", &log_file.display()))?;
-    let log_level = config
-        .log_level
-        .clone()
-        .unwrap_or(tracing::Level::INFO.to_string());
+    let log_level = config.log_level.clone().unwrap_or(tracing::Level::INFO.to_string());
 
     // If the `RUST_LOG` environment variable is set, use that as the default, otherwise use the
     // value of the `LOG_ENV` environment variable. If the `LOG_ENV` environment variable contains
@@ -37,10 +34,7 @@ pub fn init(config: &Config) -> Result<()> {
         .with_ansi(false)
         .with_filter(env_filter);
 
-    tracing_subscriber::registry()
-        .with(file_subscriber)
-        .with(ErrorLayer::default())
-        .try_init()?;
+    tracing_subscriber::registry().with(file_subscriber).with(ErrorLayer::default()).try_init()?;
 
     Ok(())
 }

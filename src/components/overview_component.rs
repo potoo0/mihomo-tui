@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use color_eyre::Result;
+use const_format::concatcp;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Style, Stylize};
@@ -12,8 +13,12 @@ use ratatui::widgets::{
 
 use crate::components::{AppState, Component, ComponentId};
 use crate::palette;
+use crate::utils::axis::{axis_bounds, axis_labels};
 use crate::utils::byte_size::{ByteSizeOptExt, human_bytes};
-use crate::utils::{axis_bounds, axis_labels};
+use crate::utils::symbols::arrow;
+
+const UP: &str = concatcp!(arrow::UP, " ");
+const DOWN: &str = concatcp!(" ", arrow::DOWN);
 
 type Series = Vec<(f64, f64)>;
 
@@ -38,41 +43,32 @@ impl OverviewComponent {
 
         let cells_content = vec![
             Line::from(vec![
-                Span::styled("↑ ", Style::default().fg(palette::UP)),
+                Span::styled(UP, Style::default().fg(palette::UP)),
                 Span::raw(
-                    traffic
-                        .map(|(v, _)| human_bytes(v as f64, Some("/s")))
-                        .unwrap_or("-".into()),
+                    traffic.map(|(v, _)| human_bytes(v as f64, Some("/s"))).unwrap_or("-".into()),
                 )
                 .bold(),
                 Span::raw(" / ").dark_gray(),
                 Span::raw(
-                    traffic
-                        .map(|(_, v)| human_bytes(v as f64, Some("/s")))
-                        .unwrap_or("-".into()),
+                    traffic.map(|(_, v)| human_bytes(v as f64, Some("/s"))).unwrap_or("-".into()),
                 )
                 .bold(),
-                Span::styled(" ↓", Style::default().fg(palette::DOWN)),
+                Span::styled(DOWN, Style::default().fg(palette::DOWN)),
             ]),
             Line::from(vec![
-                Span::styled("↑ ", Style::default().fg(palette::UP)),
+                Span::styled(UP, Style::default().fg(palette::UP)),
                 Span::raw(conn_stat.map(|s| s.up_total).fmt(None)).bold(),
                 Span::raw(" / ").dark_gray(),
                 Span::raw(conn_stat.map(|s| s.down_total).fmt(None)).bold(),
-                Span::styled(" ↓", Style::default().fg(palette::DOWN)),
+                Span::styled(DOWN, Style::default().fg(palette::DOWN)),
             ]),
-            Line::from(
-                conn_stat
-                    .map(|s| format!("{}", s.conns_size))
-                    .unwrap_or("-".into()),
-            )
-            .centered(),
+            Line::from(conn_stat.map(|s| s.conns_size.to_string()).unwrap_or("-".into()))
+                .centered(),
             Line::from(conn_stat.map(|s| s.memory).fmt(None)).centered(),
         ];
+
         let table = Table::new(
-            vec![Row::new(
-                cells_content.into_iter().map(|c| Cell::from(c.centered())),
-            )],
+            vec![Row::new(cells_content.into_iter().map(|c| Cell::from(c.centered())))],
             [
                 Constraint::Ratio(2, 5),
                 Constraint::Ratio(2, 5),
@@ -87,9 +83,8 @@ impl OverviewComponent {
     }
 
     fn render_charts(&mut self, frame: &mut Frame, area: Rect, state: &AppState) {
-        let outer = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .padding(Padding::new(1, 1, 1, 1));
+        let outer =
+            Block::bordered().border_type(BorderType::Rounded).padding(Padding::new(1, 1, 1, 1));
         frame.render_widget(outer.clone(), area);
 
         let chunks = Layout::horizontal([
@@ -135,25 +130,13 @@ impl OverviewComponent {
         ];
         for index in 0..2 {
             let bound = if index == 0 {
-                (
-                    0f64,
-                    traffic[index].iter().map(|(_, y)| *y).fold(1.0, f64::max),
-                )
+                (0f64, traffic[index].iter().map(|(_, y)| *y).fold(1.0, f64::max))
             } else {
-                (
-                    traffic[index].iter().map(|(_, y)| *y).fold(-1.0, f64::min),
-                    0f64,
-                )
+                (traffic[index].iter().map(|(_, y)| *y).fold(-1.0, f64::min), 0f64)
             };
             let labels: Vec<String> = axis_labels(bound.0, bound.1)
                 .into_iter()
-                .map(|s| {
-                    if s.len() < 10 {
-                        format!("{:>10}", s)
-                    } else {
-                        s
-                    }
-                })
+                .map(|s| if s.len() < 10 { format!("{:>10}", s) } else { s })
                 .collect();
             let dataset = Dataset::default()
                 .marker(Marker::Braille)
@@ -177,10 +160,8 @@ impl OverviewComponent {
     }
 
     fn render_memory_chart(&mut self, frame: &mut Frame, area: Rect, data: Vec<(f64, f64)>) {
-        let dataset = Dataset::default()
-            .marker(Marker::Braille)
-            .graph_type(GraphType::Line)
-            .data(&data);
+        let dataset =
+            Dataset::default().marker(Marker::Braille).graph_type(GraphType::Line).data(&data);
 
         let bounds = axis_bounds(&data);
         let chart = Chart::new(vec![dataset])

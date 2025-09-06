@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
@@ -8,6 +7,7 @@ use crate::models::Connection;
 use crate::utils::byte_size::human_bytes;
 
 pub struct ColDef<T> {
+    #[allow(dead_code)]
     pub id: &'static str,
     pub title: &'static str,
     pub filterable: bool,
@@ -40,9 +40,7 @@ impl<T> ColDef<T> {
 
 #[derive(Debug, Clone)]
 pub enum SortKey {
-    Str(String),
     U64(u64),
-    F64(f64),
 }
 
 impl SortKey {
@@ -50,9 +48,6 @@ impl SortKey {
         use SortKey::*;
         match (self, other) {
             (U64(a), U64(b)) => a.cmp(b),
-            (F64(a), F64(b)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
-            (Str(a), Str(b)) => a.cmp(b),
-            (a, b) => format!("{a:?}").cmp(&format!("{b:?}")),
         }
     }
 }
@@ -72,20 +67,13 @@ pub static CONNECTION_COLS: &[ColDef<Connection>] = &[
                 Value::String(str) => Cow::Borrowed(str.as_str()),
                 _ => Cow::Borrowed(""),
             };
-            if let Some(h) = c
-                .metadata
-                .get("host")
-                .and_then(Value::as_str)
-                .filter(|s| !s.is_empty())
+            if let Some(h) =
+                c.metadata.get("host").and_then(Value::as_str).filter(|s| !s.is_empty())
             {
                 return Cow::Owned(format!("{h}:{}", dport));
             }
 
-            let dip = c
-                .metadata
-                .get("destinationIP")
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let dip = c.metadata.get("destinationIP").and_then(Value::as_str).unwrap_or("");
             let with_port = if dip.contains(':') {
                 // IPv6
                 format!("[{dip}]:{}", dport)

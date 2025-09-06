@@ -17,9 +17,7 @@ fn get_default_shortcuts() -> Vec<Shortcut> {
 
 impl Default for FooterComponent {
     fn default() -> Self {
-        Self {
-            shortcuts: get_default_shortcuts(),
-        }
+        Self { shortcuts: get_default_shortcuts() }
     }
 }
 

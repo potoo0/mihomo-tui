@@ -108,9 +108,7 @@ impl Tui {
         let mut render_interval = interval(Duration::from_secs_f64(1.0 / frame_rate));
 
         // if this fails, then it's likely a bug in the calling code
-        event_tx
-            .send(Event::Init)
-            .expect("failed to send init event");
+        event_tx.send(Event::Init).expect("failed to send init event");
         loop {
             let event = tokio::select! {
                 _ = cancellation_token.cancelled() => {

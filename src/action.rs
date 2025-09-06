@@ -1,6 +1,7 @@
 use crate::components::ComponentId;
 use crate::components::shortcut::Shortcut;
 use crate::models::Connection;
+use crate::models::search_query::OrderBy;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
@@ -24,5 +25,5 @@ pub enum Action {
     ConnectionDetail(Box<Connection>),
     LiveMode(bool),
     SearchInputChanged(Option<String>),
-    Ordering(Option<(usize, bool)>),
+    Ordering(Option<OrderBy>),
 }

@@ -9,6 +9,7 @@ better-panic = "0.3.0"
 circular-buffer = "1.1.0"
 clap = { version = "4.5.45", features = ["env", "derive", "wrap_help", "string", "cargo"] }
 color-eyre = "0.6.5"
+const_format = "0.2.34"
 crossterm = { version = "0.29.0", features = ["event-stream"] }
 directories = "6.0.0"
 futures-util = "0.3.31"

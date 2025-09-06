@@ -124,10 +124,7 @@ mod tests {
 
         // middle
         let hl = HighlightedLine::from("filter", 3).unwrap();
-        assert_eq!(
-            hl.parts,
-            vec![Fragment::Raw("fil"), Fragment::Hl("t"), Fragment::Raw("er")]
-        );
+        assert_eq!(hl.parts, vec![Fragment::Raw("fil"), Fragment::Hl("t"), Fragment::Raw("er")]);
 
         // end
         let hl = HighlightedLine::from("filter", 5).unwrap();

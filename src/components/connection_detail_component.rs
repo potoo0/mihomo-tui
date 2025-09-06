@@ -95,10 +95,7 @@ impl Component for ConnectionDetailComponent {
                 self.scroll_state = self.scroll_state.position(self.scroll);
             }
             KeyCode::PageDown | KeyCode::Char(' ') => {
-                self.scroll = self
-                    .scroll
-                    .saturating_add(self.viewport)
-                    .min(self.total_lines - 1);
+                self.scroll = self.scroll.saturating_add(self.viewport).min(self.total_lines - 1);
                 self.scroll_state = self.scroll_state.position(self.scroll);
             }
             KeyCode::PageUp => {
@@ -131,9 +128,8 @@ impl Component for ConnectionDetailComponent {
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
             .title(" detail ");
-        let paragraph = Paragraph::new(self.data.as_str())
-            .scroll((self.scroll as u16, 0))
-            .block(block);
+        let paragraph =
+            Paragraph::new(self.data.as_str()).scroll((self.scroll as u16, 0)).block(block);
 
         frame.render_widget(Clear, area); // clears out the background
         frame.render_widget(paragraph, area);

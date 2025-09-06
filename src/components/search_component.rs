@@ -46,14 +46,9 @@ impl SearchComponent {
 
     fn send(&mut self) -> Result<()> {
         if self.is_active && self.should_send {
-            let pattern = Some(self.input.value())
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_owned);
-            self.action_tx
-                .as_ref()
-                .unwrap()
-                .send(Action::SearchInputChanged(pattern))?;
+            let pattern =
+                Some(str::trim(self.input.value())).filter(|s| !s.is_empty()).map(str::to_owned);
+            self.action_tx.as_ref().unwrap().send(Action::SearchInputChanged(pattern))?;
             self.should_send = false;
         }
 
@@ -102,11 +97,8 @@ impl Component for SearchComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
-        let style = if self.is_active {
-            Style::default().fg(Color::LightBlue)
-        } else {
-            Style::default()
-        };
+        let style =
+            if self.is_active { Style::default().fg(Color::LightBlue) } else { Style::default() };
 
         let width = area.width.max(3) - 3;
         let scroll = self.input.visual_scroll(width as usize);
@@ -114,10 +106,8 @@ impl Component for SearchComponent {
             .border_type(BorderType::Rounded)
             .border_style(style)
             .title(Line::from(HighlightedLine::from("filter", 0).unwrap()));
-        let input = Paragraph::new(self.input.value())
-            .scroll((0, scroll as u16))
-            .style(style)
-            .block(block);
+        let input =
+            Paragraph::new(self.input.value()).scroll((0, scroll as u16)).style(style).block(block);
         frame.render_widget(input, area);
         if self.is_active {
             let x = self.input.visual_cursor().max(scroll) - scroll + 1;

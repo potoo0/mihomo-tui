@@ -75,10 +75,7 @@ pub fn get_config_path() -> PathBuf {
         let mut opt = cell.borrow_mut();
         if opt.is_none() {
             let mut path = env::temp_dir();
-            let nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
+            let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
             path.push(format!(".test_{}_{}.yaml", env!("CARGO_PKG_NAME"), nanos));
             *opt = Some(path);
         }

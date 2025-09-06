@@ -10,10 +10,8 @@ use super::{AppState, Component, ComponentId};
 use crate::action::Action;
 use crate::config::get_config_path;
 
-const REPOSITORY_URL: &str = concat!(
-    "https://github.com/potoo0/mihomo-tui/tree/v",
-    env!("CARGO_PKG_VERSION")
-);
+const REPOSITORY_URL: &str =
+    concat!("https://github.com/potoo0/mihomo-tui/tree/v", env!("CARGO_PKG_VERSION"));
 
 pub struct HelpComponent {
     scroll: usize,
@@ -33,12 +31,7 @@ impl HelpComponent {
         let total = Self::lines().0.len();
         let scroll_state = ScrollbarState::default().content_length(total);
 
-        Self {
-            scroll: 0,
-            viewport: 0,
-            total,
-            scroll_state,
-        }
+        Self { scroll: 0, viewport: 0, total, scroll_state }
     }
 
     fn lines<'a>() -> (Vec<Line<'a>>, Vec<Line<'a>>) {
@@ -83,10 +76,7 @@ impl Component for HelpComponent {
                 self.scroll_state = self.scroll_state.position(self.scroll);
             }
             KeyCode::PageDown | KeyCode::Char(' ') => {
-                self.scroll = self
-                    .scroll
-                    .saturating_add(self.viewport)
-                    .min(self.total - 1);
+                self.scroll = self.scroll.saturating_add(self.viewport).min(self.total - 1);
                 self.scroll_state = self.scroll_state.position(self.scroll);
             }
             KeyCode::PageUp => {
@@ -112,15 +102,11 @@ impl Component for HelpComponent {
 
         frame.render_widget(Clear, area);
         frame.render_widget(
-            Paragraph::new(left)
-                .scroll((self.scroll as u16, 0))
-                .alignment(Alignment::Right),
+            Paragraph::new(left).scroll((self.scroll as u16, 0)).alignment(Alignment::Right),
             cols[0],
         );
         frame.render_widget(
-            Paragraph::new(right)
-                .scroll((self.scroll as u16, 0))
-                .alignment(Alignment::Left),
+            Paragraph::new(right).scroll((self.scroll as u16, 0)).alignment(Alignment::Left),
             cols[2],
         );
 

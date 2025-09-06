@@ -6,7 +6,8 @@ use ratatui::{Frame, symbols};
 
 use crate::action::Action;
 use crate::components::highlight::{Fragment, HighlightedLine};
-use crate::components::{AppState, Component, ComponentId, SUPERSCRIPT_NUMS, TABS};
+use crate::components::{AppState, Component, ComponentId, TABS};
+use crate::utils::symbols::SUPERSCRIPT;
 
 #[derive(Default)]
 pub struct HeaderComponent {
@@ -20,25 +21,18 @@ impl HeaderComponent {
             .enumerate()
             .map(|(i, cid)| {
                 HighlightedLine::new(vec![
-                    Fragment::Hl(SUPERSCRIPT_NUMS[i + 1 % SUPERSCRIPT_NUMS.len()]),
+                    Fragment::Hl(SUPERSCRIPT[i + 1 % SUPERSCRIPT.len()]),
                     Fragment::RawOwned(cid.to_string()),
                 ])
                 .into()
             })
             .collect();
-        let selected_index = TABS
-            .iter()
-            .position(|cid| *cid == self.main_component)
-            .unwrap_or(0);
+        let selected_index = TABS.iter().position(|cid| *cid == self.main_component).unwrap_or(0);
         Tabs::new(tabs).select(selected_index).divider("|")
     }
 
     fn version_widget(&self, state: &AppState) -> Line<'_> {
-        let version = state
-            .version
-            .as_ref()
-            .map(|v| v.to_string())
-            .unwrap_or("-".to_string());
+        let version = state.version.as_ref().map(|v| v.to_string()).unwrap_or("-".to_string());
         Line::from(vec![
             Span::styled(
                 format!("[ {} {} ", version, symbols::DOT),

@@ -1,6 +1,7 @@
 mod connection;
 mod log;
 mod memory;
+pub mod search_query;
 mod traffic;
 mod version;
 

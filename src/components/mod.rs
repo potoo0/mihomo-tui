@@ -10,26 +10,21 @@ mod overview_component;
 pub mod root_component;
 mod search_component;
 pub mod shortcut;
-mod state;
+pub mod state;
 
 use color_eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::Frame;
 use ratatui::layout::{Rect, Size};
-pub use state::AppState;
 use strum::Display;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::components::shortcut::Shortcut;
+use crate::components::state::AppState;
 use crate::tui::Event;
 
-const TABS: [ComponentId; 3] = [
-    ComponentId::Overview,
-    ComponentId::Connections,
-    ComponentId::Logs,
-];
-const SUPERSCRIPT_NUMS: [&str; 10] = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
+const TABS: [ComponentId; 3] = [ComponentId::Overview, ComponentId::Connections, ComponentId::Logs];
 
 #[derive(PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
 pub enum ComponentId {
