@@ -10,7 +10,7 @@ use tui_input::{Input, InputRequest};
 
 use crate::action::Action;
 use crate::components::highlight::HighlightedLine;
-use crate::components::{AppState, Component, ComponentId};
+use crate::components::{Component, ComponentId};
 
 #[derive(Debug, Clone, Default)]
 pub struct SearchComponent {
@@ -96,7 +96,7 @@ impl Component for SearchComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         let style =
             if self.is_active { Style::default().fg(Color::LightBlue) } else { Style::default() };
 

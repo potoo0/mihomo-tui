@@ -10,7 +10,7 @@ use tracing::{error, info};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::highlight::{Fragment, HighlightedLine};
-use crate::components::{AppState, Component, ComponentId, TABS};
+use crate::components::{Component, ComponentId, TABS};
 use crate::models::Version;
 use crate::utils::symbols::SUPERSCRIPT;
 
@@ -93,7 +93,7 @@ impl Component for HeaderComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> color_eyre::Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
         let chunks = Layout::horizontal([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area);
 

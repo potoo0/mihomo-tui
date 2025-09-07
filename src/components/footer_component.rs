@@ -5,7 +5,7 @@ use ratatui::text::Line;
 
 use crate::action::Action;
 use crate::components::shortcut::Shortcut;
-use crate::components::{AppState, Component, ComponentId};
+use crate::components::{Component, ComponentId};
 
 pub struct FooterComponent {
     shortcuts: Vec<Shortcut>,
@@ -47,7 +47,7 @@ impl Component for FooterComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> color_eyre::Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
         frame.render_widget(self.short_cuts_widget(), area);
         Ok(())
     }

@@ -21,7 +21,7 @@ use tracing::{info, warn};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::logs::Logs;
-use crate::components::{AppState, Component, ComponentId};
+use crate::components::{Component, ComponentId};
 use crate::models::LogLevel;
 use crate::utils::symbols::arrow;
 
@@ -264,7 +264,7 @@ impl Component for LogsComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         self.render_list(frame, area);
         self.render_scrollbar(frame, area);
 

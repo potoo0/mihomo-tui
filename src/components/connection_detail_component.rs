@@ -13,7 +13,7 @@ use serde_json::ser::PrettyFormatter;
 
 use crate::action::Action;
 use crate::components::shortcut::Shortcut;
-use crate::components::{AppState, Component, ComponentId};
+use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::utils::symbols::arrow;
 
@@ -117,7 +117,7 @@ impl Component for ConnectionDetailComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> color_eyre::Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
         if !self.show {
             return Ok(());
         }

@@ -42,9 +42,6 @@ impl SearchState {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct AppState {}
-
 #[cfg(test)]
 mod tests {
     use super::*;

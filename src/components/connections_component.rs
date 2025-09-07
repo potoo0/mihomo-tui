@@ -25,7 +25,7 @@ use crate::api::Api;
 use crate::components::connections::{CONNECTION_COLS, Connections};
 use crate::components::shortcut::Shortcut;
 use crate::components::state::SearchState;
-use crate::components::{AppState, Component, ComponentId};
+use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
 use crate::utils::symbols::{arrow, triangle};
@@ -332,7 +332,7 @@ impl Component for ConnectionsComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         self.render_table(frame, area);
         self.render_scrollbar(frame, area);
 

@@ -6,7 +6,7 @@ use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::widgets::{Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 
-use super::{AppState, Component, ComponentId};
+use super::{Component, ComponentId};
 use crate::action::Action;
 use crate::config::get_config_path;
 
@@ -88,7 +88,7 @@ impl Component for HelpComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         let (left, right) = Self::lines();
 
         self.viewport = area.height as usize;

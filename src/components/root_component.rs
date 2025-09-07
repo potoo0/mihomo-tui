@@ -24,7 +24,7 @@ use crate::components::help_component::HelpComponent;
 use crate::components::logs_component::LogsComponent;
 use crate::components::overview_component::OverviewComponent;
 use crate::components::search_component::SearchComponent;
-use crate::components::{AppState, Component, ComponentId, TABS};
+use crate::components::{Component, ComponentId, TABS};
 use crate::models::{Connection, ConnectionStats};
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
@@ -218,7 +218,7 @@ impl Component for RootComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         if area.width < MIN_AREA.0 || area.height < MIN_AREA.1 {
             let lines = vec![
                 Line::from("Terminal size too small:").centered(),
@@ -236,19 +236,19 @@ impl Component for RootComponent {
             Layout::vertical([Constraint::Length(1), Constraint::Min(0), Constraint::Length(1)])
                 .split(area);
 
-        self.get_or_init(ComponentId::Header).draw(frame, chunks[0], state)?;
-        self.get_or_init(ComponentId::Footer).draw(frame, chunks[2], state)?;
+        self.get_or_init(ComponentId::Header).draw(frame, chunks[0])?;
+        self.get_or_init(ComponentId::Footer).draw(frame, chunks[2])?;
 
         if self.current_tab == ComponentId::Connections || self.current_tab == ComponentId::Logs {
             let inner_chunks =
                 Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
-            self.get_or_init(ComponentId::Search).draw(frame, inner_chunks[0], state)?;
-            self.get_or_init(self.current_tab).draw(frame, inner_chunks[1], state)?;
+            self.get_or_init(ComponentId::Search).draw(frame, inner_chunks[0])?;
+            self.get_or_init(self.current_tab).draw(frame, inner_chunks[1])?;
         } else {
-            self.get_or_init(self.current_tab).draw(frame, chunks[1], state)?;
+            self.get_or_init(self.current_tab).draw(frame, chunks[1])?;
         }
 
-        self.popup.map(|c| self.get_or_init(c).draw(frame, chunks[1], state)).transpose()?;
+        self.popup.map(|c| self.get_or_init(c).draw(frame, chunks[1])).transpose()?;
 
         Ok(())
     }

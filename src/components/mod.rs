@@ -25,7 +25,6 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::shortcut::Shortcut;
-use crate::components::state::AppState;
 use crate::tui::Event;
 
 const TABS: [ComponentId; 3] = [ComponentId::Overview, ComponentId::Connections, ComponentId::Logs];
@@ -172,7 +171,7 @@ pub trait Component {
     /// # Returns
     ///
     /// * `Result<()>` - An Ok result or an error.
-    fn draw(&mut self, frame: &mut Frame, area: Rect, state: &AppState) -> Result<()>;
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()>;
 
     // /// Check if the component is currently visible.
     // fn is_visible(&self) -> bool {

@@ -9,7 +9,6 @@ use tracing::trace;
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::root_component::RootComponent;
-use crate::components::state::AppState;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
 use crate::tui::{Event, Tui};
@@ -18,7 +17,6 @@ pub struct App {
     _config: Config,
     api: Arc<Api>,
     token: CancellationToken,
-    state: AppState,
     root: RootComponent,
 
     should_quit: bool,
@@ -30,12 +28,10 @@ pub struct App {
 impl App {
     pub fn new(_config: Config, api: Api) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let state = AppState::default();
         Ok(Self {
             _config,
             api: Arc::new(api),
             token: CancellationToken::new(),
-            state,
             root: RootComponent::new(),
 
             should_quit: false,
@@ -126,7 +122,7 @@ impl App {
 
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         tui.draw(|frame| {
-            if let Err(err) = self.root.draw(frame, frame.area(), &self.state) {
+            if let Err(err) = self.root.draw(frame, frame.area()) {
                 let _ = self.action_tx.send(Action::Error(format!("Failed to draw: {:?}", err)));
             }
         })?;

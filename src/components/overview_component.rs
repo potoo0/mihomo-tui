@@ -18,7 +18,7 @@ use tracing::{info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::{AppState, BUFFER_SIZE, Component, ComponentId};
+use crate::components::{BUFFER_SIZE, Component, ComponentId};
 use crate::models::{ConnectionStats, Memory, Traffic};
 use crate::palette;
 use crate::utils::axis::{axis_bounds, axis_labels};
@@ -290,7 +290,7 @@ impl Component for OverviewComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect, _state: &AppState) -> Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         let chunks = Layout::vertical([Constraint::Length(4), Constraint::Min(0)]).split(area);
 
         self.render_header(frame, chunks[0]);

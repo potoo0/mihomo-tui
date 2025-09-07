@@ -14,9 +14,11 @@ TODO List
 - [x] app: `load_connections` skip filter/order if `tab != connections`
 - [x] 修复滚动条遮挡最后一列
 - [x] cli help 补充 default config path
-- [ ] 移除 `Component.draw` 的 AppState 参数
+- [x] 移除 `Component.draw` 的 AppState 参数
 
 ```rust
+use ratatui::symbols::line::{TOP_LEFT, TOP_RIGHT};
+
 fn title_span(title: &str, title_style: Style, border_style: Style) -> Spans {
     Spans::from(
         vec![
