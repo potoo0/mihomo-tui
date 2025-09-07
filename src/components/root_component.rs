@@ -74,7 +74,7 @@ impl RootComponent {
                 ComponentId::Connections => {
                     Box::new(ConnectionsComponent::new(self.conns_tx.subscribe()))
                 }
-                ComponentId::Logs => Box::new(LogsComponent::default()),
+                ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::Search => Box::new(SearchComponent::default()),

@@ -7,11 +7,11 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use serde_json::Value;
 
 use crate::components::CONNS_BUFFER_SIZE;
-use crate::utils::columns::{ColDef, SortKey};
-use crate::utils::row_filter::RowFilter;
 use crate::components::state::SearchState;
 use crate::models::Connection;
 use crate::utils::byte_size::human_bytes;
+use crate::utils::columns::{ColDef, SortKey};
+use crate::utils::row_filter::RowFilter;
 
 #[derive(Default)]
 pub struct Connections {
