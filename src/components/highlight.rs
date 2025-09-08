@@ -60,6 +60,10 @@ impl<'a> HighlightedLine<'a> {
 
     /// Converts this `HighlightedLine` into a [`Line`].
     pub fn to_line_with(&self, hl_style: Style) -> Line<'a> {
+        Line::from(self.to_spans(hl_style))
+    }
+
+    pub fn to_spans(&self, hl_style: Style) -> Vec<Span<'a>> {
         let mut spans = Vec::with_capacity(self.parts.len());
         for seg in &self.parts {
             match seg {
@@ -69,13 +73,22 @@ impl<'a> HighlightedLine<'a> {
                 _ => {}
             }
         }
-        Line::from(spans)
+        spans
     }
 }
 
 impl<'a> From<HighlightedLine<'a>> for Line<'a> {
     fn from(value: HighlightedLine<'a>) -> Self {
         value.to_line()
+    }
+}
+
+impl<'a> IntoIterator for HighlightedLine<'a> {
+    type Item = Span<'a>;
+    type IntoIter = std::vec::IntoIter<Span<'a>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.to_spans(Style::default().fg(DEFAULT_HL_COLOR)).into_iter()
     }
 }
 

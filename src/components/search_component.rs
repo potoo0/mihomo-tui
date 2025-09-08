@@ -2,6 +2,7 @@ use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Rect;
+use ratatui::prelude::Span;
 use ratatui::style::{Color, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Paragraph};
@@ -11,6 +12,7 @@ use tui_input::{Input, InputRequest};
 use crate::action::Action;
 use crate::components::highlight::HighlightedLine;
 use crate::components::{Component, ComponentId};
+use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 
 #[derive(Debug, Clone, Default)]
 pub struct SearchComponent {
@@ -102,10 +104,13 @@ impl Component for SearchComponent {
 
         let width = area.width.max(3) - 3;
         let scroll = self.input.visual_scroll(width as usize);
-        let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(style)
-            .title(Line::from(HighlightedLine::from("filter", 0).unwrap()));
+
+        let mut line = Line::from(Span::raw(TOP_TITLE_LEFT));
+        line.extend(HighlightedLine::from("filter", 0).unwrap());
+        line.push_span(Span::raw(TOP_TITLE_RIGHT));
+
+        let block =
+            Block::bordered().border_type(BorderType::Rounded).border_style(style).title(line);
         let input =
             Paragraph::new(self.input.value()).scroll((0, scroll as u16)).style(style).block(block);
         frame.render_widget(input, area);

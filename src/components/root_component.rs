@@ -6,9 +6,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use futures_util::{StreamExt, TryStreamExt, future};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Stylize;
+use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{broadcast, watch};
 use tokio_util::sync::CancellationToken;
@@ -26,6 +26,7 @@ use crate::components::overview_component::OverviewComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::{Connection, ConnectionStats};
+use crate::utils::text_ui::top_title_line;
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
 const MIN_AREA: (u16, u16) = (100, 18);
@@ -227,8 +228,11 @@ impl Component for RootComponent {
                 Line::from("Expected:").centered(),
                 Self::area_msg_line(MIN_AREA.0, MIN_AREA.1).centered(),
             ];
-            let paragraph = Paragraph::new(lines)
-                .block(Block::default().title(Span::raw("Error").red()).borders(Borders::ALL));
+            let block = Block::default()
+                .border_type(BorderType::Rounded)
+                .title(top_title_line("error", Color::Red))
+                .borders(Borders::ALL);
+            let paragraph = Paragraph::new(lines).block(block);
             frame.render_widget(paragraph, area);
             return Ok(());
         }

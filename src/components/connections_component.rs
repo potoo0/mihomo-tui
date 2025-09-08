@@ -7,6 +7,7 @@ use const_format::concatcp;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Margin, Rect};
+use ratatui::prelude::Line;
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::symbols::line;
 use ratatui::text::Span;
@@ -29,6 +30,7 @@ use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
 use crate::utils::symbols::{arrow, triangle};
+use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 
 const ROW_HEIGHT: usize = 1;
 
@@ -96,12 +98,16 @@ impl ConnectionsComponent {
         let records = self.store.view();
         self.item_size = records.len();
         self.scroll_state = self.scroll_state.content_length(self.item_size * ROW_HEIGHT);
-
         self.viewport = area.height.saturating_sub(2); // borders
-        let block = Block::bordered().border_type(BorderType::Rounded).title(Span::styled(
-            format!("connections ({})", self.item_size),
-            Style::default().fg(Color::Cyan),
-        ));
+
+        let title_line = Line::from(vec![
+            Span::raw(TOP_TITLE_LEFT),
+            Span::raw("connections ("),
+            Span::styled(self.item_size.to_string(), Color::Cyan),
+            Span::raw(")"),
+            Span::raw(TOP_TITLE_RIGHT),
+        ]);
+        let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
         let sort = self.search_state.lock().unwrap().sort;
         let header = CONNECTION_COLS
             .iter()

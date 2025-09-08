@@ -2,6 +2,7 @@ use const_format::concatcp;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
+use ratatui::prelude::Style;
 use ratatui::style::Color;
 use ratatui::symbols::line;
 use ratatui::widgets::{
@@ -16,6 +17,7 @@ use crate::components::shortcut::Shortcut;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::utils::symbols::arrow;
+use crate::utils::text_ui::top_title_line;
 
 const INDENT: &[u8; 4] = b"    "; // 4 spaces
 
@@ -129,7 +131,7 @@ impl Component for ConnectionDetailComponent {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(" detail ");
+            .title(top_title_line("detail", Style::default()));
         let paragraph =
             Paragraph::new(self.data.as_str()).scroll((self.scroll as u16, 0)).block(block);
 

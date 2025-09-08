@@ -11,7 +11,7 @@ use ratatui::style::{Color, Style};
 use ratatui::symbols::line;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    Block, BorderType, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState,
 };
 use throbber_widgets_tui::{Throbber, ThrobberState};
 use tokio::sync::mpsc::UnboundedSender;
@@ -20,10 +20,12 @@ use tracing::{info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
+use crate::components::highlight::HighlightedLine;
 use crate::components::logs::Logs;
 use crate::components::{Component, ComponentId};
 use crate::models::LogLevel;
 use crate::utils::symbols::arrow;
+use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 
 const ROW_HEIGHT: usize = 1;
 
@@ -94,6 +96,14 @@ impl LogsComponent {
         }
     }
 
+    fn level_shortcuts<'a>(&mut self) -> Line<'a> {
+        let mut line = Line::from(Span::raw(TOP_TITLE_LEFT));
+        line.extend(HighlightedLine::from("level", 2).unwrap());
+        line.push_span(format!(": {}", self.level.map_or("-".to_string(), |v| v.to_string())));
+        line.push_span(Span::raw(TOP_TITLE_RIGHT));
+        line
+    }
+
     fn render_list(&mut self, frame: &mut Frame, area: Rect) {
         let records = self.store.view();
         self.item_size = records.len();
@@ -103,6 +113,7 @@ impl LogsComponent {
         // TODO: Implement virtualized rendering: only render rows within the visible viewport
         let items: Vec<ListItem> = records
             .iter()
+            .rev()
             .map(|item| {
                 let content = vec![
                     Span::styled(format!(" {:<9}", item.r#type), Self::level_style(&item.r#type)),
@@ -112,9 +123,17 @@ impl LogsComponent {
                 ListItem::new(Line::from(content))
             })
             .collect();
+        let mut title_line = Line::from(vec![
+            Span::raw(TOP_TITLE_LEFT),
+            Span::raw("logs ("),
+            Span::styled(self.item_size.to_string(), Color::Cyan),
+            Span::raw(")"),
+            Span::raw(TOP_TITLE_RIGHT),
+        ]);
+        title_line.extend(self.level_shortcuts());
+        let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
         let selected_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
-        let logs =
-            List::new(items).block(Block::bordered().title("List")).highlight_style(selected_style);
+        let logs = List::new(items).block(block).highlight_style(selected_style);
         frame.render_stateful_widget(logs, area, &mut self.list_state);
 
         let (throbber_label, throbber_color) = if self.live_mode.load(Ordering::Relaxed) {

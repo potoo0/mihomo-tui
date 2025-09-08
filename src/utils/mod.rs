@@ -3,3 +3,4 @@ pub mod byte_size;
 pub mod columns;
 pub mod row_filter;
 pub mod symbols;
+pub mod text_ui;
