@@ -13,6 +13,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, BorderType, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState,
 };
+use strum::IntoEnumIterator;
 use throbber_widgets_tui::{Throbber, ThrobberState};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
@@ -37,6 +38,8 @@ pub struct LogsComponent {
     level: Option<LogLevel>,
     live_mode: Arc<AtomicBool>,
     filter_pattern: Arc<Mutex<Option<String>>>,
+
+    level_changed: bool,
     filter_pattern_changed: bool,
 
     viewport: u16,
@@ -96,12 +99,25 @@ impl LogsComponent {
         }
     }
 
-    fn level_shortcuts<'a>(&mut self) -> Line<'a> {
-        let mut line = Line::from(Span::raw(TOP_TITLE_LEFT));
-        line.extend(HighlightedLine::from("level", 2).unwrap());
-        line.push_span(format!(": {}", self.level.map_or("-".to_string(), |v| v.to_string())));
-        line.push_span(Span::raw(TOP_TITLE_RIGHT));
-        line
+    fn level_shortcuts<'a>(&mut self) -> Vec<Span<'a>> {
+        let mut vec = Vec::with_capacity(8);
+        vec.push(Span::raw(TOP_TITLE_LEFT));
+        vec.push(Span::raw("level: "));
+        for (idx, lv) in LogLevel::iter().enumerate() {
+            if idx > 0 {
+                vec.push(Span::raw("/"));
+            }
+            let label = lv.to_string();
+            if let Some(cur) = &self.level
+                && cur == &lv
+            {
+                vec.push(Span::styled(label, Self::level_style(&lv)));
+            } else {
+                vec.extend(HighlightedLine::from(label, 0).unwrap());
+            }
+        }
+        vec.push(Span::raw(TOP_TITLE_RIGHT));
+        vec
     }
 
     fn render_list(&mut self, frame: &mut Frame, area: Rect) {
@@ -213,6 +229,16 @@ impl LogsComponent {
             self.scroll_state = self.scroll_state.position(0);
         }
     }
+
+    fn set_level(&mut self, level: LogLevel) {
+        if let Some(lv) = &self.level
+            && lv == &level
+        {
+            return;
+        }
+        self.level = Some(level);
+        self.level_changed = true;
+    }
 }
 
 impl Component for LogsComponent {
@@ -253,6 +279,10 @@ impl Component for LogsComponent {
                 self.live_mode(false);
             }
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
+            KeyCode::Char('e') => self.set_level(LogLevel::Error),
+            KeyCode::Char('w') => self.set_level(LogLevel::Warning),
+            KeyCode::Char('i') => self.set_level(LogLevel::Info),
+            KeyCode::Char('d') => self.set_level(LogLevel::Debug),
             _ => (),
         };
 
@@ -271,6 +301,12 @@ impl Component for LogsComponent {
                     let filter_pattern = filter_pattern.as_deref();
                     self.store.compute_view(filter_pattern);
                     self.filter_pattern_changed = false;
+                }
+                if self.level_changed {
+                    self.token.cancel();
+                    self.token = CancellationToken::new();
+                    self.load_log()?;
+                    self.level_changed = false;
                 }
             }
             Action::SearchInputChanged(pattern) => {
