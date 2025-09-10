@@ -52,7 +52,9 @@ pub struct LogsComponent {
 
 impl LogsComponent {
     pub fn new() -> Self {
-        Self { live_mode: Arc::new(AtomicBool::new(true)), ..Default::default() }
+        let mut s = Self::default();
+        s.live_mode = Arc::new(AtomicBool::new(true));
+        s
     }
 
     fn load_log(&mut self) -> Result<()> {
@@ -238,6 +240,13 @@ impl LogsComponent {
         }
         self.level = Some(level);
         self.level_changed = true;
+    }
+}
+
+impl Drop for LogsComponent {
+    fn drop(&mut self) {
+        self.token.cancel();
+        info!("`LogsComponent` dropped, background task cancelled");
     }
 }
 

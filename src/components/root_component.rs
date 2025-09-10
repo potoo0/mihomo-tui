@@ -30,6 +30,8 @@ use crate::utils::text_ui::top_title_line;
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
 const MIN_AREA: (u16, u16) = (100, 18);
+/// 5 seconds at 4 ticks per second
+const IDLE_TICKS: u8 = 4 * 5;
 
 pub struct RootComponent {
     token: CancellationToken,
@@ -37,6 +39,7 @@ pub struct RootComponent {
     current_tab: ComponentId,
     popup: Option<ComponentId>,
     focused: Option<ComponentId>,
+    idle_tabs: HashMap<ComponentId, u8>,
     components: HashMap<ComponentId, Box<dyn Component>>,
     action_tx: Option<UnboundedSender<Action>>,
 
@@ -59,6 +62,7 @@ impl RootComponent {
             current_tab: Default::default(),
             popup: Default::default(),
             focused: Default::default(),
+            idle_tabs: Default::default(),
             components,
             action_tx: Default::default(),
 
@@ -79,8 +83,9 @@ impl RootComponent {
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::Search => Box::new(SearchComponent::default()),
-                _ => panic!("unsupported component {:?}", id),
+                _ => panic!("unsupported component `{:?}`", id),
             };
+            debug!("Initializing component `{:?}`", id);
             c.init(Arc::clone(self.api.as_ref().unwrap())).unwrap();
             c.register_action_handler(self.action_tx.as_ref().unwrap().clone()).unwrap();
             c
@@ -138,6 +143,45 @@ impl RootComponent {
             Span::raw(height.to_string()).cyan(),
         ])
     }
+
+    fn renew_idle(&mut self, to: ComponentId) {
+        self.idle_tabs.remove(&to);
+        if self.current_tab != to {
+            self.idle_tabs.insert(self.current_tab, IDLE_TICKS);
+        }
+    }
+
+    fn destroy_component(&mut self, id: ComponentId) {
+        // double check
+        if id == self.current_tab {
+            return;
+        }
+        if let Some(mut c) = self.components.remove(&id) {
+            info!("Destroying component `{:?}`", id);
+            self.idle_tabs.remove(&id);
+        }
+    }
+
+    fn on_tick(&mut self) {
+        // decrement idle counters
+        let mut to_remove = vec![];
+        for (&id, ticks) in self.idle_tabs.iter_mut() {
+            *ticks = ticks.saturating_sub(1);
+            if *ticks == 0 {
+                to_remove.push(id);
+            }
+        }
+        for id in to_remove {
+            self.destroy_component(id);
+        }
+    }
+}
+
+impl Drop for RootComponent {
+    fn drop(&mut self) {
+        self.token.cancel();
+        info!("`RootComponent` dropped, background task cancelled");
+    }
 }
 
 impl Component for RootComponent {
@@ -191,7 +235,9 @@ impl Component for RootComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Quit => self.token.cancel(),
+            Action::Tick => self.on_tick(),
             Action::TabSwitch(to) => {
+                self.renew_idle(to);
                 self.current_tab = to;
                 // get and init component, send shortcuts of current tab to footer
                 let shortcuts = self.get_or_init(self.current_tab).shortcuts();

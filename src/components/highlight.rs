@@ -68,16 +68,16 @@ impl<'a> HighlightedLine<'a> {
     /// Converts this `HighlightedLine` into a [`Line`], using the default highlight color
     /// [DEFAULT_HL_COLOR].
     #[inline]
-    pub fn to_line(self) -> Line<'a> {
-        self.to_line_with(Style::default().fg(DEFAULT_HL_COLOR))
+    pub fn into_line(self) -> Line<'a> {
+        self.into_line_styled(Style::default().fg(DEFAULT_HL_COLOR))
     }
 
     /// Converts this `HighlightedLine` into a [`Line`].
-    pub fn to_line_with(self, hl_style: Style) -> Line<'a> {
-        Line::from(self.to_spans(hl_style))
+    pub fn into_line_styled(self, hl_style: Style) -> Line<'a> {
+        Line::from(self.into_spans(hl_style))
     }
 
-    pub fn to_spans(self, hl_style: Style) -> Vec<Span<'a>> {
+    pub fn into_spans(self, hl_style: Style) -> Vec<Span<'a>> {
         self.parts
             .into_iter()
             .map(|v| match v {
@@ -93,7 +93,7 @@ impl<'a> HighlightedLine<'a> {
 
 impl<'a> From<HighlightedLine<'a>> for Line<'a> {
     fn from(value: HighlightedLine<'a>) -> Self {
-        value.to_line()
+        value.into_line()
     }
 }
 
@@ -102,7 +102,7 @@ impl<'a> IntoIterator for HighlightedLine<'a> {
     type IntoIter = std::vec::IntoIter<Span<'a>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.to_spans(Style::default().fg(DEFAULT_HL_COLOR)).into_iter()
+        self.into_spans(Style::default().fg(DEFAULT_HL_COLOR)).into_iter()
     }
 }
 
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn test_to_line() {
         let hl = HighlightedLine::new(vec![Fragment::Hl("f"), Fragment::Raw("ilter")]);
-        let line = hl.to_line();
+        let line = hl.into_line();
         assert_eq!(line.spans.len(), 2);
 
         assert_eq!(line.spans[0].content, "f");
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn test_to_line_nonascii() {
         let hl = HighlightedLine::new(vec![Fragment::Hl("⁰"), Fragment::Raw("filter")]);
-        let line = hl.to_line();
+        let line = hl.into_line();
         assert_eq!(line.spans.len(), 2);
 
         assert_eq!(line.spans[0].content, "⁰");

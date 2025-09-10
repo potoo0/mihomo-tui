@@ -270,6 +270,13 @@ impl OverviewComponent {
     }
 }
 
+impl Drop for OverviewComponent {
+    fn drop(&mut self) {
+        self.token.cancel();
+        info!("`OverviewComponent` dropped, background task cancelled");
+    }
+}
+
 impl Component for OverviewComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Overview

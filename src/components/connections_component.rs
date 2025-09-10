@@ -20,6 +20,7 @@ use tokio::sync::broadcast::Receiver;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use crate::action::Action;
 use crate::api::Api;
@@ -52,13 +53,12 @@ pub struct ConnectionsComponent {
 
 impl ConnectionsComponent {
     pub fn new(conns_rx: Receiver<Vec<Connection>>) -> Self {
-        let search_state = SearchState::new(CONNECTION_COLS.len());
-        Self {
-            conns_rx: Some(conns_rx),
-            search_state: Arc::new(Mutex::new(search_state)),
-            live_mode: Arc::new(AtomicBool::new(true)),
-            ..Default::default()
-        }
+        let mut component = Self::default();
+        component.conns_rx = Some(conns_rx);
+        component.search_state = Arc::new(Mutex::new(SearchState::new(CONNECTION_COLS.len())));
+        component.live_mode = Arc::new(AtomicBool::new(true));
+
+        component
     }
 
     fn loader_connections(&mut self) -> Result<()> {
@@ -69,7 +69,7 @@ impl ConnectionsComponent {
         let mut rx = self
             .conns_rx
             .as_ref()
-            .ok_or_eyre("ConnectionsComponent expects a Receiver<Vec<Connection>>")?
+            .ok_or_eyre("`ConnectionsComponent` expects a Receiver<Vec<Connection>>")?
             .resubscribe();
         let token = self.token.clone();
         tokio::task::Builder::new().name("connections-loader").spawn(async move {
@@ -245,6 +245,13 @@ impl ConnectionsComponent {
     }
 }
 
+impl Drop for ConnectionsComponent {
+    fn drop(&mut self) {
+        self.token.cancel();
+        info!("`ConnectionsComponent` dropped, background task cancelled");
+    }
+}
+
 impl Component for ConnectionsComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Connections
@@ -352,7 +359,8 @@ mod tests {
 
     #[test]
     fn test_row_navigation() {
-        let mut component = ConnectionsComponent { item_size: 3, ..Default::default() };
+        let mut component = ConnectionsComponent::default();
+        component.item_size = 3;
         assert_eq!(component.table_state.selected(), None);
 
         // Test next
