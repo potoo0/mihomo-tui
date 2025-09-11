@@ -9,7 +9,7 @@ use tracing::{error, info};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::highlight::{Fragment, HighlightedLine};
+use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::Version;
 use crate::utils::symbols::SUPERSCRIPT;
@@ -46,9 +46,9 @@ impl HeaderComponent {
             .iter()
             .enumerate()
             .map(|(i, cid)| {
-                HighlightedLine::new(vec![
-                    Fragment::Hl(SUPERSCRIPT[i + 1 % SUPERSCRIPT.len()]),
-                    Fragment::RawOwned(cid.to_string()),
+                Shortcut::new(vec![
+                    Fragment::hl(SUPERSCRIPT[i + 1 % SUPERSCRIPT.len()]),
+                    Fragment::raw(cid.to_string()),
                 ])
                 .into()
             })

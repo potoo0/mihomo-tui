@@ -4,7 +4,6 @@ mod connections_component;
 mod footer_component;
 mod header_component;
 mod help_component;
-mod highlight;
 mod logs;
 mod logs_component;
 mod overview_component;

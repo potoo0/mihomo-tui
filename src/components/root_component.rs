@@ -156,7 +156,7 @@ impl RootComponent {
         if id == self.current_tab {
             return;
         }
-        if let Some(mut c) = self.components.remove(&id) {
+        if let Some(_) = self.components.remove(&id) {
             info!("Destroying component `{:?}`", id);
             self.idle_tabs.remove(&id);
         }
@@ -282,13 +282,12 @@ impl Component for RootComponent {
             frame.render_widget(paragraph, area);
             return Ok(());
         }
-        let chunks =
-            Layout::vertical([Constraint::Length(1), Constraint::Min(0), Constraint::Length(1)])
-                .split(area);
+        let chunks = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).split(area);
 
+        // draw header
         self.get_or_init(ComponentId::Header).draw(frame, chunks[0])?;
-        self.get_or_init(ComponentId::Footer).draw(frame, chunks[2])?;
 
+        // draw main area
         if self.current_tab == ComponentId::Connections || self.current_tab == ComponentId::Logs {
             let inner_chunks =
                 Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
@@ -298,8 +297,13 @@ impl Component for RootComponent {
             self.get_or_init(self.current_tab).draw(frame, chunks[1])?;
         }
 
+        // draw popup if any
         self.popup.map(|c| self.get_or_init(c).draw(frame, chunks[1])).transpose()?;
 
+        // draw footer
+        // get last row of main area for footer, with margin left/right = 1
+        let footer_area = Rect::new(area.x + 1, area.y + area.height - 1, area.width - 2, 1);
+        self.get_or_init(ComponentId::Footer).draw(frame, footer_area)?;
         Ok(())
     }
 }

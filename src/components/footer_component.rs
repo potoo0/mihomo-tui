@@ -1,7 +1,7 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Stylize};
-use ratatui::text::Line;
+use ratatui::symbols::line::{BOTTOM_LEFT, BOTTOM_RIGHT};
+use ratatui::text::{Line, Span};
 
 use crate::action::Action;
 use crate::components::shortcut::Shortcut;
@@ -11,13 +11,16 @@ pub struct FooterComponent {
     shortcuts: Vec<Shortcut>,
 }
 
-fn get_default_shortcuts() -> Vec<Shortcut> {
-    vec![Shortcut::new("h", "Help"), Shortcut::new("q", "Quit")]
+fn default_shortcuts() -> Vec<Shortcut> {
+    vec![
+        Shortcut::from("help", 0).unwrap(),
+        Shortcut::from("quit", 0).unwrap(),
+    ]
 }
 
 impl Default for FooterComponent {
     fn default() -> Self {
-        Self { shortcuts: get_default_shortcuts() }
+        Self { shortcuts: default_shortcuts() }
     }
 }
 
@@ -25,8 +28,9 @@ impl FooterComponent {
     fn short_cuts_widget(&self) -> Line<'_> {
         let mut spans = vec![];
         for shortcut in &self.shortcuts {
-            spans.push(format!("[{}]", shortcut.key).bold().fg(Color::DarkGray));
-            spans.push(format!(":{}   ", shortcut.description).fg(Color::DarkGray));
+            spans.push(Span::raw(BOTTOM_RIGHT));
+            spans.extend(shortcut.spans(None));
+            spans.push(Span::raw(BOTTOM_LEFT));
         }
 
         Line::from(spans)
@@ -40,7 +44,7 @@ impl Component for FooterComponent {
 
     fn update(&mut self, action: Action) -> color_eyre::Result<Option<Action>> {
         if let Action::Shortcuts(shortcuts) = action {
-            let mut sc = get_default_shortcuts();
+            let mut sc = default_shortcuts();
             sc.extend(shortcuts);
             self.shortcuts = sc;
         }
@@ -48,6 +52,8 @@ impl Component for FooterComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
+        // NOTE: bottom border may not need to be cleared, because it does not change background color or other special styles
+        // frame.render_widget(Clear, area);
         frame.render_widget(self.short_cuts_widget(), area);
         Ok(())
     }

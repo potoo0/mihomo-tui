@@ -10,7 +10,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tui_input::{Input, InputRequest};
 
 use crate::action::Action;
-use crate::components::highlight::HighlightedLine;
+use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 
@@ -63,6 +63,15 @@ impl Component for SearchComponent {
         ComponentId::Search
     }
 
+    fn shortcuts(&self) -> Vec<Shortcut> {
+        vec![Shortcut::new(vec![
+            Fragment::raw("esc "),
+            Fragment::hl("Esc"),
+            Fragment::raw("/"),
+            Fragment::hl("↵"),
+        ])]
+    }
+
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
@@ -105,12 +114,23 @@ impl Component for SearchComponent {
         let width = area.width.max(3) - 3;
         let scroll = self.input.visual_scroll(width as usize);
 
-        let mut line = Line::from(Span::raw(TOP_TITLE_LEFT));
-        line.extend(HighlightedLine::from("filter", 0).unwrap());
-        line.push_span(Span::raw(TOP_TITLE_RIGHT));
+        // left align
+        let mut left = Line::from(Span::raw(TOP_TITLE_LEFT));
+        left.extend(Shortcut::from("filter", 0).unwrap().into_spans(None));
+        left.push_span(Span::raw(TOP_TITLE_RIGHT));
+        // right align
+        let mut right = Line::default();
+        for shortcut in self.shortcuts() {
+            right.push_span(Span::raw(TOP_TITLE_LEFT));
+            right.extend(shortcut.into_spans(None));
+            right.push_span(Span::raw(TOP_TITLE_RIGHT));
+        }
 
-        let block =
-            Block::bordered().border_type(BorderType::Rounded).border_style(style).title(line);
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(style)
+            .title(left.left_aligned())
+            .title(right.right_aligned());
         let input =
             Paragraph::new(self.input.value()).scroll((0, scroll as u16)).style(style).block(block);
         frame.render_widget(input, area);

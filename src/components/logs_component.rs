@@ -21,8 +21,8 @@ use tracing::{info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::highlight::HighlightedLine;
 use crate::components::logs::Logs;
+use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::models::LogLevel;
 use crate::utils::symbols::arrow;
@@ -115,7 +115,7 @@ impl LogsComponent {
             {
                 vec.push(Span::styled(label, Self::level_style(&lv)));
             } else {
-                vec.extend(HighlightedLine::from(label, 0).unwrap());
+                vec.extend(Shortcut::from(label, 0).unwrap().into_spans(None));
             }
         }
         vec.push(Span::raw(TOP_TITLE_RIGHT));
@@ -253,6 +253,18 @@ impl Drop for LogsComponent {
 impl Component for LogsComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Logs
+    }
+
+    fn shortcuts(&self) -> Vec<Shortcut> {
+        vec![
+            Shortcut::new(vec![
+                Fragment::hl(arrow::UP),
+                Fragment::raw(" select "),
+                Fragment::hl(arrow::DOWN),
+            ]),
+            Shortcut::new(vec![Fragment::raw("first "), Fragment::hl("g")]),
+            Shortcut::new(vec![Fragment::raw("last "), Fragment::hl("G")]),
+        ]
     }
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {

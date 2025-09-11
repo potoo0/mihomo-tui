@@ -1,4 +1,3 @@
-use const_format::concatcp;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
@@ -13,7 +12,7 @@ use serde_json::Serializer;
 use serde_json::ser::PrettyFormatter;
 
 use crate::action::Action;
-use crate::components::shortcut::Shortcut;
+use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::utils::symbols::arrow;
@@ -74,10 +73,22 @@ impl Component for ConnectionDetailComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(concatcp!("j/", arrow::DOWN), "Scroll Down"),
-            Shortcut::new(concatcp!("k/", arrow::UP), "Scroll Up"),
-            Shortcut::new("Space|PageDown", "Page Down"),
-            Shortcut::new("PageUp", "Page Up"),
+            Shortcut::new(vec![
+                Fragment::raw("esc "),
+                Fragment::hl("Esc"),
+                Fragment::raw("/"),
+                Fragment::hl("Enter"),
+            ]),
+            Shortcut::new(vec![
+                Fragment::hl(arrow::UP),
+                Fragment::raw(" scroll "),
+                Fragment::hl(arrow::DOWN),
+            ]),
+            Shortcut::new(vec![
+                Fragment::hl("Space/PageDown"),
+                Fragment::raw(" page "),
+                Fragment::hl("PageUp"),
+            ]),
         ]
     }
 

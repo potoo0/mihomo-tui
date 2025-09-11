@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use color_eyre::Result;
 use color_eyre::eyre::OptionExt;
-use const_format::concatcp;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Margin, Rect};
@@ -25,7 +24,7 @@ use tracing::info;
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::connections::{CONNECTION_COLS, Connections};
-use crate::components::shortcut::Shortcut;
+use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::state::SearchState;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
@@ -238,8 +237,10 @@ impl ConnectionsComponent {
     }
 
     fn handle_search_state_changed(&self, state: &SearchState) {
-        // recompute view only when not in live mode
-        if !self.live_mode.load(Ordering::Relaxed) {
+        // recompute view only when not in live mode, and has sorting specified
+        if !self.live_mode.load(Ordering::Relaxed)
+            && let Some(_) = state.sort
+        {
             self.store.compute_view(state);
         }
     }
@@ -259,12 +260,22 @@ impl Component for ConnectionsComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new("↵", "Detail"),
-            Shortcut::new("g", "First"),
-            Shortcut::new("G", "Last"),
-            Shortcut::new(concatcp!("j/", arrow::DOWN), "Down"),
-            Shortcut::new(concatcp!("k/", arrow::UP), "Up"),
-            Shortcut::new("Esc", "Live Mode"),
+            Shortcut::new(vec![
+                Fragment::hl(arrow::UP),
+                Fragment::raw(" select "),
+                Fragment::hl(arrow::DOWN),
+            ]),
+            Shortcut::new(vec![Fragment::raw("first "), Fragment::hl("g")]),
+            Shortcut::new(vec![Fragment::raw("last "), Fragment::hl("G")]),
+            Shortcut::new(vec![
+                Fragment::hl(arrow::LEFT),
+                Fragment::raw(" sort "),
+                Fragment::hl(arrow::RIGHT),
+            ]),
+            Shortcut::from("reverse", 0).unwrap(),
+            Shortcut::from("terminal", 0).unwrap(),
+            Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
         ]
     }
 
