@@ -144,6 +144,11 @@ impl LogsComponent {
         let mut title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
             Span::raw("logs ("),
+            Span::styled(
+                self.list_state.selected().map(|i| (i + 1).to_string()).unwrap_or("-".into()),
+                Color::LightCyan,
+            ),
+            Span::raw("/"),
             Span::styled(self.item_size.to_string(), Color::Cyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),
@@ -264,6 +269,7 @@ impl Component for LogsComponent {
             ]),
             Shortcut::new(vec![Fragment::raw("first "), Fragment::hl("g")]),
             Shortcut::new(vec![Fragment::raw("last "), Fragment::hl("G")]),
+            Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
         ]
     }
 

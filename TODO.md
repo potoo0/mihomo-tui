@@ -14,5 +14,6 @@ TODO List
 - [x] 销毁后台 tab
 - [ ] 关闭连接
 - [ ] 代理: 查看/切换/测延迟
-- [ ] api 禁用 proxy
-- [ ] connections / logs 显示当前选择的索引
+- [x] api 禁用 proxy
+- [x] connections / logs 显示当前选择的索引
+- [ ] logs 左右滚动

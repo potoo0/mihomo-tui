@@ -102,6 +102,11 @@ impl ConnectionsComponent {
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
             Span::raw("connections ("),
+            Span::styled(
+                self.table_state.selected().map(|i| (i + 1).to_string()).unwrap_or("-".into()),
+                Color::LightCyan,
+            ),
+            Span::raw("/"),
             Span::styled(self.item_size.to_string(), Color::Cyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),

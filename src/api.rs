@@ -50,6 +50,7 @@ impl Api {
     fn create_client(bearer_token: &Option<String>) -> Result<Client> {
         let client = Client::builder()
             .default_headers(Self::default_headers(bearer_token)?)
+            .no_proxy()
             .build()
             .context("Fail to build client")?;
         Ok(client)
