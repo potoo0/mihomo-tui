@@ -119,6 +119,23 @@ impl Api {
         self.create_stream::<ConnectionsWrapper>("/connections", None).await
     }
 
+    pub async fn delete_connection(&self, id: &str) -> Result<()> {
+        // NOTE `DELETE /connections/{id}` always returns empty body
+        let _ = self
+            .client
+            .delete(self.api.join(&format!("/connections/{}", id))?)
+            .send()
+            .await
+            .context("Fail to send `DELETE /connections/<id>` request")?
+            .error_for_status()
+            .context("Fail to request `DELETE /connections/<id>`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `DELETE /connections/<id>`");
+
+        Ok(())
+    }
+
     pub async fn get_memory(&self) -> Result<impl Stream<Item = Result<Memory>>> {
         self.create_stream::<Memory>("/memory", None).await
     }
@@ -193,6 +210,14 @@ mod tests {
             let value = msg.unwrap().connections[0].metadata.clone();
             debug!("meta: {value:?}");
         }
+    }
+
+    #[tokio::test]
+    async fn test_delete_connection() {
+        init_logger();
+        let api = init_api();
+        let resp = api.delete_connection("756b7e9a-0c84-48b2-b135-e8dab13e3440").await;
+        assert!(resp.is_ok());
     }
 
     #[tokio::test]

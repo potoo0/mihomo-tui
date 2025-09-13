@@ -17,6 +17,7 @@ use tracing::{debug, info, warn};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::connection_detail_component::ConnectionDetailComponent;
+use crate::components::connection_terminate_component::ConnectionTerminateComponent;
 use crate::components::connections_component::ConnectionsComponent;
 use crate::components::footer_component::FooterComponent;
 use crate::components::header_component::HeaderComponent;
@@ -82,6 +83,9 @@ impl RootComponent {
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
+                ComponentId::ConnectionTerminate => {
+                    Box::new(ConnectionTerminateComponent::default())
+                }
                 ComponentId::Search => Box::new(SearchComponent::default()),
                 _ => panic!("unsupported component `{:?}`", id),
             };
@@ -245,6 +249,9 @@ impl Component for RootComponent {
             }
             Action::Help => self.open_popup(ComponentId::Help)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
+            Action::ConnectionTerminateRequest(_) => {
+                self.open_popup(ComponentId::ConnectionTerminate)?
+            }
             Action::Focus(focused) => self.focused = Some(focused),
             Action::Unfocus => {
                 self.focused = None;

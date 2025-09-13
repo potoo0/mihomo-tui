@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Flex, Layout, Rect};
+use ratatui::layout::Rect;
 use ratatui::prelude::Style;
 use ratatui::style::Color;
 use ratatui::symbols::line;
@@ -16,7 +16,7 @@ use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::utils::symbols::arrow;
-use crate::utils::text_ui::top_title_line;
+use crate::utils::text_ui::{popup_area, top_title_line};
 
 const INDENT: &[u8; 4] = b"    "; // 4 spaces
 
@@ -55,14 +55,6 @@ impl ConnectionDetailComponent {
         } else {
             "<invalid json>".into()
         }
-    }
-
-    fn popup_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
-        let vertical = Layout::vertical([Constraint::Percentage(percent_y)]).flex(Flex::Center);
-        let horizontal = Layout::horizontal([Constraint::Percentage(percent_x)]).flex(Flex::Center);
-        let [area] = vertical.areas(area);
-        let [area] = horizontal.areas(area);
-        area
     }
 }
 
@@ -135,7 +127,7 @@ impl Component for ConnectionDetailComponent {
             return Ok(());
         }
 
-        let area = Self::popup_area(area, 80, 75);
+        let area = popup_area(area, 80, 75);
         self.viewport = area.height.saturating_sub(2) as usize; // minus borders
 
         // content

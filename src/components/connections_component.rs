@@ -329,6 +329,14 @@ impl Component for ConnectionsComponent {
                 guard.sort_rev();
                 self.handle_search_state_changed(&guard.clone());
             }
+            KeyCode::Char('t') => {
+                let action = self
+                    .table_state
+                    .selected()
+                    .and_then(|idx| self.store.get(idx))
+                    .map(Action::ConnectionTerminateRequest);
+                return Ok(action);
+            },
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
             KeyCode::Enter => {
                 let action = self

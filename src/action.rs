@@ -20,7 +20,7 @@ pub enum Action {
     Help,
     TabSwitch(ComponentId),
     Shortcuts(Vec<Shortcut>),
-    /// render connection detail
     ConnectionDetail(Arc<Connection>),
     SearchInputChanged(Option<String>),
+    ConnectionTerminateRequest(Arc<Connection>),
 }

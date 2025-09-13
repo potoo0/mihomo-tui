@@ -1,4 +1,5 @@
 mod connection_detail_component;
+mod connection_terminate_component;
 mod connections;
 mod connections_component;
 mod footer_component;
@@ -40,6 +41,7 @@ pub enum ComponentId {
     #[default]
     Overview,
     ConnectionDetail,
+    ConnectionTerminate,
     Connections,
     Logs,
     Search,

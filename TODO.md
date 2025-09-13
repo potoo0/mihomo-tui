@@ -12,8 +12,9 @@ TODO List
 - [x] cli help 补充 default config path
 - [x] 移除 `Component.draw` 的 AppState 参数
 - [x] 销毁后台 tab
-- [ ] 关闭连接
+- [x] 关闭连接
 - [ ] 代理: 查看/切换/测延迟
 - [x] api 禁用 proxy
 - [x] connections / logs 显示当前选择的索引
 - [ ] logs 左右滚动
+- [ ] 修复 tab 切换后搜索/排序异常
