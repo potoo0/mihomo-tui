@@ -4,8 +4,8 @@ mihomo-api: http://127.0.0.1:9093
 # Mihomo external controller secret, Optional
 #mihomo-secret:
 
-# Log file, Optional, write log only if exists
-log-file: /tmp/mihomo-tui.log
+# Log file, Optional, write log only if exists, linux example: /tmp/mihomo-tui.log
+log-file: mihomo-tui.log
 
 # Log level(silent/trace/debug/info/warning/error), Optional, default is error.
 log-level: error

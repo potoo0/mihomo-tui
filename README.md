@@ -3,6 +3,8 @@
 - Cross-platform support (macOS, Windows, Linux)
 - Intuitive keyboard only control
 
+![demo](/docs/assets/demo.gif)
+
 ## Limitations
 
 - The tool is designed only to interact with the [API](https://wiki.metacubex.one/api/). It does not manage any actual configuration files.
@@ -46,10 +48,9 @@ Options:
 
 The default location of the file depends on your OS:
 
-[//]: # (FIXME: Update the path according to the os.)
 - Linux: `$HOME/.config/mihomo-tui/config.yaml`
-- macOS: `$HOME/.config/mihomo-tui/config.yaml`
-- Windows: `%APPDATA%/mihomo-tui/config.yaml`
+- macOS: `$HOME/Library/Application Support/io.github.potoo0.mihomo-tui/config.yaml`
+- Windows: `%APPDATA%/potoo0/mihomo-tui/config/config.yaml`
 
 The following is a sample config.toml file:
 
