@@ -18,3 +18,4 @@ TODO List
 - [x] connections / logs 显示当前选择的索引
 - [ ] logs 左右滚动
 - [x] 修复 tab 切换后搜索异常
+- [ ] connections 支持 capture mode: 显示所有连接, 包括已关闭的
