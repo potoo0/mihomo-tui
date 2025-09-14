@@ -17,4 +17,4 @@ TODO List
 - [x] api 禁用 proxy
 - [x] connections / logs 显示当前选择的索引
 - [ ] logs 左右滚动
-- [ ] 修复 tab 切换后搜索/排序异常
+- [x] 修复 tab 切换后搜索异常

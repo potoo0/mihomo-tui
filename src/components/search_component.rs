@@ -101,6 +101,10 @@ impl Component for SearchComponent {
         match action {
             Action::Focus(ComponentId::Search) => self.is_active = true,
             Action::Tick => self.send()?,
+            Action::TabSwitch(_) => {
+                self.input.reset();
+                self.action_tx.as_ref().unwrap().send(Action::SearchInputChanged(None))?;
+            }
             _ => (),
         }
 
