@@ -77,9 +77,9 @@ impl Component for ConnectionDetailComponent {
                 Fragment::hl(arrow::DOWN),
             ]),
             Shortcut::new(vec![
-                Fragment::hl("Space/PageDown"),
+                Fragment::hl("Space/PgDn"),
                 Fragment::raw(" page "),
-                Fragment::hl("PageUp"),
+                Fragment::hl("PgUp"),
             ]),
         ]
     }
