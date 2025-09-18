@@ -1,2 +1,7 @@
+[alias]
+clippy-strict = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
+# using nightly: cargo +nightly fmt-check
+fmt-check = ["fmt", "--all", "--", "--check"]
+
 [build]
 rustflags = ["--cfg", "tokio_unstable"]

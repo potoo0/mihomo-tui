@@ -336,7 +336,7 @@ impl Component for ConnectionsComponent {
                     .and_then(|idx| self.store.get(idx))
                     .map(Action::ConnectionTerminateRequest);
                 return Ok(action);
-            },
+            }
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
             KeyCode::Enter => {
                 let action = self

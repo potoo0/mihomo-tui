@@ -12,10 +12,7 @@ pub struct FooterComponent {
 }
 
 fn default_shortcuts() -> Vec<Shortcut> {
-    vec![
-        Shortcut::from("help", 0).unwrap(),
-        Shortcut::from("quit", 0).unwrap(),
-    ]
+    vec![Shortcut::from("help", 0).unwrap(), Shortcut::from("quit", 0).unwrap()]
 }
 
 impl Default for FooterComponent {
@@ -52,8 +49,8 @@ impl Component for FooterComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
-        // NOTE: bottom border may not need to be cleared, because it does not change background color or other special styles
-        // frame.render_widget(Clear, area);
+        // NOTE: bottom border may not need to be cleared, because it does not change background
+        // color or other special styles frame.render_widget(Clear, area);
         frame.render_widget(self.short_cuts_widget(), area);
         Ok(())
     }

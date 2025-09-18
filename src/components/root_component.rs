@@ -160,7 +160,7 @@ impl RootComponent {
         if id == self.current_tab {
             return;
         }
-        if let Some(_) = self.components.remove(&id) {
+        if self.components.remove(&id).is_some() {
             info!("Destroying component `{:?}`", id);
             self.idle_tabs.remove(&id);
         }
