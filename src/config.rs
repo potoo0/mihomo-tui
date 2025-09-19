@@ -27,7 +27,7 @@ impl Config {
             return Self::read_from_file(config_path);
         }
 
-        let default_config: Config = serde_yml::from_str(DEFAULT_CONFIG)?;
+        let default_config: Config = serde_yaml_ng::from_str(DEFAULT_CONFIG)?;
         let config_path: PathBuf = get_config_path();
         info!("Using default config file at `{}`", config_path.display());
         // If config file does not exist, create one with default content
@@ -47,7 +47,7 @@ impl Config {
         }
         let result = fs::File::open(path)
             .with_context(|| format!("Fail to open file `{}`", path.display()))?;
-        let cfg: Config = serde_yml::from_reader(result)
+        let cfg: Config = serde_yaml_ng::from_reader(result)
             .with_context(|| format!("Fail to deserialize file `{}`", path.display()))?;
         Ok(cfg)
     }
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn test_config_default() {
         let cfg_path = TempFile::new(get_config_path());
-        let default_config: Config = serde_yml::from_str(DEFAULT_CONFIG).unwrap();
+        let default_config: Config = serde_yaml_ng::from_str(DEFAULT_CONFIG).unwrap();
 
         let config = Config::new(None).unwrap();
         assert_eq!(config.mihomo_api, default_config.mihomo_api);
