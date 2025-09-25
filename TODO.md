@@ -19,3 +19,4 @@ TODO List
 - [ ] logs 左右滚动
 - [x] 修复 tab 切换后搜索异常
 - [ ] connections 支持 capture mode: 显示所有连接, 包括已关闭的
+- [ ] 使用 anyhow 替换 color_eyre, 因为 panic hook 使用了其他 panic 展示库

@@ -14,6 +14,7 @@ mod models;
 mod palette;
 mod tui;
 mod utils;
+mod widgets;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {

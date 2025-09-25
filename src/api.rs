@@ -13,6 +13,8 @@ use tracing::debug;
 use url::Url;
 
 use crate::config::Config;
+use crate::models::provider::ProxyProvidersWrapper;
+use crate::models::proxy::ProxiesWrapper;
 use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, Traffic, Version};
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -143,6 +145,38 @@ impl Api {
     pub async fn get_traffic(&self) -> Result<impl Stream<Item = Result<Traffic>>> {
         self.create_stream::<Traffic>("/traffic", None).await
     }
+
+    pub async fn get_proxies(&self) -> Result<ProxiesWrapper> {
+        let body = self
+            .client
+            .get(self.api.join("/proxies")?)
+            .send()
+            .await
+            .context("Fail to send `GET /proxies`")?
+            .error_for_status()
+            .context("Fail to request `GET /proxies`")?
+            .json::<ProxiesWrapper>()
+            .await
+            .context("Fail to parse response of `GET /proxies`")?;
+
+        Ok(body)
+    }
+
+    pub async fn get_providers(&self) -> Result<ProxyProvidersWrapper> {
+        let body = self
+            .client
+            .get(self.api.join("/providers/proxies")?)
+            .send()
+            .await
+            .context("Fail to send `GET /providers/proxies`")?
+            .error_for_status()
+            .context("Fail to request `GET /providers/proxies`")?
+            .json::<ProxyProvidersWrapper>()
+            .await
+            .context("Fail to parse response of `GET /providers/proxies`")?;
+
+        Ok(body)
+    }
 }
 
 #[cfg(test)]
@@ -165,6 +199,22 @@ mod tests {
                 .with_max_level(tracing::Level::DEBUG)
                 .try_init();
         });
+    }
+
+    #[tokio::test]
+    async fn test_get_proxies() {
+        init_logger();
+        let api = init_api();
+        let proxies = api.get_proxies().await.unwrap();
+        debug!("proxies: {proxies:?}");
+    }
+
+    #[tokio::test]
+    async fn test_get_providers() {
+        init_logger();
+        let api = init_api();
+        let providers = api.get_providers().await.unwrap();
+        debug!("providers: {providers:?}");
     }
 
     #[tokio::test]

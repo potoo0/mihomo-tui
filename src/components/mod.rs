@@ -8,6 +8,8 @@ mod help_component;
 mod logs;
 mod logs_component;
 mod overview_component;
+mod proxies;
+mod proxies_component;
 pub mod root_component;
 mod search_component;
 pub mod shortcut;
@@ -27,7 +29,8 @@ use crate::api::Api;
 use crate::components::shortcut::Shortcut;
 use crate::tui::Event;
 
-const TABS: [ComponentId; 3] = [ComponentId::Overview, ComponentId::Connections, ComponentId::Logs];
+const TABS: [ComponentId; 4] =
+    [ComponentId::Overview, ComponentId::Connections, ComponentId::Proxies, ComponentId::Logs];
 const BUFFER_SIZE: usize = 100;
 const CONNS_BUFFER_SIZE: usize = 500;
 const LOGS_BUFFER_SIZE: usize = 500;
@@ -43,6 +46,7 @@ pub enum ComponentId {
     ConnectionDetail,
     ConnectionTerminate,
     Connections,
+    Proxies,
     Logs,
     Search,
 }

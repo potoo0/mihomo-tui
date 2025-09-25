@@ -24,6 +24,7 @@ use crate::components::header_component::HeaderComponent;
 use crate::components::help_component::HelpComponent;
 use crate::components::logs_component::LogsComponent;
 use crate::components::overview_component::OverviewComponent;
+use crate::components::proxies_component::ProxiesComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::{Connection, ConnectionStats};
@@ -80,6 +81,7 @@ impl RootComponent {
                 ComponentId::Connections => {
                     Box::new(ConnectionsComponent::new(self.conns_tx.subscribe()))
                 }
+                ComponentId::Proxies => Box::new(ProxiesComponent::default()),
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
