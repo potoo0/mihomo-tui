@@ -4,7 +4,7 @@ use crate::components::ComponentId;
 use crate::components::shortcut::Shortcut;
 use crate::models::Connection;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Action {
     Tick,
     Render,

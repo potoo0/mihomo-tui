@@ -291,7 +291,7 @@ impl Component for OverviewComponent {
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        if Some(Action::Quit) == Some(action) {
+        if matches!(action, Action::Quit) {
             self.token.cancel();
         }
         Ok(None)
