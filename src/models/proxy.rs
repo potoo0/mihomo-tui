@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use crate::widgets::latency::Latency;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProxiesWrapper {
     pub proxies: HashMap<String, Proxy>,
@@ -16,7 +18,8 @@ pub struct Proxy {
     pub hidden: Option<bool>,
 
     /// inner proxy groups or nodes, refers to [Proxy] name
-    pub all: Option<Vec<String>>,
+    #[serde(rename(deserialize = "all"))]
+    pub children: Option<Vec<String>>,
     /// current selected node
     #[serde(rename(deserialize = "now"))]
     pub selected: Option<String>,
@@ -24,6 +27,10 @@ pub struct Proxy {
     pub test_url: Option<String>,
     /// delay history
     pub history: Vec<DelayHistory>,
+
+    // for ui only
+    #[serde(skip)]
+    pub latency: Latency,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -2303,6 +2303,7 @@ dependencies = [
  "fuzzy-matcher",
  "human-panic",
  "libc",
+ "log",
  "ratatui",
  "reqwest",
  "serde",

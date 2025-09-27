@@ -10,6 +10,12 @@ pub struct ScrollState {
     pub state: ScrollbarState,
 }
 
+impl Default for ScrollState {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
 impl ScrollState {
     pub fn new(step: usize) -> Self {
         Self {
@@ -19,6 +25,11 @@ impl ScrollState {
             viewport_content_length: 0,
             state: Default::default(),
         }
+    }
+
+    pub fn step(&mut self, step: usize) -> &mut Self {
+        self.step = step;
+        self
     }
 
     pub fn position(&mut self, position: usize) -> &mut Self {

@@ -6,6 +6,7 @@ use futures_util::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
 use serde::de::DeserializeOwned;
+use serde_json::json;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -160,6 +161,25 @@ impl Api {
             .context("Fail to parse response of `GET /proxies`")?;
 
         Ok(body)
+    }
+
+    pub async fn update_proxy(&self, selector_name: String, name: String) -> Result<()> {
+        let body = serde_json::to_string(&json!({ "name": &name }))
+            .with_context(|| format!("Fail to create body with name `{}`", name))?;
+        let _ = self
+            .client
+            .put(self.api.join(&format!("/proxies/{}", selector_name))?)
+            .body(body)
+            .send()
+            .await
+            .context("Fail to send `PUT /proxies/<selector_name>` request")?
+            .error_for_status()
+            .context("Fail to request `PUT /connections/<selector_name>`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PUT /connections/<selector_name>`");
+
+        Ok(())
     }
 
     pub async fn get_providers(&self) -> Result<ProxyProvidersWrapper> {

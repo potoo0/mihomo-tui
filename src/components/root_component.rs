@@ -25,6 +25,7 @@ use crate::components::help_component::HelpComponent;
 use crate::components::logs_component::LogsComponent;
 use crate::components::overview_component::OverviewComponent;
 use crate::components::proxies_component::ProxiesComponent;
+use crate::components::proxy_detail_component::ProxyDetailComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::{Connection, ConnectionStats};
@@ -82,6 +83,7 @@ impl RootComponent {
                     Box::new(ConnectionsComponent::new(self.conns_tx.subscribe()))
                 }
                 ComponentId::Proxies => Box::new(ProxiesComponent::default()),
+                ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
@@ -239,6 +241,7 @@ impl Component for RootComponent {
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        let action_tx = self.action_tx.as_ref().unwrap().clone();
         match action {
             Action::Quit => self.token.cancel(),
             Action::Tick => self.on_tick(),
@@ -247,10 +250,11 @@ impl Component for RootComponent {
                 self.current_tab = to;
                 // get and init component, send shortcuts of current tab to footer
                 let shortcuts = self.get_or_init(self.current_tab).shortcuts();
-                self.action_tx.as_ref().unwrap().send(Action::Shortcuts(shortcuts))?;
+                action_tx.send(Action::Shortcuts(shortcuts))?;
             }
             Action::Help => self.open_popup(ComponentId::Help)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
+            Action::ProxyDetail(_, _) => self.open_popup(ComponentId::ProxyDetail)?,
             Action::ConnectionTerminateRequest(_) => {
                 self.open_popup(ComponentId::ConnectionTerminate)?
             }
@@ -262,14 +266,16 @@ impl Component for RootComponent {
                     self.popup = None;
                     // send shortcuts of current tab to footer
                     let shortcuts = self.get_or_init(self.current_tab).shortcuts();
-                    self.action_tx.as_ref().unwrap().send(Action::Shortcuts(shortcuts))?;
+                    action_tx.send(Action::Shortcuts(shortcuts))?;
                 }
             }
             _ => {}
         }
         // propagate action to all components
         for component in self.components.values_mut() {
-            component.update(action.clone())?;
+            if let Some(action) = component.update(action.clone())? {
+                action_tx.send(action)?;
+            }
         }
         Ok(None)
     }

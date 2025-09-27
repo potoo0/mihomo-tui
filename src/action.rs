@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::components::ComponentId;
 use crate::components::shortcut::Shortcut;
 use crate::models::Connection;
+use crate::models::proxy::Proxy;
 
 #[derive(Debug, Clone)]
 pub enum Action {
@@ -23,4 +24,7 @@ pub enum Action {
     ConnectionDetail(Arc<Connection>),
     SearchInputChanged(Option<String>),
     ConnectionTerminateRequest(Arc<Connection>),
+    ProxyDetail(Arc<Proxy>, Vec<Arc<Proxy>>),
+    ProxyUpdateRequest(String, String),
+    ProxyDetailRefresh(Option<usize>),
 }

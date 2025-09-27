@@ -8,14 +8,16 @@ use ratatui::style::Color;
 use ratatui::symbols::{bar, line};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation};
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::{info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::proxies::{LatencyQuality, Proxies, ProxyView};
+use crate::components::proxies::{Proxies, ProxyView};
 use crate::components::{Component, ComponentId};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
+use crate::widgets::latency::LatencyQuality;
 use crate::widgets::scrollbar::ScrollState;
 
 const CARD_HEIGHT: u16 = 4;
@@ -24,6 +26,7 @@ const CARDS_PER_ROW: u16 = 2;
 #[derive(Debug)]
 pub struct ProxiesComponent {
     api: Option<Arc<Api>>,
+    action_tx: Option<UnboundedSender<Action>>,
 
     store: Arc<RwLock<Proxies>>,
     selected: Option<usize>,
@@ -34,6 +37,7 @@ impl Default for ProxiesComponent {
     fn default() -> Self {
         Self {
             api: None,
+            action_tx: None,
             store: Default::default(),
             selected: None,
             scroll_state: ScrollState::new(CARDS_PER_ROW as usize),
@@ -55,6 +59,38 @@ impl ProxiesComponent {
             }
         })?;
         Ok(())
+    }
+
+    fn update_proxies(&mut self, selector_name: String, name: String) -> Result<()> {
+        info!("Updating proxies");
+        let api = Arc::clone(self.api.as_ref().unwrap());
+        let store = Arc::clone(&self.store);
+        let action_tx = self.action_tx.as_ref().unwrap().clone();
+        let selected = self.selected;
+
+        tokio::task::Builder::new().name("proxy-updater").spawn(async move {
+            match api.update_proxy(selector_name, name).await {
+                Ok(_) => {
+                    info!("Refreshing proxies");
+                    match api.get_proxies().await {
+                        Ok(proxies) => {
+                            store.write().unwrap().push(proxies.proxies);
+                            action_tx.send(Action::ProxyDetailRefresh(selected)).unwrap();
+                        }
+                        Err(e) => warn!("Failed to get proxies: {e}"),
+                    }
+                }
+                Err(e) => warn!("Failed to update proxy: {e}"),
+            }
+        })?;
+        Ok(())
+    }
+
+    fn proxy_detail_action(&self) -> Option<Action> {
+        let store = self.store.read().unwrap();
+        self.selected
+            .and_then(|idx| store.get(idx))
+            .map(|v| Action::ProxyDetail(Arc::clone(&v.proxy), store.children(v.proxy.as_ref())))
     }
 
     fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
@@ -94,12 +130,12 @@ impl ProxiesComponent {
             .collect()
     }
 
-    fn render_proxy(proxy: &ProxyView, selected: bool, frame: &mut Frame, area: Rect) {
+    fn render_proxy(view: &ProxyView, selected: bool, frame: &mut Frame, area: Rect) {
         let title_line = Line::from(vec![
-            Span::styled(proxy.proxy.name.as_str(), Color::White),
+            Span::styled(view.proxy.name.as_str(), Color::White),
             Span::raw(" ("),
             Span::styled(
-                format!("{}", proxy.proxy.all.as_ref().map_or(0, Vec::len)),
+                format!("{}", view.proxy.children.as_ref().map_or(0, Vec::len)),
                 Color::LightCyan,
             ),
             Span::raw(")"),
@@ -114,22 +150,19 @@ impl ProxiesComponent {
             .border_type(border_type)
             .border_style(border_color)
             .title(title_line);
-        let mut lines = vec![Line::from(vec![Span::raw(&proxy.proxy.r#type)])];
-        if let Some(selected) = proxy.proxy.selected.as_ref() {
+        let mut lines = vec![Line::from(vec![Span::raw(&view.proxy.r#type)])];
+        if let Some(selected) = view.proxy.selected.as_ref() {
             lines[0].push_span(Span::styled(" > ", Color::DarkGray));
             lines[0].push_span(Span::styled(selected.as_str(), Color::Cyan));
         }
 
-        let children = proxy.proxy.all.as_ref().map(|v| v.len()).unwrap_or(0);
+        let children = view.proxy.children.as_ref().map(|v| v.len()).unwrap_or(0);
         if children > 0 {
-            let selected_delay = Span::styled(
-                proxy.delay.map(|v| format!("{}", v)).unwrap_or("-".to_string()),
-                LatencyQuality::from_delay(proxy.delay).color(),
-            );
+            let latency_span: Span = view.proxy.latency.into();
             let width = area.width - 10;
-            let mut stats: Line = Self::quality_stats_line(proxy, width, children);
-            stats.push_span(Span::raw(" ".repeat(10 - 2 - selected_delay.width())));
-            stats.push_span(selected_delay);
+            let mut stats: Line = Self::quality_stats_line(view, width, children);
+            stats.push_span(Span::raw(" ".repeat(10 - 2 - latency_span.width())));
+            stats.push_span(latency_span);
             lines.push(stats);
         }
         let para = Paragraph::new(lines).block(block);
@@ -203,6 +236,11 @@ impl Component for ProxiesComponent {
         Ok(())
     }
 
+    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+        self.action_tx = Some(tx);
+        Ok(())
+    }
+
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
             KeyCode::Char('g') => {
@@ -221,6 +259,23 @@ impl Component for ProxiesComponent {
             KeyCode::Char('k') | KeyCode::Up => self.prev(2),
             KeyCode::Char('h') | KeyCode::Left => self.prev(1),
             KeyCode::Char('l') | KeyCode::Right => self.next(1),
+            KeyCode::Enter => return Ok(self.proxy_detail_action()),
+            _ => (),
+        }
+
+        Ok(None)
+    }
+
+    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        match action {
+            Action::ProxyUpdateRequest(selector_name, name) => {
+                self.update_proxies(selector_name, name)?;
+            }
+            Action::ProxyDetailRefresh(selected) => {
+                if selected.is_some() && selected == self.selected {
+                    return Ok(self.proxy_detail_action());
+                }
+            }
             _ => (),
         }
 

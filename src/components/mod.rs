@@ -8,8 +8,9 @@ mod help_component;
 mod logs;
 mod logs_component;
 mod overview_component;
-mod proxies;
+pub mod proxies;
 mod proxies_component;
+mod proxy_detail_component;
 pub mod root_component;
 mod search_component;
 pub mod shortcut;
@@ -47,6 +48,7 @@ pub enum ComponentId {
     ConnectionTerminate,
     Connections,
     Proxies,
+    ProxyDetail,
     Logs,
     Search,
 }
