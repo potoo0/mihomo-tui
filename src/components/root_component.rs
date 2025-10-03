@@ -26,6 +26,7 @@ use crate::components::logs_component::LogsComponent;
 use crate::components::overview_component::OverviewComponent;
 use crate::components::proxies_component::ProxiesComponent;
 use crate::components::proxy_detail_component::ProxyDetailComponent;
+use crate::components::proxy_setting_component::ProxySettingComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::{Connection, ConnectionStats};
@@ -84,6 +85,7 @@ impl RootComponent {
                 }
                 ComponentId::Proxies => Box::new(ProxiesComponent::default()),
                 ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
+                ComponentId::ProxySetting => Box::new(ProxySettingComponent::default()),
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
@@ -255,6 +257,7 @@ impl Component for RootComponent {
             Action::Help => self.open_popup(ComponentId::Help)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
             Action::ProxyDetail(_, _) => self.open_popup(ComponentId::ProxyDetail)?,
+            Action::ProxySetting => self.open_popup(ComponentId::ProxySetting)?,
             Action::ConnectionTerminateRequest(_) => {
                 self.open_popup(ComponentId::ConnectionTerminate)?
             }

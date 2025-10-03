@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::components::proxy_setting::get_proxy_setting;
 use crate::models::proxy::Proxy;
 use crate::widgets::latency::LatencyQuality;
 
@@ -20,26 +21,26 @@ impl Proxies {
     pub fn push(&mut self, mut proxies: HashMap<String, Proxy>) {
         self.update_delay(&mut proxies);
         self.proxies = proxies.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
+        let threshold = get_proxy_setting().read().unwrap().threshold;
 
         let sort_index = self.build_sort_index();
         let mut visible: Vec<Arc<ProxyView>> = self
             .proxies
             .values()
             .filter(|p| !(p.hidden == Some(true) || p.children.as_ref().is_none_or(Vec::is_empty)))
-            .map(|v| self.build_proxy_view(v))
+            .map(|v| self.build_proxy_view(v, threshold))
             .collect();
         visible.sort_by_key(|v| sort_index.get(&v.proxy.name).copied().unwrap_or(usize::MAX));
 
         self.visible = visible;
     }
 
-    fn build_proxy_view(&self, proxy: &Arc<Proxy>) -> Arc<ProxyView> {
+    fn build_proxy_view(&self, proxy: &Arc<Proxy>, threshold: (u64, u64)) -> Arc<ProxyView> {
         let mut quality_stats = [0; LatencyQuality::COUNT];
         if let Some(ref children) = proxy.children {
             for child in children {
-                let quality: LatencyQuality =
-                    self.proxies.get(child).map(|v| v.latency).unwrap_or_default().into();
-                let idx: usize = quality.into();
+                let quality = self.proxies.get(child).map(|v| v.latency).unwrap_or_default();
+                let idx: usize = LatencyQuality::from(quality, threshold).into();
                 quality_stats[idx] += 1;
             }
         }

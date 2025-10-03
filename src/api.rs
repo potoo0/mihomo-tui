@@ -5,6 +5,7 @@ use color_eyre::eyre::{Context, eyre};
 use futures_util::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use tokio_tungstenite::connect_async;
@@ -182,6 +183,50 @@ impl Api {
         Ok(())
     }
 
+    pub async fn test_proxy(&self, name: String, url: String, timeout: u64) -> Result<u16> {
+        #[derive(Deserialize)]
+        struct DelayResp {
+            delay: u16,
+        }
+
+        let body = self
+            .client
+            .get(self.api.join(&format!("/proxies/{}/delay", name))?)
+            .query(&[("url", url), ("timeout", timeout.to_string())])
+            .send()
+            .await
+            .context("Fail to send `GET /proxies/<name>/delay`")?
+            .error_for_status()
+            .context("Fail to request `GET /proxies/<name>/delay`")?
+            .json::<DelayResp>()
+            .await
+            .context("Fail to parse response of `GET /proxies/<name>/delay`")?;
+
+        Ok(body.delay)
+    }
+
+    pub async fn test_proxy_group(
+        &self,
+        name: String,
+        url: String,
+        timeout: u64,
+    ) -> Result<HashMap<String, u16>> {
+        let body = self
+            .client
+            .get(self.api.join(&format!("/group/{}/delay", name))?)
+            .query(&[("url", url), ("timeout", timeout.to_string())])
+            .send()
+            .await
+            .context("Fail to send `GET /group/<name>/delay`")?
+            .error_for_status()
+            .context("Fail to request `GET /group/<name>/delay`")?
+            .json()
+            .await
+            .context("Fail to parse response of `GET /group/<name>/delay`")?;
+
+        Ok(body)
+    }
+
     pub async fn get_providers(&self) -> Result<ProxyProvidersWrapper> {
         let body = self
             .client
@@ -219,6 +264,28 @@ mod tests {
                 .with_max_level(tracing::Level::DEBUG)
                 .try_init();
         });
+    }
+
+    #[tokio::test]
+    async fn test_test_proxy() {
+        init_logger();
+        let api = init_api();
+        let delay = api
+            .test_proxy("新加坡①一优化".into(), "https://www.gstatic.com/generate_204".into(), 5000)
+            .await
+            .unwrap();
+        debug!("delay: {delay}");
+    }
+
+    #[tokio::test]
+    async fn test_test_proxy_group() {
+        init_logger();
+        let api = init_api();
+        let delay = api
+            .test_proxy_group("新加坡".into(), "https://www.gstatic.com/generate_204".into(), 5000)
+            .await
+            .unwrap();
+        debug!("delay: {delay:?}");
     }
 
     #[tokio::test]

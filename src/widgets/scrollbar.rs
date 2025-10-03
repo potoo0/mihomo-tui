@@ -84,6 +84,10 @@ impl ScrollState {
     pub fn content_length(&self) -> usize {
         self.content_length
     }
+
+    pub fn step_value(&self) -> usize {
+        self.step
+    }
 }
 
 #[cfg(test)]

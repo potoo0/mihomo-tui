@@ -8,9 +8,10 @@ use ratatui::prelude::{Color, Line, Span};
 use ratatui::style::{Style, Stylize};
 use ratatui::symbols::line;
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph, Scrollbar, ScrollbarOrientation};
-use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
+use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 
 use crate::action::Action;
+use crate::components::proxy_setting::get_proxy_setting;
 use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::models::proxy::Proxy;
@@ -33,6 +34,9 @@ pub struct ProxyDetailComponent {
 
     loading: bool,
     throbber_state: ThrobberState,
+
+    pending_test: u16,
+    throbber_state_test: ThrobberState,
 }
 
 impl ProxyDetailComponent {
@@ -42,6 +46,7 @@ impl ProxyDetailComponent {
         self.proxy = Some(proxy);
         self.store = Some(store);
         self.loading = false;
+        self.pending_test = self.pending_test.saturating_sub(1);
     }
 
     pub fn hide(&mut self) {
@@ -67,20 +72,32 @@ impl ProxyDetailComponent {
     }
 
     fn render_loading_throbber(&mut self, frame: &mut Frame, area: Rect) {
-        if !self.loading {
-            return;
+        if self.pending_test > 0 {
+            let symbol = Throbber::default()
+                .label("Testing")
+                .style(Style::default().fg(Color::White).bg(Color::Green).bold())
+                .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
+                .throbber_set(BLACK_CIRCLE)
+                .use_type(WhichUse::Spin);
+            frame.render_stateful_widget(
+                symbol,
+                Rect::new(area.right().saturating_sub(20), area.y, 9, 1),
+                &mut self.throbber_state_test,
+            );
         }
-        let symbol = Throbber::default()
-            .label("Loading")
-            .style(Style::default().fg(Color::White).bg(Color::Green).bold())
-            .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
-            .throbber_set(BRAILLE_SIX)
-            .use_type(WhichUse::Spin);
-        frame.render_stateful_widget(
-            symbol,
-            Rect::new(area.right().saturating_sub(10), area.y, 9, 1),
-            &mut self.throbber_state,
-        );
+        if self.loading {
+            let symbol = Throbber::default()
+                .label("Loading")
+                .style(Style::default().fg(Color::White).bg(Color::Green).bold())
+                .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
+                .throbber_set(BRAILLE_SIX)
+                .use_type(WhichUse::Spin);
+            frame.render_stateful_widget(
+                symbol,
+                Rect::new(area.right().saturating_sub(10), area.y, 9, 1),
+                &mut self.throbber_state,
+            );
+        }
     }
 
     fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
@@ -96,22 +113,25 @@ impl ProxyDetailComponent {
     }
 
     fn render_card(&self, proxy: &Proxy, focused: bool, frame: &mut Frame, area: Rect) {
+        let selected = self.is_selected(&proxy.name);
         let (border_type, border_color) = if focused {
             (BorderType::Thick, Color::Cyan)
-        } else if self.is_selected(&proxy.name) {
+        } else if selected {
             (BorderType::Rounded, Color::Green)
         } else {
             (BorderType::Rounded, Color::DarkGray)
         };
+        let title_style = if selected { Color::Green } else { Color::default() };
         let block = Block::bordered()
             .border_type(border_type)
             .border_style(border_color)
-            .title_top(Span::raw(proxy.name.as_str()));
+            .title_top(Span::styled(proxy.name.as_str(), title_style));
 
+        let threshold = get_proxy_setting().read().unwrap().threshold;
         let para = Paragraph::new(space_between(
             area.width - 2, // minus border
             Span::raw(proxy.r#type.as_str()),
-            proxy.latency.into(),
+            proxy.latency.as_span(threshold),
         ))
         .block(block);
         frame.render_widget(para, area);
@@ -188,7 +208,9 @@ impl Component for ProxyDetailComponent {
             ]),
             Shortcut::new(vec![Fragment::raw("first "), Fragment::hl("g")]),
             Shortcut::new(vec![Fragment::raw("last "), Fragment::hl("G")]),
-            Shortcut::new(vec![Fragment::raw("switch "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::raw("select "), Fragment::hl("↵")]),
+            Shortcut::from("refresh", 0).unwrap(),
+            Shortcut::from("test", 0).unwrap(),
         ]
     }
 
@@ -197,9 +219,17 @@ impl Component for ProxyDetailComponent {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return Ok(Some(Action::Quit));
             }
-            KeyCode::Char('q') | KeyCode::Esc => {
+            KeyCode::Char('q') => {
                 self.hide();
                 return Ok(Some(Action::Unfocus));
+            }
+            KeyCode::Esc => {
+                if self.focused.is_some() {
+                    self.focused = None;
+                } else {
+                    self.hide();
+                    return Ok(Some(Action::Unfocus));
+                }
             }
             KeyCode::Char('g') => {
                 if self.focused.is_some() {
@@ -213,23 +243,41 @@ impl Component for ProxyDetailComponent {
                 }
                 self.scroll_state.last();
             }
-            KeyCode::Char('j') | KeyCode::Down => self.next(2),
-            KeyCode::Char('k') | KeyCode::Up => self.prev(2),
+            KeyCode::Char('j') | KeyCode::Down => self.next(self.scroll_state.step_value()),
+            KeyCode::Char('k') | KeyCode::Up => self.prev(self.scroll_state.step_value()),
             KeyCode::Char('h') | KeyCode::Left => self.prev(1),
             KeyCode::Char('l') | KeyCode::Right => self.next(1),
-            KeyCode::Enter => {
-                if self.loading {
-                    return Ok(None);
+            KeyCode::Char('r') => {
+                if !self.loading {
+                    self.loading = true;
+                    return Ok(Some(Action::ProxiesRefresh));
                 }
-                // switch to selected proxy
-                let selector_name = self.proxy.as_ref().unwrap().name.clone();
-                let action = self.focused.and_then(|idx| {
-                    self.store
-                        .as_ref()
-                        .and_then(|v| v.get(idx))
-                        .map(|v| Action::ProxyUpdateRequest(selector_name, v.name.clone()))
-                });
-                self.loading = action.is_some();
+            }
+            KeyCode::Enter => {
+                if !self.loading {
+                    // switch to selected proxy
+                    let selector_name = self.proxy.as_ref().unwrap().name.clone();
+                    let action = self.focused.and_then(|idx| {
+                        self.store
+                            .as_ref()
+                            .and_then(|v| v.get(idx))
+                            .map(|v| Action::ProxyUpdateRequest(selector_name, v.name.clone()))
+                    });
+                    self.loading = action.is_some();
+                    return Ok(action);
+                }
+            }
+            KeyCode::Char('t') => {
+                let action = match (self.focused, self.proxy.as_ref(), self.store.as_ref()) {
+                    (Some(focused), _, Some(store)) => {
+                        store.get(focused).map(|p| Action::ProxyTestRequest(p.name.clone()))
+                    }
+                    (None, Some(proxy), _) => {
+                        Some(Action::ProxyGroupTestRequest(proxy.name.clone()))
+                    }
+                    _ => None,
+                };
+                self.pending_test = self.pending_test.saturating_add(1);
                 return Ok(action);
             }
             _ => (),

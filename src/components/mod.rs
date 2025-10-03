@@ -11,6 +11,8 @@ mod overview_component;
 pub mod proxies;
 mod proxies_component;
 mod proxy_detail_component;
+mod proxy_setting;
+mod proxy_setting_component;
 pub mod root_component;
 mod search_component;
 pub mod shortcut;
@@ -49,6 +51,7 @@ pub enum ComponentId {
     Connections,
     Proxies,
     ProxyDetail,
+    ProxySetting,
     Logs,
     Search,
 }

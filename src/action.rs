@@ -26,5 +26,9 @@ pub enum Action {
     ConnectionTerminateRequest(Arc<Connection>),
     ProxyDetail(Arc<Proxy>, Vec<Arc<Proxy>>),
     ProxyUpdateRequest(String, String),
-    ProxyDetailRefresh(Option<usize>),
+    ProxyDetailRefresh(usize),
+    ProxiesRefresh,
+    ProxySetting,
+    ProxyTestRequest(String),
+    ProxyGroupTestRequest(String),
 }

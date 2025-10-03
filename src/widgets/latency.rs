@@ -1,7 +1,5 @@
 use ratatui::prelude::{Color, Span};
 
-const THRESHOLD: (i64, i64) = (500, 1000);
-
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Latency(Option<i64>);
 
@@ -18,6 +16,13 @@ impl Latency {
     pub fn is_none(&self) -> bool {
         self.0.is_none()
     }
+
+    pub fn as_span<'a>(&self, threshold: (u64, u64)) -> Span<'a> {
+        Span::styled(
+            self.0.filter(|v| *v > 0).map(|v| format!("{}", v)).unwrap_or("-".into()),
+            LatencyQuality::from(*self, threshold).color(),
+        )
+    }
 }
 
 impl From<Option<i64>> for Latency {
@@ -26,26 +31,26 @@ impl From<Option<i64>> for Latency {
     }
 }
 
-impl<'a> From<Latency> for Span<'a> {
-    fn from(value: Latency) -> Self {
-        Span::styled(
-            value.0.filter(|v| *v > 0).map(|v| format!("{}", v)).unwrap_or("-".into()),
-            LatencyQuality::from(value).color(),
-        )
-    }
-}
+// impl<'a> From<Latency> for Span<'a> {
+//     fn from(value: Latency) -> Self {
+//         Span::styled(
+//             value.0.filter(|v| *v > 0).map(|v| format!("{}", v)).unwrap_or("-".into()),
+//             LatencyQuality::from(value).color(),
+//         )
+//     }
+// }
 
-impl From<Latency> for LatencyQuality {
-    fn from(value: Latency) -> Self {
-        match value.0 {
-            None => LatencyQuality::NotConnected,
-            Some(d) if d <= 0 => LatencyQuality::NotConnected,
-            Some(d) if d < THRESHOLD.0 => LatencyQuality::Fast,
-            Some(d) if d < THRESHOLD.1 => LatencyQuality::Medium,
-            Some(_) => LatencyQuality::Slow,
-        }
-    }
-}
+// impl From<Latency> for LatencyQuality {
+//     fn from(value: Latency) -> Self {
+//         match value.0 {
+//             None => LatencyQuality::NotConnected,
+//             Some(d) if d <= 0 => LatencyQuality::NotConnected,
+//             Some(d) if d < THRESHOLD.0 => LatencyQuality::Fast,
+//             Some(d) if d < THRESHOLD.1 => LatencyQuality::Medium,
+//             Some(_) => LatencyQuality::Slow,
+//         }
+//     }
+// }
 
 impl LatencyQuality {
     pub const COUNT: usize = 4;
@@ -56,6 +61,16 @@ impl LatencyQuality {
             LatencyQuality::Medium => Color::Rgb(240, 177, 0),
             LatencyQuality::Slow => Color::Rgb(251, 44, 54),
             LatencyQuality::NotConnected => Color::DarkGray,
+        }
+    }
+
+    pub fn from(latency: Latency, threshold: (u64, u64)) -> Self {
+        match latency.0 {
+            None => LatencyQuality::NotConnected,
+            Some(d) if d <= 0 => LatencyQuality::NotConnected,
+            Some(d) if d < threshold.0 as i64 => LatencyQuality::Fast,
+            Some(d) if d < threshold.1 as i64 => LatencyQuality::Medium,
+            Some(_) => LatencyQuality::Slow,
         }
     }
 }
