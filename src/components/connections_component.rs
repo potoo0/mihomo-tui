@@ -1,8 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use color_eyre::Result;
-use color_eyre::eyre::OptionExt;
+use anyhow::{Result, anyhow};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Margin, Rect};
@@ -63,7 +62,7 @@ impl ConnectionsComponent {
         let mut rx = self
             .conns_rx
             .as_ref()
-            .ok_or_eyre("`ConnectionsComponent` expects a Receiver<Vec<Connection>>")?
+            .ok_or_else(|| anyhow!("`ConnectionsComponent` expects a Receiver<Vec<Connection>>"))?
             .resubscribe();
         let token = self.token.clone();
         tokio::task::Builder::new().name("connections-loader").spawn(async move {

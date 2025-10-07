@@ -4,7 +4,7 @@ use std::io::{Stdout, stdout};
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
-use color_eyre::Result;
+use anyhow::Result;
 use crossterm::cursor;
 use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,

@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
+use anyhow::Result;
 use circular_buffer::CircularBuffer;
-use color_eyre::Result;
 use const_format::concatcp;
 use futures_util::{StreamExt, TryStreamExt, future};
 use ratatui::Frame;

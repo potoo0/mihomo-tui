@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use color_eyre::Result;
-use color_eyre::eyre::{Context, eyre};
+use anyhow::{Context, Result, anyhow};
 use futures_util::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
@@ -86,7 +85,7 @@ impl Api {
     {
         let mut url = self.api.clone().join(path)?;
         let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
-        url.set_scheme(scheme).map_err(|_| eyre!("Fail to set scheme"))?;
+        url.set_scheme(scheme).map_err(|_| anyhow!("Fail to set scheme"))?;
         // append query params
         if let Some(ref token) = self.bearer_token {
             url.query_pairs_mut().append_pair("token", token);
@@ -103,7 +102,7 @@ impl Api {
             match msg {
                 Ok(Message::Text(txt)) => match serde_json::from_str::<T>(&txt) {
                     Ok(v) => Some(Ok(v)),
-                    Err(e) => Some(Err(eyre!(e))),
+                    Err(e) => Some(Err(anyhow!(e))),
                 },
                 _ => None,
             }

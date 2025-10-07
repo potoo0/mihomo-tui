@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::cmp::PartialEq;
 use std::str::FromStr;
 
-use color_eyre::Result;
+use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Margin, Rect};

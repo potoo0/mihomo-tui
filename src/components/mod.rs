@@ -19,7 +19,7 @@ pub mod state;
 
 use std::sync::Arc;
 
-use color_eyre::Result;
+use anyhow::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;

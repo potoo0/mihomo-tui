@@ -1,8 +1,7 @@
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 
-use color_eyre::Result;
-use color_eyre::eyre::WrapErr;
+use anyhow::{Context, Result};
 use tracing_error::ErrorLayer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};

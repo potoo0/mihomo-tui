@@ -17,7 +17,7 @@ mod utils;
 mod widgets;
 
 #[tokio::main]
-async fn main() -> color_eyre::Result<()> {
+async fn main() -> anyhow::Result<()> {
     errors::init()?;
 
     // Enhance the help message for the config argument
