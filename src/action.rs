@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use crate::components::ComponentId;
-use crate::components::shortcut::Shortcut;
 use crate::models::Connection;
 use crate::models::proxy::Proxy;
+use crate::widgets::shortcut::Shortcut;
 
 #[derive(Debug, Clone)]
 pub enum Action {

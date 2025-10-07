@@ -4,7 +4,7 @@ use color_eyre::Result;
 use ratatui::layout::Rect;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
-use tracing::trace;
+use tracing::{error, trace};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -102,6 +102,7 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
+                Action::Error(ref err) => error!("Error: {}", err),
                 _ => {}
             }
             if let Some(action) = self.root.update(action.clone())? {

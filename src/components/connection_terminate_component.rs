@@ -14,11 +14,11 @@ use tracing::{error, info};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::connections::CONNECTION_COLS;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::utils::columns::ColDef;
 use crate::utils::text_ui::{popup_area, top_title_line};
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const COLS: [&str; 4] = ["host", "rule", "chains", "source_ip"];
 

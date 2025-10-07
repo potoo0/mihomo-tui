@@ -19,12 +19,12 @@ use tracing::{info, warn};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::logs::Logs;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::models::LogLevel;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 #[derive(Default)]
 pub struct LogsComponent {

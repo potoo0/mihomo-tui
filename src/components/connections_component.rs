@@ -20,7 +20,6 @@ use tracing::info;
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::connections::{CONNECTION_COLS, Connections};
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::state::SearchState;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
@@ -28,6 +27,7 @@ use crate::models::sort::SortDir;
 use crate::utils::symbols::{arrow, triangle};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const ROW_HEIGHT: usize = 1;
 

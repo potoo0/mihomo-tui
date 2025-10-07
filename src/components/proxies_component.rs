@@ -18,12 +18,12 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::proxies::{Proxies, ProxyView};
 use crate::components::proxy_setting::get_proxy_setting;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::latency::LatencyQuality;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const CARD_HEIGHT: u16 = 4;
 const CARDS_PER_ROW: usize = 2;

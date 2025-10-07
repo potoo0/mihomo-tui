@@ -4,8 +4,8 @@ use ratatui::symbols::line::{BOTTOM_LEFT, BOTTOM_RIGHT};
 use ratatui::text::{Line, Span};
 
 use crate::action::Action;
-use crate::components::shortcut::Shortcut;
 use crate::components::{Component, ComponentId};
+use crate::widgets::shortcut::Shortcut;
 
 pub struct FooterComponent {
     shortcuts: Vec<Shortcut>,

@@ -11,12 +11,12 @@ use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, W
 
 use crate::action::Action;
 use crate::components::proxy_setting::get_proxy_setting;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::models::proxy::Proxy;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, popup_area, space_between};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const CARD_HEIGHT: u16 = 3;
 const CARD_WIDTH: u16 = 25;

@@ -10,9 +10,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use tui_input::{Input, InputRequest};
 
 use crate::action::Action;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 #[derive(Debug, Clone, Default)]
 pub struct SearchComponent {

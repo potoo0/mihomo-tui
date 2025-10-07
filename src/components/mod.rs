@@ -15,7 +15,6 @@ mod proxy_setting;
 mod proxy_setting_component;
 pub mod root_component;
 mod search_component;
-pub mod shortcut;
 pub mod state;
 
 use std::sync::Arc;
@@ -29,8 +28,8 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::shortcut::Shortcut;
 use crate::tui::Event;
+use crate::widgets::shortcut::Shortcut;
 
 const TABS: [ComponentId; 4] =
     [ComponentId::Overview, ComponentId::Connections, ComponentId::Proxies, ComponentId::Logs];

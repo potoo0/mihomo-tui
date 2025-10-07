@@ -9,10 +9,10 @@ use tracing::{error, info};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::Version;
 use crate::utils::symbols::SUPERSCRIPT;
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 #[derive(Default)]
 pub struct HeaderComponent {

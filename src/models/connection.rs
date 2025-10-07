@@ -44,10 +44,8 @@ pub struct Connection {
     pub rule_payload: String,
 
     // for ui only
-    #[serde(default)]
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     pub upload_rate: u64,
-    #[serde(default)]
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     pub download_rate: u64,
 }

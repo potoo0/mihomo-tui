@@ -24,7 +24,7 @@ pub struct Proxy {
     #[serde(rename(deserialize = "now"))]
     pub selected: Option<String>,
 
-    pub test_url: Option<String>,
+    // pub test_url: Option<String>,
     /// delay history
     pub history: Vec<DelayHistory>,
 
@@ -35,8 +35,8 @@ pub struct Proxy {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct DelayHistory {
-    /// time in RFC3339Nano format, e.g. "2006-01-02T15:04:05.999999999Z07:00"
-    pub time: String,
+    // /// time in RFC3339Nano format, e.g. "2006-01-02T15:04:05.999999999Z07:00"
+    // pub time: String,
     /// delay in milliseconds, less than or equal to 0 means timeout
     pub delay: i64,
 }

@@ -10,12 +10,12 @@ use serde_json::Serializer;
 use serde_json::ser::PrettyFormatter;
 
 use crate::action::Action;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::scrollbar::Scroller;
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const INDENT: &[u8; 4] = b"    "; // 4 spaces
 

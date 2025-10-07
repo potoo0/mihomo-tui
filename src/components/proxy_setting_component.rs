@@ -16,9 +16,9 @@ use url::Url;
 
 use crate::action::Action;
 use crate::components::proxy_setting::get_proxy_setting;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::utils::text_ui::{popup_area, top_title_line};
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const LINE_HEIGHT: u16 = 3;
 
