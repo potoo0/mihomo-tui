@@ -7,9 +7,9 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Margin, Rect};
 use ratatui::prelude::Style;
 use ratatui::style::{Color, Stylize};
-use ratatui::symbols::{bar, line};
+use ratatui::symbols::bar;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{info, warn};
@@ -23,7 +23,7 @@ use crate::components::{Component, ComponentId};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::latency::LatencyQuality;
-use crate::widgets::scrollbar::ScrollState;
+use crate::widgets::scrollable_navigator::ScrollableNavigator;
 
 const CARD_HEIGHT: u16 = 4;
 const CARDS_PER_ROW: usize = 2;
@@ -34,10 +34,8 @@ pub struct ProxiesComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
     store: Arc<RwLock<Proxies>>,
-
-    focused: Option<usize>,
+    navigator: ScrollableNavigator,
     detail_focused: Option<usize>,
-    scroll_state: ScrollState,
 
     loading: Arc<AtomicBool>,
     throbber_state: ThrobberState,
@@ -52,9 +50,8 @@ impl Default for ProxiesComponent {
             api: None,
             action_tx: None,
             store: Default::default(),
-            focused: None,
+            navigator: ScrollableNavigator::new(CARDS_PER_ROW),
             detail_focused: None,
-            scroll_state: ScrollState::new(CARDS_PER_ROW as usize),
             loading: Default::default(),
             throbber_state: Default::default(),
             pending_test: Default::default(),
@@ -180,9 +177,10 @@ impl ProxiesComponent {
     }
 
     fn proxy_detail_action(&mut self) -> Option<Action> {
-        self.detail_focused = self.focused;
+        self.detail_focused = self.navigator.focused;
         let store = self.store.read().unwrap();
-        self.focused
+        self.navigator
+            .focused
             .and_then(|idx| store.get(idx))
             .map(|v| Action::ProxyDetail(Arc::clone(&v.proxy), store.children(v.proxy.as_ref())))
     }
@@ -214,14 +212,6 @@ impl ProxiesComponent {
                 &mut self.throbber_state,
             );
         }
-    }
-
-    fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .track_symbol(Some(line::VERTICAL))
-            .begin_symbol(Some(arrow::UP))
-            .end_symbol(Some(arrow::DOWN));
-        frame.render_stateful_widget(scrollbar, area, &mut self.scroll_state.state);
     }
 
     fn quality_stats_line(proxy: &'_ ProxyView, width: u16, total: usize) -> Line<'_> {
@@ -309,46 +299,13 @@ impl ProxiesComponent {
 
         let col_chunks =
             Layout::horizontal((0..CARDS_PER_ROW).map(|_| Constraint::Fill(1))).split(area);
-        self.scroll_state
-            .length(proxies.len(), (area.height / CARD_HEIGHT) as usize * CARDS_PER_ROW);
-        let proxies = &proxies[self.scroll_state.pos()..self.scroll_state.end_pos()];
-        for (idx, proxy) in proxies.iter().enumerate() {
-            let row = (idx / CARDS_PER_ROW) as u16;
-            let col = idx % CARDS_PER_ROW;
-
-            // Calculate card area
-            let mut rect = col_chunks[col];
-            rect.y += row * CARD_HEIGHT;
-            rect.height = CARD_HEIGHT;
-            if rect.y + rect.height > area.y + area.height {
-                break; // Don't render outside the area
-            }
-
-            let focused = {
-                let idx = self.scroll_state.pos() + idx;
-                self.focused.is_some_and(|v| v == idx)
-            };
-            Self::render_proxy(proxy, focused, frame, rect);
-        }
-    }
-
-    fn next(&mut self, step: usize) {
-        let focused = self
-            .focused
-            .map(|v| v.saturating_add(step).min(self.scroll_state.content_length() - 1))
-            .unwrap_or_default();
-        self.focused = Some(focused);
-        if focused >= self.scroll_state.end_pos() {
-            self.scroll_state.next();
-        }
-    }
-
-    fn prev(&mut self, step: usize) {
-        let focused = self.focused.map(|v| v.saturating_sub(step)).unwrap_or_default();
-        self.focused = Some(focused);
-        if focused < self.scroll_state.pos() {
-            self.scroll_state.prev();
-        }
+        self.navigator
+            .length(proxies.len(), ((area.height / CARD_HEIGHT) as usize) * col_chunks.len());
+        self.navigator.iter_visible(&proxies, CARD_HEIGHT, col_chunks).for_each(
+            |(proxy, focused, rect)| {
+                Self::render_proxy(proxy, focused, frame, rect);
+            },
+        );
     }
 }
 
@@ -390,27 +347,14 @@ impl Component for ProxiesComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         self.detail_focused = None;
+        if self.navigator.handle_key_event(true, key) {
+            return Ok(None);
+        }
         match key.code {
-            KeyCode::Char('g') => {
-                if self.focused.is_some() {
-                    self.focused = Some(0)
-                }
-                self.scroll_state.first();
-            }
-            KeyCode::Char('G') => {
-                if self.focused.is_some() {
-                    self.focused = Some(self.scroll_state.content_length() - 1)
-                }
-                self.scroll_state.last();
-            }
             KeyCode::Esc => {
-                self.focused = None;
+                self.navigator.focused = None;
                 self.detail_focused = None;
             }
-            KeyCode::Char('j') | KeyCode::Down => self.next(2),
-            KeyCode::Char('k') | KeyCode::Up => self.prev(2),
-            KeyCode::Char('h') | KeyCode::Left => self.prev(1),
-            KeyCode::Char('l') | KeyCode::Right => self.next(1),
             KeyCode::Char('r') => {
                 if self
                     .loading
@@ -424,7 +368,7 @@ impl Component for ProxiesComponent {
             KeyCode::Enter => return Ok(self.proxy_detail_action()),
             KeyCode::Char('t') => {
                 let store = self.store.read().unwrap();
-                if let Some(idx) = self.focused {
+                if let Some(idx) = self.navigator.focused {
                     let action = store
                         .get(idx)
                         .map(|v| v.proxy.name.clone())
@@ -471,7 +415,7 @@ impl Component for ProxiesComponent {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         self.render_proxies(frame, area);
         self.render_loading_throbber(frame, area);
-        self.render_scrollbar(frame, area.inner(Margin::new(0, 1)));
+        self.navigator.render(frame, area.inner(Margin::new(0, 1)));
 
         Ok(())
     }

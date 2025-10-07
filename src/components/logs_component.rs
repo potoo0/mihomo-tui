@@ -8,11 +8,8 @@ use ratatui::Frame;
 use ratatui::layout::{Margin, Rect};
 use ratatui::prelude::{Modifier, Stylize};
 use ratatui::style::{Color, Style};
-use ratatui::symbols::line;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, BorderType, List, ListItem, ListState, Scrollbar, ScrollbarOrientation, ScrollbarState,
-};
+use ratatui::widgets::{Block, BorderType, List, ListItem, ListState};
 use strum::IntoEnumIterator;
 use throbber_widgets_tui::{Throbber, ThrobberState};
 use tokio::sync::mpsc::UnboundedSender;
@@ -27,8 +24,7 @@ use crate::components::{Component, ComponentId};
 use crate::models::LogLevel;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
-
-const ROW_HEIGHT: usize = 1;
+use crate::widgets::scrollable_navigator::ScrollableNavigator;
 
 #[derive(Default)]
 pub struct LogsComponent {
@@ -42,10 +38,8 @@ pub struct LogsComponent {
     level_changed: bool,
     filter_pattern_changed: bool,
 
-    viewport: u16,
-    item_size: usize,
     list_state: ListState,
-    scroll_state: ScrollbarState,
+    navigator: ScrollableNavigator,
     throbber_state: ThrobberState,
     action_tx: Option<UnboundedSender<Action>>,
 }
@@ -124,12 +118,12 @@ impl LogsComponent {
 
     fn render_list(&mut self, frame: &mut Frame, area: Rect) {
         let records = self.store.view();
-        self.item_size = records.len();
-        self.scroll_state = self.scroll_state.content_length(self.item_size * ROW_HEIGHT);
-        self.viewport = area.height.saturating_sub(2); // borders
+        let len = records.len();
+        self.navigator.length(len, (area.height - 2) as usize);
 
-        // TODO: Implement virtualized rendering: only render rows within the visible viewport
-        let items: Vec<ListItem> = records
+        let visible =
+            &records[len - self.navigator.scroller.end_pos()..len - self.navigator.scroller.pos()];
+        let items: Vec<ListItem> = visible
             .iter()
             .rev()
             .map(|item| {
@@ -145,11 +139,11 @@ impl LogsComponent {
             Span::raw(TOP_TITLE_LEFT),
             Span::raw("logs ("),
             Span::styled(
-                self.list_state.selected().map(|i| (i + 1).to_string()).unwrap_or("-".into()),
+                self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
             ),
             Span::raw("/"),
-            Span::styled(self.item_size.to_string(), Color::Cyan),
+            Span::styled(self.navigator.scroller.content_length().to_string(), Color::Cyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),
         ]);
@@ -157,6 +151,8 @@ impl LogsComponent {
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
         let selected_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
         let logs = List::new(items).block(block).highlight_style(selected_style);
+        *self.list_state.selected_mut() =
+            self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
         frame.render_stateful_widget(logs, area, &mut self.list_state);
 
         let (throbber_label, throbber_color) = if self.live_mode.load(Ordering::Relaxed) {
@@ -177,63 +173,11 @@ impl LogsComponent {
         );
     }
 
-    fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
-        frame.render_stateful_widget(
-            Scrollbar::new(ScrollbarOrientation::VerticalRight)
-                .track_symbol(Some(line::VERTICAL))
-                .begin_symbol(Some(arrow::UP))
-                .end_symbol(Some(arrow::DOWN)),
-            area.inner(Margin::new(1, 1)),
-            &mut self.scroll_state,
-        );
-    }
-
-    pub fn next_row(&mut self) {
-        if self.item_size == 0 {
-            return;
-        }
-        let i = self
-            .list_state
-            .selected()
-            .map_or(0, |i| if i + 1 >= self.item_size { 0 } else { i + 1 });
-        self.list_state.select(Some(i));
-        self.scroll_state = self.scroll_state.position(i * ROW_HEIGHT);
-    }
-
-    pub fn prev_row(&mut self) {
-        if self.item_size == 0 {
-            return;
-        }
-        let i = self
-            .list_state
-            .selected()
-            .map_or(0, |i| if i == 0 { self.item_size - 1 } else { i - 1 });
-        self.list_state.select(Some(i));
-        self.scroll_state = self.scroll_state.position(i * ROW_HEIGHT);
-    }
-
-    pub fn first_row(&mut self) {
-        if self.item_size == 0 {
-            return;
-        }
-        self.list_state.select(Some(0));
-        self.scroll_state = self.scroll_state.position(0);
-    }
-
-    pub fn last_row(&mut self) {
-        if self.item_size == 0 {
-            return;
-        }
-        let i = self.item_size - 1;
-        self.list_state.select(Some(i));
-        self.scroll_state = self.scroll_state.position(i * ROW_HEIGHT);
-    }
-
     fn live_mode(&mut self, live_mode: bool) {
         self.live_mode.store(live_mode, Ordering::Relaxed);
         if live_mode {
-            self.list_state.select(None);
-            self.scroll_state = self.scroll_state.position(0);
+            self.navigator.focused = None;
+            self.navigator.scroller.position(0);
         }
     }
 
@@ -287,24 +231,12 @@ impl Component for LogsComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        if self.navigator.handle_key_event(false, key) {
+            self.live_mode(false);
+            return Ok(None);
+        }
         match key.code {
             KeyCode::Esc => self.live_mode(true),
-            KeyCode::Char('g') => {
-                self.first_row();
-                self.live_mode(false);
-            }
-            KeyCode::Char('G') => {
-                self.last_row();
-                self.live_mode(false);
-            }
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.next_row();
-                self.live_mode(false);
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.prev_row();
-                self.live_mode(false);
-            }
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
             KeyCode::Char('e') => self.set_level(LogLevel::Error),
             KeyCode::Char('w') => self.set_level(LogLevel::Warning),
@@ -348,7 +280,7 @@ impl Component for LogsComponent {
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         self.render_list(frame, area);
-        self.render_scrollbar(frame, area);
+        self.navigator.render(frame, area.inner(Margin::new(0, 1)));
 
         Ok(())
     }

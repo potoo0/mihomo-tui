@@ -1,12 +1,10 @@
+use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::prelude::Style;
 use ratatui::style::Color;
-use ratatui::symbols::line;
-use ratatui::widgets::{
-    Block, BorderType, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
-};
+use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use serde::Serialize;
 use serde_json::Serializer;
 use serde_json::ser::PrettyFormatter;
@@ -17,28 +15,27 @@ use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{popup_area, top_title_line};
+use crate::widgets::scrollbar::Scroller;
 
 const INDENT: &[u8; 4] = b"    "; // 4 spaces
 
 #[derive(Debug, Default)]
 pub struct ConnectionDetailComponent {
     show: bool,
-    viewport: usize,
-    scroll: usize,
     total_lines: usize,
     data: String,
-    scroll_state: ScrollbarState,
+
+    scroller: Scroller,
 }
 
 impl ConnectionDetailComponent {
     fn show(&mut self, data: &Connection) {
         self.show = true;
-        self.scroll = 0;
 
         let pretty = Self::pretty(data);
         self.total_lines = pretty.lines().count();
         self.data = pretty;
-        self.scroll_state = self.scroll_state.content_length(self.total_lines);
+        self.scroller.position(0);
     }
 
     fn hide(&mut self) {
@@ -84,7 +81,10 @@ impl Component for ConnectionDetailComponent {
         ]
     }
 
-    fn handle_key_event(&mut self, key: KeyEvent) -> color_eyre::Result<Option<Action>> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        if self.scroller.handle_key_event(key) {
+            return Ok(None);
+        }
         match key.code {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return Ok(Some(Action::Quit));
@@ -93,28 +93,12 @@ impl Component for ConnectionDetailComponent {
                 self.hide();
                 return Ok(Some(Action::Unfocus));
             }
-            KeyCode::Char('j') | KeyCode::Down => {
-                self.scroll = self.scroll.saturating_add(1).min(self.total_lines - 1);
-                self.scroll_state = self.scroll_state.position(self.scroll);
-            }
-            KeyCode::Char('k') | KeyCode::Up => {
-                self.scroll = self.scroll.saturating_sub(1);
-                self.scroll_state = self.scroll_state.position(self.scroll);
-            }
-            KeyCode::PageDown | KeyCode::Char(' ') => {
-                self.scroll = self.scroll.saturating_add(self.viewport).min(self.total_lines - 1);
-                self.scroll_state = self.scroll_state.position(self.scroll);
-            }
-            KeyCode::PageUp => {
-                self.scroll = self.scroll.saturating_sub(self.viewport);
-                self.scroll_state = self.scroll_state.position(self.scroll);
-            }
             _ => {}
         };
         Ok(None)
     }
 
-    fn update(&mut self, action: Action) -> color_eyre::Result<Option<Action>> {
+    fn update(&mut self, action: Action) -> Result<Option<Action>> {
         if let Action::ConnectionDetail(connection) = action {
             self.show(connection.as_ref())
         };
@@ -122,13 +106,13 @@ impl Component for ConnectionDetailComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         if !self.show {
             return Ok(());
         }
 
         let area = popup_area(area, 80, 75);
-        self.viewport = area.height.saturating_sub(2) as usize; // minus borders
+        self.scroller.length(self.total_lines, area.height.saturating_sub(2) as usize);
 
         // content
         let block = Block::bordered()
@@ -136,17 +120,12 @@ impl Component for ConnectionDetailComponent {
             .border_style(Color::LightBlue)
             .title(top_title_line("detail", Style::default()));
         let paragraph =
-            Paragraph::new(self.data.as_str()).scroll((self.scroll as u16, 0)).block(block);
+            Paragraph::new(self.data.as_str()).scroll((self.scroller.pos() as u16, 0)).block(block);
 
         frame.render_widget(Clear, area); // clears out the background
         frame.render_widget(paragraph, area);
 
-        // scrollbar
-        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
-            .track_symbol(Some(line::VERTICAL))
-            .begin_symbol(Some(arrow::UP))
-            .end_symbol(Some(arrow::DOWN));
-        frame.render_stateful_widget(scrollbar, area, &mut self.scroll_state);
+        self.scroller.render(frame, area);
 
         Ok(())
     }

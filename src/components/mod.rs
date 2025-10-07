@@ -97,20 +97,6 @@ pub trait Component {
         Ok(())
     }
 
-    // /// Register a configuration handler that provides configuration settings if necessary.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `config` - Configuration settings.
-    // ///
-    // /// # Returns
-    // ///
-    // /// * `Result<()>` - An Ok result or an error.
-    // fn register_config_handler(&mut self, config: Config) -> Result<()> {
-    //     let _ = config; // to appease clippy
-    //     Ok(())
-    // }
-
     /// Handle incoming events and produce actions if necessary.
     ///
     /// # Arguments
@@ -182,21 +168,4 @@ pub trait Component {
     ///
     /// * `Result<()>` - An Ok result or an error.
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()>;
-
-    // /// Check if the component is currently visible.
-    // fn is_visible(&self) -> bool {
-    //     true
-    // }
-    //
-    // /// Hide the component if it is visible.
-    // fn hide(&mut self) {}
-    //
-    // /// Show the component if it is hidden.
-    // ///
-    // /// # Returns
-    // ///
-    // /// * `Result<()>` - An Ok result or an error.
-    // fn show(&mut self) -> Result<()> {
-    //     Ok(())
-    // }
 }

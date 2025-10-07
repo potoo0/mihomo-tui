@@ -1,22 +1,28 @@
-use ratatui::widgets::ScrollbarState;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
+use ratatui::layout::Rect;
+use ratatui::symbols::line;
+use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
+
+use crate::utils::symbols::arrow;
 
 #[derive(Debug)]
-pub struct ScrollState {
+pub struct Scroller {
     step: usize,
     position: usize,
     content_length: usize,
     viewport_content_length: usize,
 
-    pub state: ScrollbarState,
+    state: ScrollbarState,
 }
 
-impl Default for ScrollState {
+impl Default for Scroller {
     fn default() -> Self {
         Self::new(1)
     }
 }
 
-impl ScrollState {
+impl Scroller {
     pub fn new(step: usize) -> Self {
         Self {
             step,
@@ -48,7 +54,7 @@ impl ScrollState {
         self
     }
 
-    fn align_up(&self, value: usize) -> usize {
+    pub fn align_up(&self, value: usize) -> usize {
         value.div_ceil(self.step) * self.step
     }
 
@@ -73,6 +79,51 @@ impl ScrollState {
         self.position(self.position.saturating_sub(self.step));
     }
 
+    pub fn page_down(&mut self) {
+        if let Some(max_pos) = self.content_length.checked_sub(self.viewport_content_length) {
+            let pos = self
+                .position
+                .saturating_add(self.viewport_content_length)
+                .min(self.align_up(max_pos));
+            self.position(pos);
+        }
+    }
+
+    pub fn page_up(&mut self) {
+        self.position(self.position.saturating_sub(self.viewport_content_length));
+    }
+
+    /// Handle scroll key events
+    ///
+    /// # Arguments
+    ///
+    /// - `key`: the key event to handle
+    ///
+    /// # Returns
+    ///
+    /// - `true` if the key was handled, `false` otherwise
+    pub fn handle_key_event(&mut self, key: KeyEvent) -> bool {
+        match key.code {
+            KeyCode::Char('g') => self.first(),
+            KeyCode::Char('G') => self.last(),
+            KeyCode::Char('j') | KeyCode::Down => self.next(),
+            KeyCode::Char('k') | KeyCode::Up => self.prev(),
+            KeyCode::PageDown | KeyCode::Char(' ') => self.page_down(),
+            KeyCode::PageUp => self.page_up(),
+            _ => return false,
+        }
+
+        true
+    }
+
+    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
+        let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .track_symbol(Some(line::VERTICAL))
+            .begin_symbol(Some(arrow::UP))
+            .end_symbol(Some(arrow::DOWN));
+        frame.render_stateful_widget(scrollbar, area, &mut self.state);
+    }
+
     pub fn pos(&self) -> usize {
         self.position
     }
@@ -83,6 +134,10 @@ impl ScrollState {
 
     pub fn content_length(&self) -> usize {
         self.content_length
+    }
+
+    pub fn viewport_content_length(&self) -> usize {
+        self.viewport_content_length
     }
 
     pub fn step_value(&self) -> usize {
@@ -96,7 +151,7 @@ mod tests {
 
     #[test]
     fn test_next() {
-        let mut scroll = ScrollState::new(2);
+        let mut scroll = Scroller::new(2);
         scroll.length(13, 10);
 
         let expected = vec![(0, 10), (2, 12), (4, 13), (4, 13), (4, 13)];
@@ -107,8 +162,30 @@ mod tests {
     }
 
     #[test]
-    fn test_scroll_state() {
-        let mut scroll = ScrollState::new(2);
+    fn test_zero_len() {
+        let mut scroll = Scroller::new(2);
+        scroll.length(0, 10);
+        assert_eq!((scroll.pos(), scroll.end_pos()), (0, 0));
+
+        scroll.next();
+        assert_eq!((scroll.pos(), scroll.end_pos()), (0, 0));
+        scroll.prev();
+        assert_eq!((scroll.pos(), scroll.end_pos()), (0, 0));
+
+        scroll.first();
+        assert_eq!((scroll.pos(), scroll.end_pos()), (0, 0));
+        scroll.last();
+        assert_eq!((scroll.pos(), scroll.end_pos()), (0, 0));
+
+        scroll.page_down();
+        assert_eq!((scroll.pos(), scroll.end_pos()), (0, 0));
+        scroll.page_up();
+        assert_eq!((scroll.pos(), scroll.end_pos()), (0, 0));
+    }
+
+    #[test]
+    fn test_scroll() {
+        let mut scroll = Scroller::new(2);
         scroll.length(100, 10);
         assert_eq!((scroll.pos(), scroll.end_pos()), (0, 10));
 
