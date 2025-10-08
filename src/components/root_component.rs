@@ -26,6 +26,8 @@ use crate::components::logs_component::LogsComponent;
 use crate::components::overview_component::OverviewComponent;
 use crate::components::proxies_component::ProxiesComponent;
 use crate::components::proxy_detail_component::ProxyDetailComponent;
+use crate::components::proxy_provider_detail_component::ProxyProviderDetailComponent;
+use crate::components::proxy_providers_component::ProxyProvidersComponent;
 use crate::components::proxy_setting_component::ProxySettingComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
@@ -34,8 +36,8 @@ use crate::utils::text_ui::top_title_line;
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
 const MIN_AREA: (u16, u16) = (100, 18);
-/// 5 seconds at 4 ticks per second
-const IDLE_TICKS: u8 = 4 * 5;
+/// 120 seconds at 4 ticks per second
+const IDLE_TICKS: u16 = 120 * 4;
 
 pub struct RootComponent {
     token: CancellationToken,
@@ -43,7 +45,7 @@ pub struct RootComponent {
     current_tab: ComponentId,
     popup: Option<ComponentId>,
     focused: Option<ComponentId>,
-    idle_tabs: HashMap<ComponentId, u8>,
+    idle_tabs: HashMap<ComponentId, u16>,
     components: HashMap<ComponentId, Box<dyn Component>>,
     action_tx: Option<UnboundedSender<Action>>,
 
@@ -86,6 +88,10 @@ impl RootComponent {
                 ComponentId::Proxies => Box::new(ProxiesComponent::default()),
                 ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
                 ComponentId::ProxySetting => Box::new(ProxySettingComponent::default()),
+                ComponentId::ProxyProviders => Box::new(ProxyProvidersComponent::default()),
+                ComponentId::ProxyProviderDetail => {
+                    Box::new(ProxyProviderDetailComponent::default())
+                }
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
@@ -258,6 +264,7 @@ impl Component for RootComponent {
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
             Action::ProxyDetail(_, _) => self.open_popup(ComponentId::ProxyDetail)?,
             Action::ProxySetting => self.open_popup(ComponentId::ProxySetting)?,
+            Action::ProxyProviderDetail(_) => self.open_popup(ComponentId::ProxyProviderDetail)?,
             Action::ConnectionTerminateRequest(_) => {
                 self.open_popup(ComponentId::ConnectionTerminate)?
             }

@@ -1,4 +1,6 @@
 use ratatui::prelude::{Color, Span};
+use ratatui::symbols::bar;
+use ratatui::text::Line;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Latency(Option<i64>);
@@ -11,6 +13,9 @@ pub enum LatencyQuality {
     Slow = 2,
     NotConnected = 3,
 }
+
+#[derive(Debug)]
+pub struct QualityStats([usize; LatencyQuality::COUNT]);
 
 impl Latency {
     pub fn is_none(&self) -> bool {
@@ -92,5 +97,40 @@ impl TryFrom<usize> for LatencyQuality {
             3 => Ok(LatencyQuality::NotConnected),
             _ => Err(()),
         }
+    }
+}
+
+impl QualityStats {
+    pub fn new(stats: [usize; LatencyQuality::COUNT]) -> Self {
+        QualityStats(stats)
+    }
+
+    pub fn as_line<'a>(&self, width: u16, total: usize) -> Line<'a> {
+        let mut segments: Vec<(u16, f64)> = self
+            .0
+            .iter()
+            .map(|&v| {
+                let exact = v as f64 * width as f64 / total as f64;
+                (exact.floor() as u16, exact.fract())
+            })
+            .collect();
+
+        for _ in 0..width - segments.iter().map(|(n, _)| *n).sum::<u16>() {
+            let seg = segments.iter_mut().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+
+            seg.0 += 1;
+            seg.1 = 0.0;
+        }
+
+        segments
+            .into_iter()
+            .enumerate()
+            .map(|(i, (c, _))| {
+                Span::styled(
+                    bar::THREE_EIGHTHS.repeat(c as usize),
+                    LatencyQuality::try_from(i).unwrap().color(),
+                )
+            })
+            .collect()
     }
 }

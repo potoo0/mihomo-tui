@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use crate::components::proxy_setting::get_proxy_setting;
 use crate::models::proxy::Proxy;
-use crate::widgets::latency::LatencyQuality;
+use crate::widgets::latency::{LatencyQuality, QualityStats};
 
 #[derive(Debug)]
 pub struct ProxyView {
     pub proxy: Arc<Proxy>,
-    pub quality_stats: [usize; LatencyQuality::COUNT],
+    pub quality_stats: QualityStats,
 }
 
 #[derive(Debug, Default)]
@@ -45,7 +45,10 @@ impl Proxies {
             }
         }
 
-        Arc::new(ProxyView { proxy: Arc::clone(proxy), quality_stats })
+        Arc::new(ProxyView {
+            proxy: Arc::clone(proxy),
+            quality_stats: QualityStats::new(quality_stats),
+        })
     }
 
     fn update_delay(&mut self, proxies: &mut HashMap<String, Proxy>) {

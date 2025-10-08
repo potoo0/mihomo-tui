@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::components::ComponentId;
 use crate::models::Connection;
+use crate::models::provider::ProxyProvider;
 use crate::models::proxy::Proxy;
 use crate::widgets::shortcut::Shortcut;
 
@@ -31,4 +32,6 @@ pub enum Action {
     ProxySetting,
     ProxyTestRequest(String),
     ProxyGroupTestRequest(String),
+    ProxyProviderDetail(Arc<ProxyProvider>),
+    ProxyProviderRefresh,
 }

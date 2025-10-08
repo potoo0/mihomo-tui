@@ -11,6 +11,9 @@ mod overview_component;
 pub mod proxies;
 mod proxies_component;
 mod proxy_detail_component;
+mod proxy_provider_detail_component;
+mod proxy_providers;
+mod proxy_providers_component;
 mod proxy_setting;
 mod proxy_setting_component;
 pub mod root_component;
@@ -31,8 +34,13 @@ use crate::api::Api;
 use crate::tui::Event;
 use crate::widgets::shortcut::Shortcut;
 
-const TABS: [ComponentId; 4] =
-    [ComponentId::Overview, ComponentId::Connections, ComponentId::Proxies, ComponentId::Logs];
+const TABS: [ComponentId; 5] = [
+    ComponentId::Overview,
+    ComponentId::Connections,
+    ComponentId::Proxies,
+    ComponentId::ProxyProviders,
+    ComponentId::Logs,
+];
 const BUFFER_SIZE: usize = 100;
 const CONNS_BUFFER_SIZE: usize = 500;
 const LOGS_BUFFER_SIZE: usize = 500;
@@ -51,6 +59,8 @@ pub enum ComponentId {
     Proxies,
     ProxyDetail,
     ProxySetting,
+    ProxyProviders,
+    ProxyProviderDetail,
     Logs,
     Search,
 }

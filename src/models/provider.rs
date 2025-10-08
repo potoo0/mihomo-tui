@@ -16,14 +16,14 @@ pub struct ProxyProvider {
     pub name: String,
     pub vehicle_type: String,
     pub proxies: Vec<Proxy>,
-    pub test_url: String,
+    // pub test_url: String,
     /// updated time in RFC3339Nano format, e.g. "2006-01-02T15:04:05.999999999Z07:00"
     pub updated_at: Option<String>,
     pub subscription_info: Option<SubscriptionInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "PascalCase")]
 pub struct SubscriptionInfo {
     pub download: Option<u64>,
     pub upload: Option<u64>,

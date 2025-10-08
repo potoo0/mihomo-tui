@@ -30,10 +30,10 @@ pub struct ProxyDetailComponent {
     navigator: ScrollableNavigator,
 
     loading: bool,
-    throbber_state: ThrobberState,
+    throbber: ThrobberState,
 
     pending_test: u16,
-    throbber_state_test: ThrobberState,
+    pending_test_throbber: ThrobberState,
 }
 
 impl ProxyDetailComponent {
@@ -42,6 +42,10 @@ impl ProxyDetailComponent {
         self.show = true;
         self.proxy = Some(proxy);
         self.store = Some(store);
+
+        self.navigator.focused = None;
+        self.navigator.scroller.position(0);
+
         self.loading = false;
         self.pending_test = self.pending_test.saturating_sub(1);
     }
@@ -50,7 +54,6 @@ impl ProxyDetailComponent {
         self.show = false;
         self.proxy = None;
         self.store = None;
-        self.navigator.focused = None;
     }
 
     fn title_line(&'_ self) -> Line<'_> {
@@ -68,7 +71,7 @@ impl ProxyDetailComponent {
         ])
     }
 
-    fn render_loading_throbber(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.pending_test > 0 {
             let symbol = Throbber::default()
                 .label("Testing")
@@ -79,7 +82,7 @@ impl ProxyDetailComponent {
             frame.render_stateful_widget(
                 symbol,
                 Rect::new(area.right().saturating_sub(20), area.y, 9, 1),
-                &mut self.throbber_state_test,
+                &mut self.pending_test_throbber,
             );
         }
         if self.loading {
@@ -92,7 +95,7 @@ impl ProxyDetailComponent {
             frame.render_stateful_widget(
                 symbol,
                 Rect::new(area.right().saturating_sub(10), area.y, 9, 1),
-                &mut self.throbber_state,
+                &mut self.throbber,
             );
         }
     }
@@ -235,7 +238,7 @@ impl Component for ProxyDetailComponent {
             Action::ProxyDetail(p, store) => self.show(p, store),
             Action::Tick => {
                 if self.loading {
-                    self.throbber_state.calc_next();
+                    self.throbber.calc_next();
                 }
             }
             _ => (),
@@ -260,7 +263,7 @@ impl Component for ProxyDetailComponent {
             .title(self.title_line());
         let content_area = block.inner(area);
         frame.render_widget(block, area);
-        self.render_loading_throbber(frame, area);
+        self.render_throbber(frame, area);
 
         self.render_cards(frame, content_area);
         self.navigator.render(frame, area.inner(Margin::new(0, 1)));

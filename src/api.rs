@@ -241,6 +241,44 @@ impl Api {
 
         Ok(body)
     }
+
+    pub async fn health_check_provider<S>(&self, name: S) -> Result<()>
+    where
+        S: AsRef<str>,
+    {
+        let _ = self
+            .client
+            .get(self.api.join(&format!("/providers/proxies/{}/healthcheck", name.as_ref()))?)
+            .send()
+            .await
+            .context("Fail to send `GET /providers/proxies/<name>/healthcheck` request")?
+            .error_for_status()
+            .context("Fail to request `GET /providers/proxies/<name>/healthcheck`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `GET /providers/proxies/<name>/healthcheck`");
+
+        Ok(())
+    }
+
+    pub async fn update_provider<S>(&self, name: S) -> Result<()>
+    where
+        S: AsRef<str>,
+    {
+        let _ = self
+            .client
+            .put(self.api.join(&format!("/providers/proxies/{}", name.as_ref()))?)
+            .send()
+            .await
+            .context("Fail to send `PUT /providers/proxies/<name>`")?
+            .error_for_status()
+            .context("Fail to request `PUT /providers/proxies/<name>`")?
+            .bytes()
+            .await
+            .context("Fail to parse response of `PUT /providers/proxies/<name>`")?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

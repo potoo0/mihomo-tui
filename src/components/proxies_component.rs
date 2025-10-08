@@ -7,7 +7,6 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Margin, Rect};
 use ratatui::prelude::Style;
 use ratatui::style::{Color, Stylize};
-use ratatui::symbols::bar;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
@@ -21,7 +20,6 @@ use crate::components::proxy_setting::get_proxy_setting;
 use crate::components::{Component, ComponentId};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
-use crate::widgets::latency::LatencyQuality;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
@@ -38,10 +36,10 @@ pub struct ProxiesComponent {
     detail_focused: Option<usize>,
 
     loading: Arc<AtomicBool>,
-    throbber_state: ThrobberState,
+    throbber: ThrobberState,
 
     pending_test: Arc<AtomicU16>,
-    throbber_state_test: ThrobberState,
+    pending_test_throbber: ThrobberState,
 }
 
 impl Default for ProxiesComponent {
@@ -53,9 +51,9 @@ impl Default for ProxiesComponent {
             navigator: ScrollableNavigator::new(CARDS_PER_ROW),
             detail_focused: None,
             loading: Default::default(),
-            throbber_state: Default::default(),
+            throbber: Default::default(),
             pending_test: Default::default(),
-            throbber_state_test: Default::default(),
+            pending_test_throbber: Default::default(),
         }
     }
 }
@@ -185,7 +183,7 @@ impl ProxiesComponent {
             .map(|v| Action::ProxyDetail(Arc::clone(&v.proxy), store.children(v.proxy.as_ref())))
     }
 
-    fn render_loading_throbber(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.pending_test.load(Ordering::Relaxed) > 0 {
             let symbol = Throbber::default()
                 .label("Testing")
@@ -196,7 +194,7 @@ impl ProxiesComponent {
             frame.render_stateful_widget(
                 symbol,
                 Rect::new(area.right().saturating_sub(20), area.y, 9, 1),
-                &mut self.throbber_state_test,
+                &mut self.pending_test_throbber,
             );
         }
         if self.loading.load(Ordering::Relaxed) {
@@ -209,38 +207,9 @@ impl ProxiesComponent {
             frame.render_stateful_widget(
                 symbol,
                 Rect::new(area.right().saturating_sub(10), area.y, 9, 1),
-                &mut self.throbber_state,
+                &mut self.throbber,
             );
         }
-    }
-
-    fn quality_stats_line(proxy: &'_ ProxyView, width: u16, total: usize) -> Line<'_> {
-        let mut segments: Vec<(u16, f64)> = proxy
-            .quality_stats
-            .iter()
-            .map(|&v| {
-                let exact = v as f64 * width as f64 / total as f64;
-                (exact.floor() as u16, exact.fract())
-            })
-            .collect();
-
-        for _ in 0..width - segments.iter().map(|(n, _)| *n).sum::<u16>() {
-            let seg = segments.iter_mut().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
-
-            seg.0 += 1;
-            seg.1 = 0.0;
-        }
-
-        segments
-            .into_iter()
-            .enumerate()
-            .map(|(i, (c, _))| {
-                Span::styled(
-                    bar::THREE_EIGHTHS.repeat(c as usize),
-                    LatencyQuality::try_from(i).unwrap().color(),
-                )
-            })
-            .collect()
     }
 
     fn render_proxy(view: &ProxyView, focused: bool, frame: &mut Frame, area: Rect) {
@@ -274,7 +243,7 @@ impl ProxiesComponent {
             let threshold = get_proxy_setting().read().unwrap().threshold;
             let latency_span: Span = view.proxy.latency.as_span(threshold);
             let width = area.width - 10;
-            let mut stats: Line = Self::quality_stats_line(view, width, children);
+            let mut stats: Line = view.quality_stats.as_line(width, children);
             stats.push_span(Span::raw(" ".repeat(10 - 2 - latency_span.width())));
             stats.push_span(latency_span);
             lines.push(stats);
@@ -398,10 +367,10 @@ impl Component for ProxiesComponent {
             Action::ProxiesRefresh => self.refresh_proxies()?,
             Action::Tick => {
                 if self.loading.load(Ordering::Relaxed) {
-                    self.throbber_state.calc_next();
+                    self.throbber.calc_next();
                 }
                 if self.pending_test.load(Ordering::Relaxed) > 0 {
-                    self.throbber_state_test.calc_next();
+                    self.pending_test_throbber.calc_next();
                 }
             }
             Action::ProxyTestRequest(name) => self.test_proxy(name, false)?,
@@ -414,7 +383,7 @@ impl Component for ProxiesComponent {
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         self.render_proxies(frame, area);
-        self.render_loading_throbber(frame, area);
+        self.render_throbber(frame, area);
         self.navigator.render(frame, area.inner(Margin::new(0, 1)));
 
         Ok(())
