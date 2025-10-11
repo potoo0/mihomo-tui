@@ -1,18 +1,16 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Margin, Rect};
-use ratatui::prelude::Line;
 use ratatui::style::{Color, Modifier, Style, Stylize};
-use ratatui::text::Span;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Cell, Row, Table, TableState};
-use throbber_widgets_tui::{Throbber, ThrobberState};
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::mpsc::UnboundedSender;
+use throbber_widgets_tui::{BRAILLE_SIX, CANADIAN, Throbber, ThrobberState, WhichUse};
+use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::mpsc::{Receiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -30,61 +28,100 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const ROW_HEIGHT: usize = 1;
 
-#[derive(Default)]
 pub struct ConnectionsComponent {
     token: CancellationToken,
-    conns_rx: Option<Receiver<Vec<Connection>>>,
+    conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>,
+    action_tx: Option<UnboundedSender<Action>>,
+
     store: Arc<Connections>,
     search_state: Arc<Mutex<SearchState>>,
-    live_mode: Arc<AtomicBool>,
 
-    table_state: TableState,
     navigator: ScrollableNavigator,
-    throbber_state: ThrobberState,
-    action_tx: Option<UnboundedSender<Action>>,
+    table_state: TableState,
+
+    live_mode: Arc<AtomicBool>,
+    live_throbber: ThrobberState,
+
+    capture_mode: Arc<AtomicBool>,
+    capture_throbber: ThrobberState,
 }
 
 impl ConnectionsComponent {
-    pub fn new(conns_rx: Receiver<Vec<Connection>>) -> Self {
-        let mut component = Self::default();
-        component.conns_rx = Some(conns_rx);
-        component.search_state = Arc::new(Mutex::new(SearchState::new(CONNECTION_COLS.len())));
-        component.live_mode = Arc::new(AtomicBool::new(true));
-
-        component
+    pub fn new(conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>) -> Self {
+        Self {
+            token: CancellationToken::new(),
+            conns_rx,
+            action_tx: None,
+            store: Default::default(),
+            search_state: Arc::new(Mutex::new(SearchState::new(CONNECTION_COLS.len()))),
+            navigator: Default::default(),
+            table_state: Default::default(),
+            live_mode: Arc::new(AtomicBool::new(true)),
+            live_throbber: Default::default(),
+            capture_mode: Default::default(),
+            capture_throbber: Default::default(),
+        }
     }
 
     fn loader_connections(&mut self) -> Result<()> {
         let store = Arc::clone(&self.store);
         let search_state = Arc::clone(&self.search_state);
         let live_mode = Arc::clone(&self.live_mode);
+        let capture_mode = Arc::clone(&self.capture_mode);
+        let rx = Arc::clone(&self.conns_rx);
 
-        let mut rx = self
-            .conns_rx
-            .as_ref()
-            .ok_or_else(|| anyhow!("`ConnectionsComponent` expects a Receiver<Vec<Connection>>"))?
-            .resubscribe();
         let token = self.token.clone();
         tokio::task::Builder::new().name("connections-loader").spawn(async move {
             loop {
                 tokio::select! {
                     _ = token.cancelled() => break,
-                    res = rx.recv() => match res {
-                        Ok(records) => {
-                            store.push(false, records);
+                    res = async { rx.lock().await.recv().await } => match res {
+                        Some(records) => {
+                            store.push(capture_mode.load(Ordering::Relaxed), records);
                             if live_mode.load(Ordering::Relaxed) {
                                 let search_state = search_state.lock().unwrap().clone();
                                 store.compute_view(&search_state);
                             }
                         },
-                        Err(RecvError::Lagged(_)) => continue,
-                        Err(RecvError::Closed) => break,
+                        _ => break,
                     }
                 }
             }
         })?;
 
         Ok(())
+    }
+
+    fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
+        if self.capture_mode.load(Ordering::Relaxed) {
+            let symbol = Throbber::default()
+                .label("Capture")
+                .style(Style::default().fg(Color::White).bg(Color::Blue).bold())
+                .throbber_style(Style::default().fg(Color::White).bg(Color::Blue).bold())
+                .throbber_set(CANADIAN)
+                .use_type(WhichUse::Full);
+            frame.render_stateful_widget(
+                symbol,
+                Rect::new(area.right().saturating_sub(20), area.y, 9, 1),
+                &mut self.capture_throbber,
+            );
+        }
+        let (throbber_label, throbber_color) = if self.live_mode.load(Ordering::Relaxed) {
+            ("Live  ", Color::Green)
+        } else {
+            ("Paused", Color::Red)
+        };
+        let symbol = Throbber::default()
+            .label(throbber_label)
+            .style(Style::default().bg(throbber_color).bold())
+            .throbber_style(Style::default().bg(throbber_color).bold())
+            .throbber_set(BRAILLE_SIX)
+            .use_type(WhichUse::Spin);
+        frame.render_stateful_widget(
+            symbol,
+            Rect::new(area.right().saturating_sub(9), area.y, 8, 1),
+            &mut self.live_throbber,
+        );
     }
 
     fn render_table(&mut self, frame: &mut Frame, area: Rect) {
@@ -119,7 +156,7 @@ impl ConnectionsComponent {
                         SortDir::Asc => triangle::UP,
                         SortDir::Desc => triangle::DOWN,
                     };
-                    Cell::from(format!("{} {}", title, arrow)).bold().cyan()
+                    Cell::from(format!("{}{}", title, arrow)).bold().cyan()
                 } else {
                     Cell::from(title).bold()
                 }
@@ -128,6 +165,7 @@ impl ConnectionsComponent {
             .height(1)
             .bottom_margin(1);
         let selected_row_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
+        let alive_col_width = if self.capture_mode.load(Ordering::Relaxed) { 6 } else { 0 };
 
         let visible = &records[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
         let rows: Vec<Row> = visible
@@ -140,6 +178,7 @@ impl ConnectionsComponent {
         let table = Table::new(
             rows,
             [
+                Constraint::Length(alive_col_width),
                 Constraint::Min(30),
                 Constraint::Max(15),
                 Constraint::Min(10),
@@ -158,23 +197,6 @@ impl ConnectionsComponent {
         *self.table_state.selected_mut() =
             self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
         frame.render_stateful_widget(table, area, &mut self.table_state);
-
-        let (throbber_label, throbber_color) = if self.live_mode.load(Ordering::Relaxed) {
-            ("Live  ", Color::Green)
-        } else {
-            ("Paused", Color::Red)
-        };
-        let symbol = Throbber::default()
-            .label(throbber_label)
-            .style(Style::default().bg(throbber_color).bold())
-            .throbber_style(Style::default().bg(throbber_color).bold())
-            .throbber_set(throbber_widgets_tui::BRAILLE_SIX)
-            .use_type(throbber_widgets_tui::WhichUse::Spin);
-        frame.render_stateful_widget(
-            symbol,
-            Rect::new(area.right().saturating_sub(9), area.y, 8, 1),
-            &mut self.throbber_state,
-        );
     }
 
     fn live_mode(&mut self, live_mode: bool) {
@@ -223,6 +245,7 @@ impl Component for ConnectionsComponent {
             ]),
             Shortcut::from("reverse", 0).unwrap(),
             Shortcut::from("terminal", 0).unwrap(),
+            Shortcut::from("capture", 0).unwrap(),
             Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
             Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
         ]
@@ -266,9 +289,13 @@ impl Component for ConnectionsComponent {
                     .table_state
                     .selected()
                     .and_then(|idx| self.store.get(idx))
+                    .filter(|v| !v.inactive.load(Ordering::Relaxed))
                     .map(Action::ConnectionTerminateRequest);
                 return Ok(action);
             }
+            KeyCode::Char('c') => self
+                .capture_mode
+                .store(!self.capture_mode.load(Ordering::Relaxed), Ordering::Relaxed),
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
             KeyCode::Enter => {
                 let action = self
@@ -289,7 +316,7 @@ impl Component for ConnectionsComponent {
             Action::Quit => self.token.cancel(),
             Action::Tick => {
                 if self.live_mode.load(Ordering::Relaxed) {
-                    self.throbber_state.calc_next();
+                    self.live_throbber.calc_next();
                 }
             }
             Action::SearchInputChanged(pattern) => {
@@ -303,6 +330,7 @@ impl Component for ConnectionsComponent {
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         self.render_table(frame, area);
+        self.render_throbber(frame, area);
         self.navigator.render(frame, area.inner(Margin::new(0, 1)));
 
         Ok(())

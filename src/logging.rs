@@ -33,7 +33,12 @@ pub fn init(config: &Config) -> Result<()> {
         .with_ansi(false)
         .with_filter(env_filter);
 
-    tracing_subscriber::registry().with(file_subscriber).with(ErrorLayer::default()).try_init()?;
+    let registry = tracing_subscriber::registry().with(file_subscriber).with(ErrorLayer::default());
+
+    #[cfg(debug_assertions)]
+    let registry = registry.with(console_subscriber::spawn());
+
+    registry.try_init()?;
 
     Ok(())
 }

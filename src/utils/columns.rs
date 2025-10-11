@@ -41,6 +41,7 @@ impl<T> ColDef<T> {
 #[derive(Debug, Clone)]
 pub enum SortKey {
     U64(u64),
+    Bool(bool),
 }
 
 impl SortKey {
@@ -48,6 +49,9 @@ impl SortKey {
         use SortKey::*;
         match (self, other) {
             (U64(a), U64(b)) => a.cmp(b),
+            (Bool(a), Bool(b)) => a.cmp(b),
+            (U64(_), Bool(_)) => Ordering::Greater,
+            (Bool(_), U64(_)) => Ordering::Less,
         }
     }
 }
