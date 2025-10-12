@@ -42,43 +42,35 @@ impl HelpComponent {
             (Line::raw("h").into(), None, Line::raw("Toggle help").into()),
             (Line::raw("q / Ctrl+c").into(), None, Line::raw("Quits program").into()),
             (Line::raw("Number").into(), None, Line::raw("switch to tab").into()),
-            (
-                Line::raw("k / Up, j / Down").into(),
-                None,
-                Line::raw("select in table or list").into(),
-            ),
-            (Line::raw("g, G").into(), None, Line::raw("go to first, last row").into()),
+            (Line::raw("k / Up, j / Down").into(), None, Line::raw("navigation").into()),
+            (Line::raw("g, G").into(), None, Line::raw("go to first, last").into()),
             (Line::raw("PageUp, Space / PageDown").into(), None, Line::raw("page up, down").into()),
-            // `filter` key bindings
+            (Line::raw("Esc").into(), None, Line::raw("cancel / back / live toggle").into()),
+            (Line::raw("Enter").into(), None, Line::raw("confirm / open detail").into()),
+            // search / proxy setting input keys
             (
                 Line::raw("---").into(),
-                Line::raw("filter").italic().bold().into(),
+                Line::raw("input box").italic().bold().into(),
                 Line::raw("---").into(),
             ),
-            (Line::raw("f").into(), None, Line::raw("input mode").into()),
-            (Line::raw("Esc, Enter").into(), None, Line::raw("exit input mode").into()),
+            (Line::raw("Shift+Tab, Tab").into(), None, Line::raw("navigate fields").into()),
             (
-                Line::raw("Ctrl+Left, Ctrl+Right").into(),
+                Line::raw("Left, Right, Ctrl+Left, Ctrl+Right").into(),
                 None,
-                Line::raw("go to previous, next word").into(),
+                Line::raw("move cursor").into(),
             ),
-            (
-                Line::raw("Ctrl+w / Alt+Backspace").into(),
-                None,
-                Line::raw("delete previous word").into(),
-            ),
-            (Line::raw("Home, End").into(), None, Line::raw("go to start, end").into()),
+            (Line::raw("Back, Ctrl+Back, Del, Ctrl-Del").into(), None, Line::raw("delete").into()),
+            (Line::raw("Home, End").into(), None, Line::raw("jump to line start, end").into()),
             // `connections` key bindings
             (
                 Line::raw("---").into(),
                 Line::raw("connections").italic().bold().into(),
                 Line::raw("---").into(),
             ),
-            (Line::raw("Esc").into(), None, Line::raw("live mode").into()),
-            (Line::raw("Enter").into(), None, Line::raw("toggle connection detail").into()),
+            (Line::raw("Left, Right").into(), None, Line::raw("select sort column").into()),
             (Line::raw("t").into(), None, Line::raw("terminate connection").into()),
-            (Line::raw("h / Left, l / Right").into(), None, Line::raw("select sort column").into()),
             (Line::raw("r").into(), None, Line::raw("reverse sort direction").into()),
+            (Line::raw("c").into(), None, Line::raw("capture mode").into()),
             // `logs` key bindings
             (
                 Line::raw("---").into(),
@@ -90,6 +82,23 @@ impl HelpComponent {
                 None,
                 Line::raw("filter log level: error, warn, info, debug").into(),
             ),
+            // proxies / proxy detail
+            (
+                Line::raw("---").into(),
+                Line::raw("proxies").italic().bold().into(),
+                Line::raw("---").into(),
+            ),
+            (Line::raw("r").into(), None, Line::raw("refresh proxies").into()),
+            (Line::raw("s").into(), None, Line::raw("open settings").into()),
+            (Line::raw("t").into(), None, Line::raw("test proxy").into()),
+            // proxy providers / proxy provider detail
+            (
+                Line::raw("---").into(),
+                Line::raw("providers").italic().bold().into(),
+                Line::raw("---").into(),
+            ),
+            (Line::raw("Enter").into(), None, Line::raw("show provider detail").into()),
+            (Line::raw("u").into(), None, Line::raw("update providers").into()),
             (None, None, None),
             (None, None, None),
         ]

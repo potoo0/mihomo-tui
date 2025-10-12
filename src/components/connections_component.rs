@@ -233,11 +233,15 @@ impl Component for ConnectionsComponent {
         vec![
             Shortcut::new(vec![
                 Fragment::hl(arrow::UP),
-                Fragment::raw(" select "),
+                Fragment::raw(" nav "),
                 Fragment::hl(arrow::DOWN),
             ]),
-            Shortcut::new(vec![Fragment::raw("first "), Fragment::hl("g")]),
-            Shortcut::new(vec![Fragment::raw("last "), Fragment::hl("G")]),
+            Shortcut::new(vec![
+                Fragment::hl("PgUp"),
+                Fragment::raw(" page "),
+                Fragment::hl("PgDn"),
+            ]),
+            Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
             Shortcut::new(vec![
                 Fragment::hl(arrow::LEFT),
                 Fragment::raw(" sort "),
@@ -269,12 +273,12 @@ impl Component for ConnectionsComponent {
         }
         match key.code {
             KeyCode::Esc => self.live_mode(true),
-            KeyCode::Char('h') | KeyCode::Left => {
+            KeyCode::Left => {
                 let mut guard = self.search_state.lock().unwrap();
                 guard.sort_prev();
                 self.handle_search_state_changed(&guard.clone());
             }
-            KeyCode::Char('l') | KeyCode::Right => {
+            KeyCode::Right => {
                 let mut guard = self.search_state.lock().unwrap();
                 guard.sort_next();
                 self.handle_search_state_changed(&guard.clone());

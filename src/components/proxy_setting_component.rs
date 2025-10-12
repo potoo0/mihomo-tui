@@ -219,6 +219,17 @@ impl Component for ProxySettingComponent {
         vec![
             Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav "), Fragment::hl("⇥")]),
             Shortcut::new(vec![Fragment::raw("confirm "), Fragment::hl("↵")]),
+            Shortcut::new(vec![
+                Fragment::hl("←/C-←"),
+                Fragment::raw(" move "),
+                Fragment::hl("→/C-→"),
+            ]),
+            Shortcut::new(vec![
+                Fragment::hl("Back/C-Back"),
+                Fragment::raw(" del "),
+                Fragment::hl("Del/C-Del"),
+            ]),
+            Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")]),
         ]
     }
 

@@ -64,12 +64,25 @@ impl Component for SearchComponent {
     }
 
     fn shortcuts(&self) -> Vec<Shortcut> {
-        vec![Shortcut::new(vec![
-            Fragment::raw("esc "),
-            Fragment::hl("Esc"),
-            Fragment::raw("/"),
-            Fragment::hl("↵"),
-        ])]
+        vec![
+            Shortcut::new(vec![
+                Fragment::hl("←/C-←"),
+                Fragment::raw(" move "),
+                Fragment::hl("→/C-→"),
+            ]),
+            Shortcut::new(vec![
+                Fragment::hl("Back/C-Back"),
+                Fragment::raw(" del "),
+                Fragment::hl("Del/C-Del"),
+            ]),
+            Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")]),
+            Shortcut::new(vec![
+                Fragment::raw("esc "),
+                Fragment::hl("Esc"),
+                Fragment::raw("/"),
+                Fragment::hl("↵"),
+            ]),
+        ]
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {

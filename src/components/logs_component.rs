@@ -208,11 +208,15 @@ impl Component for LogsComponent {
         vec![
             Shortcut::new(vec![
                 Fragment::hl(arrow::UP),
-                Fragment::raw(" select "),
+                Fragment::raw(" nav "),
                 Fragment::hl(arrow::DOWN),
             ]),
-            Shortcut::new(vec![Fragment::raw("first "), Fragment::hl("g")]),
-            Shortcut::new(vec![Fragment::raw("last "), Fragment::hl("G")]),
+            Shortcut::new(vec![
+                Fragment::hl("PgUp"),
+                Fragment::raw(" page "),
+                Fragment::hl("PgDn"),
+            ]),
+            Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
             Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
         ]
     }

@@ -165,9 +165,9 @@ impl Component for ProxyDetailComponent {
                 Fragment::raw("/"),
                 Fragment::hl(arrow::DOWN),
             ]),
-            Shortcut::new(vec![Fragment::raw("first "), Fragment::hl("g")]),
-            Shortcut::new(vec![Fragment::raw("last "), Fragment::hl("G")]),
+            Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
             Shortcut::new(vec![Fragment::raw("select "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
             Shortcut::from("refresh", 0).unwrap(),
             Shortcut::from("test", 0).unwrap(),
         ]
