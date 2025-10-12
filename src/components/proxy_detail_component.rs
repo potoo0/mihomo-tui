@@ -43,9 +43,6 @@ impl ProxyDetailComponent {
         self.proxy = Some(proxy);
         self.store = Some(store);
 
-        self.navigator.focused = None;
-        self.navigator.scroller.position(0);
-
         self.loading = false;
         self.pending_test = self.pending_test.saturating_sub(1);
     }
@@ -54,6 +51,9 @@ impl ProxyDetailComponent {
         self.show = false;
         self.proxy = None;
         self.store = None;
+
+        self.navigator.focused = None;
+        self.navigator.scroller.position(0);
     }
 
     fn title_line(&'_ self) -> Line<'_> {
