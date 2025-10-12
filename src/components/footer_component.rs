@@ -4,8 +4,8 @@ use ratatui::symbols::line::{BOTTOM_LEFT, BOTTOM_RIGHT};
 use ratatui::text::{Line, Span};
 
 use crate::action::Action;
-use crate::components::shortcut::Shortcut;
 use crate::components::{Component, ComponentId};
+use crate::widgets::shortcut::Shortcut;
 
 pub struct FooterComponent {
     shortcuts: Vec<Shortcut>,
@@ -39,7 +39,7 @@ impl Component for FooterComponent {
         ComponentId::Footer
     }
 
-    fn update(&mut self, action: Action) -> color_eyre::Result<Option<Action>> {
+    fn update(&mut self, action: Action) -> anyhow::Result<Option<Action>> {
         if let Action::Shortcuts(shortcuts) = action {
             let mut sc = default_shortcuts();
             sc.extend(shortcuts);
@@ -48,7 +48,7 @@ impl Component for FooterComponent {
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> anyhow::Result<()> {
         // NOTE: bottom border may not need to be cleared, because it does not change background
         // color or other special styles frame.render_widget(Clear, area);
         frame.render_widget(self.short_cuts_widget(), area);

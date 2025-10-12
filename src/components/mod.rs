@@ -8,14 +8,21 @@ mod help_component;
 mod logs;
 mod logs_component;
 mod overview_component;
+pub mod proxies;
+mod proxies_component;
+mod proxy_detail_component;
+mod proxy_provider_detail_component;
+mod proxy_providers;
+mod proxy_providers_component;
+mod proxy_setting;
+mod proxy_setting_component;
 pub mod root_component;
 mod search_component;
-pub mod shortcut;
 pub mod state;
 
 use std::sync::Arc;
 
-use color_eyre::Result;
+use anyhow::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -24,10 +31,16 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::shortcut::Shortcut;
 use crate::tui::Event;
+use crate::widgets::shortcut::Shortcut;
 
-const TABS: [ComponentId; 3] = [ComponentId::Overview, ComponentId::Connections, ComponentId::Logs];
+const TABS: [ComponentId; 5] = [
+    ComponentId::Overview,
+    ComponentId::Connections,
+    ComponentId::Proxies,
+    ComponentId::ProxyProviders,
+    ComponentId::Logs,
+];
 const BUFFER_SIZE: usize = 100;
 const CONNS_BUFFER_SIZE: usize = 500;
 const LOGS_BUFFER_SIZE: usize = 500;
@@ -43,6 +56,11 @@ pub enum ComponentId {
     ConnectionDetail,
     ConnectionTerminate,
     Connections,
+    Proxies,
+    ProxyDetail,
+    ProxySetting,
+    ProxyProviders,
+    ProxyProviderDetail,
     Logs,
     Search,
 }
@@ -87,20 +105,6 @@ pub trait Component {
         let _ = tx; // to appease clippy
         Ok(())
     }
-
-    // /// Register a configuration handler that provides configuration settings if necessary.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `config` - Configuration settings.
-    // ///
-    // /// # Returns
-    // ///
-    // /// * `Result<()>` - An Ok result or an error.
-    // fn register_config_handler(&mut self, config: Config) -> Result<()> {
-    //     let _ = config; // to appease clippy
-    //     Ok(())
-    // }
 
     /// Handle incoming events and produce actions if necessary.
     ///
@@ -173,21 +177,4 @@ pub trait Component {
     ///
     /// * `Result<()>` - An Ok result or an error.
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()>;
-
-    // /// Check if the component is currently visible.
-    // fn is_visible(&self) -> bool {
-    //     true
-    // }
-    //
-    // /// Hide the component if it is visible.
-    // fn hide(&mut self) {}
-    //
-    // /// Show the component if it is hidden.
-    // ///
-    // /// # Returns
-    // ///
-    // /// * `Result<()>` - An Ok result or an error.
-    // fn show(&mut self) -> Result<()> {
-    //     Ok(())
-    // }
 }

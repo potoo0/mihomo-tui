@@ -1,6 +1,8 @@
 mod connection;
 mod log;
 mod memory;
+pub mod provider;
+pub mod proxy;
 pub mod sort;
 mod traffic;
 mod version;

@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use crate::components::ComponentId;
-use crate::components::shortcut::Shortcut;
 use crate::models::Connection;
+use crate::models::provider::ProxyProvider;
+use crate::models::proxy::Proxy;
+use crate::widgets::shortcut::Shortcut;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum Action {
     Tick,
     Render,
@@ -23,4 +25,13 @@ pub enum Action {
     ConnectionDetail(Arc<Connection>),
     SearchInputChanged(Option<String>),
     ConnectionTerminateRequest(Arc<Connection>),
+    ProxyDetail(Arc<Proxy>, Vec<Arc<Proxy>>),
+    ProxyUpdateRequest(String, String),
+    ProxyDetailRefresh(usize),
+    ProxiesRefresh,
+    ProxySetting,
+    ProxyTestRequest(String),
+    ProxyGroupTestRequest(String),
+    ProxyProviderDetail(Arc<ProxyProvider>),
+    ProxyProviderRefresh,
 }

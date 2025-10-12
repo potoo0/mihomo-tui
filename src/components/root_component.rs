@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use color_eyre::Result;
+use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use futures_util::{StreamExt, TryStreamExt, future};
 use ratatui::Frame;
@@ -10,7 +10,8 @@ use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use tokio::sync::mpsc::UnboundedSender;
-use tokio::sync::{broadcast, watch};
+use tokio::sync::mpsc::error::TrySendError;
+use tokio::sync::{Mutex as AsyncMutex, mpsc, watch};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
@@ -24,6 +25,11 @@ use crate::components::header_component::HeaderComponent;
 use crate::components::help_component::HelpComponent;
 use crate::components::logs_component::LogsComponent;
 use crate::components::overview_component::OverviewComponent;
+use crate::components::proxies_component::ProxiesComponent;
+use crate::components::proxy_detail_component::ProxyDetailComponent;
+use crate::components::proxy_provider_detail_component::ProxyProviderDetailComponent;
+use crate::components::proxy_providers_component::ProxyProvidersComponent;
+use crate::components::proxy_setting_component::ProxySettingComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::{Connection, ConnectionStats};
@@ -31,22 +37,23 @@ use crate::utils::text_ui::top_title_line;
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
 const MIN_AREA: (u16, u16) = (100, 18);
-/// 5 seconds at 4 ticks per second
-const IDLE_TICKS: u8 = 4 * 5;
+/// 120 seconds at 4 ticks per second
+const IDLE_TICKS: u16 = 120 * 4;
 
 pub struct RootComponent {
-    token: CancellationToken,
     api: Option<Arc<Api>>,
     current_tab: ComponentId,
     popup: Option<ComponentId>,
     focused: Option<ComponentId>,
-    idle_tabs: HashMap<ComponentId, u8>,
+    idle_tabs: HashMap<ComponentId, u16>,
     components: HashMap<ComponentId, Box<dyn Component>>,
     action_tx: Option<UnboundedSender<Action>>,
 
+    conn_token: Option<CancellationToken>,
     stats_tx: watch::Sender<Option<ConnectionStats>>,
     stats_rx: watch::Receiver<Option<ConnectionStats>>,
-    conns_tx: broadcast::Sender<Vec<Connection>>,
+    conns_tx: mpsc::Sender<Vec<Connection>>,
+    conns_rx: Arc<AsyncMutex<mpsc::Receiver<Vec<Connection>>>>,
 }
 
 impl RootComponent {
@@ -54,11 +61,10 @@ impl RootComponent {
         let components: Vec<Box<dyn Component>> =
             vec![Box::new(HeaderComponent::default()), Box::new(FooterComponent::default())];
         let components = components.into_iter().map(|c| (c.id(), c)).collect::<HashMap<_, _>>();
-        let (stats_tx, stats_rx) = watch::channel::<Option<ConnectionStats>>(None);
-        let (conns_tx, _) = broadcast::channel::<Vec<Connection>>(4);
+        let (stats_tx, stats_rx) = watch::channel(None);
+        let (conns_tx, conns_rx) = mpsc::channel(2);
 
         Self {
-            token: CancellationToken::new(),
             api: Default::default(),
             current_tab: Default::default(),
             popup: Default::default(),
@@ -67,9 +73,11 @@ impl RootComponent {
             components,
             action_tx: Default::default(),
 
+            conn_token: Default::default(),
             stats_tx,
             stats_rx,
             conns_tx,
+            conns_rx: Arc::new(AsyncMutex::new(conns_rx)),
         }
     }
 
@@ -78,7 +86,14 @@ impl RootComponent {
             let mut c: Box<dyn Component> = match id {
                 ComponentId::Overview => Box::new(OverviewComponent::new(self.stats_rx.clone())),
                 ComponentId::Connections => {
-                    Box::new(ConnectionsComponent::new(self.conns_tx.subscribe()))
+                    Box::new(ConnectionsComponent::new(Arc::clone(&self.conns_rx)))
+                }
+                ComponentId::Proxies => Box::new(ProxiesComponent::default()),
+                ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
+                ComponentId::ProxySetting => Box::new(ProxySettingComponent::default()),
+                ComponentId::ProxyProviders => Box::new(ProxyProvidersComponent::default()),
+                ComponentId::ProxyProviderDetail => {
+                    Box::new(ProxyProviderDetailComponent::default())
                 }
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
@@ -110,12 +125,43 @@ impl RootComponent {
         Ok(())
     }
 
-    fn load_connections(&mut self) -> Result<()> {
+    /// Returns `true` if the connections stream is currently active.
+    fn is_conn_active(&self) -> bool {
+        self.conn_token.as_ref().is_some_and(|t| !t.is_cancelled())
+    }
+
+    /// Returns `true` if the current tab requires the connections stream.
+    fn is_conn_tab(&self) -> bool {
+        matches!(self.current_tab, ComponentId::Overview | ComponentId::Connections)
+    }
+
+    fn should_stop_conn(&self) -> bool {
+        !self.is_conn_tab()
+            && self.is_conn_active()
+            && !self.idle_tabs.contains_key(&ComponentId::Overview)
+            && !self.idle_tabs.contains_key(&ComponentId::Connections)
+    }
+
+    fn stop_conn(&mut self) {
+        if let Some(token) = self.conn_token.take() {
+            info!("Stopping connection stream");
+            token.cancel();
+        }
+    }
+
+    /// Start loading connections if needed
+    fn maybe_load_conn(&mut self) -> Result<()> {
+        if !self.is_conn_tab() || self.is_conn_active() {
+            return Ok(());
+        }
+
+        let token = CancellationToken::new();
+        self.conn_token = Some(token.clone());
         info!("Loading connections");
-        let token = self.token.clone();
         let api = Arc::clone(self.api.as_ref().unwrap());
         let stats_tx = self.stats_tx.clone();
         let conns_tx = self.conns_tx.clone();
+        let conns_rx = Arc::clone(&self.conns_rx);
 
         tokio::task::Builder::new().name("connections_wrapper-loader").spawn(async move {
             let stream = match api.get_connections().await {
@@ -131,7 +177,13 @@ impl RootComponent {
                 .filter_map(|res| future::ready(res.ok()))
                 .for_each(|record| {
                     let _ = stats_tx.send(Some((&record).into()));
-                    let _ = conns_tx.send(record.connections);
+                    if let Err(TrySendError::Full(v)) = conns_tx.try_send(record.connections) {
+                        // drop oldest
+                        if let Ok(mut guard) = conns_rx.try_lock() {
+                            let _ = guard.try_recv();
+                        }
+                        let _ = conns_tx.try_send(v);
+                    }
                     future::ready(())
                 })
                 .await;
@@ -161,8 +213,8 @@ impl RootComponent {
             return;
         }
         if self.components.remove(&id).is_some() {
-            info!("Destroying component `{:?}`", id);
             self.idle_tabs.remove(&id);
+            info!("Destroyed idle component {:?}", id);
         }
     }
 
@@ -178,12 +230,16 @@ impl RootComponent {
         for id in to_remove {
             self.destroy_component(id);
         }
+        // stop connections if no tab needs it
+        if self.should_stop_conn() {
+            self.stop_conn();
+        }
     }
 }
 
 impl Drop for RootComponent {
     fn drop(&mut self) {
-        self.token.cancel();
+        self.stop_conn();
         info!("`RootComponent` dropped, background task cancelled");
     }
 }
@@ -195,12 +251,11 @@ impl Component for RootComponent {
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(Arc::clone(&api));
-        self.token = CancellationToken::new();
         // initialize existing components
         for component in self.components.values_mut() {
             component.init(Arc::clone(&api))?;
         }
-        self.load_connections()?;
+        self.maybe_load_conn()?;
         Ok(())
     }
 
@@ -237,18 +292,23 @@ impl Component for RootComponent {
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        let action_tx = self.action_tx.as_ref().unwrap().clone();
         match action {
-            Action::Quit => self.token.cancel(),
+            Action::Quit => self.stop_conn(),
             Action::Tick => self.on_tick(),
             Action::TabSwitch(to) => {
                 self.renew_idle(to);
                 self.current_tab = to;
+                self.maybe_load_conn()?;
                 // get and init component, send shortcuts of current tab to footer
                 let shortcuts = self.get_or_init(self.current_tab).shortcuts();
-                self.action_tx.as_ref().unwrap().send(Action::Shortcuts(shortcuts))?;
+                action_tx.send(Action::Shortcuts(shortcuts))?;
             }
             Action::Help => self.open_popup(ComponentId::Help)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
+            Action::ProxyDetail(_, _) => self.open_popup(ComponentId::ProxyDetail)?,
+            Action::ProxySetting => self.open_popup(ComponentId::ProxySetting)?,
+            Action::ProxyProviderDetail(_) => self.open_popup(ComponentId::ProxyProviderDetail)?,
             Action::ConnectionTerminateRequest(_) => {
                 self.open_popup(ComponentId::ConnectionTerminate)?
             }
@@ -260,14 +320,16 @@ impl Component for RootComponent {
                     self.popup = None;
                     // send shortcuts of current tab to footer
                     let shortcuts = self.get_or_init(self.current_tab).shortcuts();
-                    self.action_tx.as_ref().unwrap().send(Action::Shortcuts(shortcuts))?;
+                    action_tx.send(Action::Shortcuts(shortcuts))?;
                 }
             }
             _ => {}
         }
         // propagate action to all components
         for component in self.components.values_mut() {
-            component.update(action.clone())?;
+            if let Some(action) = component.update(action.clone())? {
+                action_tx.send(action)?;
+            }
         }
         Ok(None)
     }

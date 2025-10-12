@@ -1,8 +1,7 @@
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 
-use color_eyre::Result;
-use color_eyre::eyre::WrapErr;
+use anyhow::{Context, Result};
 use tracing_error::ErrorLayer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
@@ -34,7 +33,12 @@ pub fn init(config: &Config) -> Result<()> {
         .with_ansi(false)
         .with_filter(env_filter);
 
-    tracing_subscriber::registry().with(file_subscriber).with(ErrorLayer::default()).try_init()?;
+    let registry = tracing_subscriber::registry().with(file_subscriber).with(ErrorLayer::default());
+
+    #[cfg(debug_assertions)]
+    let registry = registry.with(console_subscriber::spawn());
+
+    registry.try_init()?;
 
     Ok(())
 }

@@ -1,8 +1,10 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, RwLock};
 
 use circular_buffer::CircularBuffer;
+use const_format::concatcp;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use serde_json::Value;
 
@@ -12,6 +14,7 @@ use crate::models::Connection;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey};
 use crate::utils::row_filter::RowFilter;
+use crate::utils::symbols::dot;
 
 #[derive(Default)]
 pub struct Connections {
@@ -25,22 +28,33 @@ pub struct Connections {
 impl Connections {
     pub fn push(&self, capture_mode: bool, records: Vec<Connection>) {
         let mut guard = self.buffer.write().unwrap();
-        // todo implement capture mode: deduplication and push
-        if !capture_mode {
-            guard.clear();
-        }
-        let mut map = HashMap::with_capacity(records.len());
-        let mut map_guard = self.last_bytes.lock().unwrap();
-        records.into_iter().for_each(|mut item| {
-            let key = Arc::from(item.id.as_str());
-            map.insert(Arc::clone(&key), (item.upload, item.download));
-            if let Some((up, down)) = map_guard.get(&key) {
-                item.upload_rate = item.upload.saturating_sub(*up);
-                item.download_rate = item.download.saturating_sub(*down);
+        let mut history: HashMap<Arc<str>, Arc<Connection>> = {
+            if capture_mode {
+                guard.iter().cloned().map(|p| (Arc::<str>::from(p.id.as_str()), p)).collect()
+            } else {
+                Default::default()
             }
-            guard.push_back(Arc::new(item));
+        };
+        guard.clear();
+        {
+            let mut map = HashMap::with_capacity(records.len());
+            let mut map_guard = self.last_bytes.lock().unwrap();
+            records.into_iter().for_each(|mut item| {
+                let key = Arc::from(item.id.as_str());
+                history.remove(&key);
+                map.insert(Arc::clone(&key), (item.upload, item.download));
+                if let Some((up, down)) = map_guard.get(&key) {
+                    item.upload_rate = item.upload.saturating_sub(*up);
+                    item.download_rate = item.download.saturating_sub(*down);
+                }
+                guard.push_back(Arc::new(item));
+            });
+            *map_guard = map;
+        }
+        history.into_values().for_each(|v| {
+            v.inactive.store(true, Ordering::Relaxed);
+            _ = guard.push_back(v);
         });
-        *map_guard = map;
     }
 
     pub fn compute_view(&self, search_state: &SearchState) {
@@ -62,9 +76,7 @@ impl Connections {
         } else {
             let mut guard = self.view.write().unwrap();
             guard.clear();
-            filtered.for_each(|v| {
-                guard.push_back(v);
-            });
+            filtered.for_each(|v| _ = guard.push_back(v));
         }
     }
 
@@ -78,6 +90,21 @@ impl Connections {
 }
 
 pub static CONNECTION_COLS: &[ColDef<Connection>] = &[
+    ColDef {
+        id: "alive",
+        title: "Alive",
+        filterable: false,
+        sortable: true,
+        accessor: |c: &Connection| {
+            let alive = !c.inactive.load(Ordering::Relaxed);
+            Cow::Borrowed(if alive {
+                concatcp!(" ", dot::GREEN_LARGE)
+            } else {
+                concatcp!(" ", dot::RED_LARGE)
+            })
+        },
+        sort_key: Some(|c: &Connection| SortKey::Bool(!c.inactive.load(Ordering::Relaxed))),
+    },
     ColDef {
         id: "host",
         title: "Host",

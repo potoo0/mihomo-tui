@@ -1,5 +1,4 @@
-use color_eyre::Result;
-use color_eyre::eyre::eyre;
+use anyhow::{Result, anyhow};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 
@@ -40,11 +39,15 @@ impl Shortcut {
     pub fn from<S: AsRef<str>>(s: S, hl_idx: usize) -> Result<Self> {
         let text = s.as_ref();
         if !text.is_ascii() {
-            return Err(eyre!("Shortcut::from expects ASCII text"));
+            return Err(anyhow!("Shortcut::from expects ASCII text"));
         }
         let len = text.len();
         if hl_idx >= text.len() {
-            return Err(eyre!("hl_index {} is out of bounds for string of length {}", hl_idx, len));
+            return Err(anyhow!(
+                "hl_index {} is out of bounds for string of length {}",
+                hl_idx,
+                len
+            ));
         }
 
         let pivot = hl_idx + 1;

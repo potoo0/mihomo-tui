@@ -1,9 +1,12 @@
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::utils::byte_size::ByteSize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ConnectionStats {
     pub conns_size: usize,
     pub memory: ByteSize,
@@ -22,7 +25,7 @@ impl From<&ConnectionsWrapper> for ConnectionStats {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionsWrapper {
     pub download_total: u64,
@@ -31,7 +34,7 @@ pub struct ConnectionsWrapper {
     pub memory: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Connection {
     pub id: String,
@@ -44,10 +47,10 @@ pub struct Connection {
     pub rule_payload: String,
 
     // for ui only
-    #[serde(default)]
-    #[serde(skip_serializing)]
+    #[serde(skip)]
+    pub inactive: Arc<AtomicBool>,
+    #[serde(skip)]
     pub upload_rate: u64,
-    #[serde(default)]
-    #[serde(skip_serializing)]
+    #[serde(skip)]
     pub download_rate: u64,
 }

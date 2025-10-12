@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
-use color_eyre::Result;
-use color_eyre::eyre::{Context, eyre};
+use anyhow::{Context, Result, anyhow};
 use futures_util::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde_json::json;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -13,6 +14,8 @@ use tracing::debug;
 use url::Url;
 
 use crate::config::Config;
+use crate::models::provider::ProxyProvidersWrapper;
+use crate::models::proxy::ProxiesWrapper;
 use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, Traffic, Version};
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -82,7 +85,7 @@ impl Api {
     {
         let mut url = self.api.clone().join(path)?;
         let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
-        url.set_scheme(scheme).map_err(|_| eyre!("Fail to set scheme"))?;
+        url.set_scheme(scheme).map_err(|_| anyhow!("Fail to set scheme"))?;
         // append query params
         if let Some(ref token) = self.bearer_token {
             url.query_pairs_mut().append_pair("token", token);
@@ -99,7 +102,7 @@ impl Api {
             match msg {
                 Ok(Message::Text(txt)) => match serde_json::from_str::<T>(&txt) {
                     Ok(v) => Some(Ok(v)),
-                    Err(e) => Some(Err(eyre!(e))),
+                    Err(e) => Some(Err(anyhow!(e))),
                 },
                 _ => None,
             }
@@ -143,6 +146,139 @@ impl Api {
     pub async fn get_traffic(&self) -> Result<impl Stream<Item = Result<Traffic>>> {
         self.create_stream::<Traffic>("/traffic", None).await
     }
+
+    pub async fn get_proxies(&self) -> Result<ProxiesWrapper> {
+        let body = self
+            .client
+            .get(self.api.join("/proxies")?)
+            .send()
+            .await
+            .context("Fail to send `GET /proxies`")?
+            .error_for_status()
+            .context("Fail to request `GET /proxies`")?
+            .json::<ProxiesWrapper>()
+            .await
+            .context("Fail to parse response of `GET /proxies`")?;
+
+        Ok(body)
+    }
+
+    pub async fn update_proxy(&self, selector_name: String, name: String) -> Result<()> {
+        let body = serde_json::to_string(&json!({ "name": &name }))
+            .with_context(|| format!("Fail to create body with name `{}`", name))?;
+        let _ = self
+            .client
+            .put(self.api.join(&format!("/proxies/{}", selector_name))?)
+            .body(body)
+            .send()
+            .await
+            .context("Fail to send `PUT /proxies/<selector_name>` request")?
+            .error_for_status()
+            .context("Fail to request `PUT /connections/<selector_name>`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PUT /connections/<selector_name>`");
+
+        Ok(())
+    }
+
+    pub async fn test_proxy(&self, name: String, url: String, timeout: u64) -> Result<u16> {
+        #[derive(Deserialize)]
+        struct DelayResp {
+            delay: u16,
+        }
+
+        let body = self
+            .client
+            .get(self.api.join(&format!("/proxies/{}/delay", name))?)
+            .query(&[("url", url), ("timeout", timeout.to_string())])
+            .send()
+            .await
+            .context("Fail to send `GET /proxies/<name>/delay`")?
+            .error_for_status()
+            .context("Fail to request `GET /proxies/<name>/delay`")?
+            .json::<DelayResp>()
+            .await
+            .context("Fail to parse response of `GET /proxies/<name>/delay`")?;
+
+        Ok(body.delay)
+    }
+
+    pub async fn test_proxy_group(
+        &self,
+        name: String,
+        url: String,
+        timeout: u64,
+    ) -> Result<HashMap<String, u16>> {
+        let body = self
+            .client
+            .get(self.api.join(&format!("/group/{}/delay", name))?)
+            .query(&[("url", url), ("timeout", timeout.to_string())])
+            .send()
+            .await
+            .context("Fail to send `GET /group/<name>/delay`")?
+            .error_for_status()
+            .context("Fail to request `GET /group/<name>/delay`")?
+            .json()
+            .await
+            .context("Fail to parse response of `GET /group/<name>/delay`")?;
+
+        Ok(body)
+    }
+
+    pub async fn get_providers(&self) -> Result<ProxyProvidersWrapper> {
+        let body = self
+            .client
+            .get(self.api.join("/providers/proxies")?)
+            .send()
+            .await
+            .context("Fail to send `GET /providers/proxies`")?
+            .error_for_status()
+            .context("Fail to request `GET /providers/proxies`")?
+            .json::<ProxyProvidersWrapper>()
+            .await
+            .context("Fail to parse response of `GET /providers/proxies`")?;
+
+        Ok(body)
+    }
+
+    pub async fn health_check_provider<S>(&self, name: S) -> Result<()>
+    where
+        S: AsRef<str>,
+    {
+        let _ = self
+            .client
+            .get(self.api.join(&format!("/providers/proxies/{}/healthcheck", name.as_ref()))?)
+            .send()
+            .await
+            .context("Fail to send `GET /providers/proxies/<name>/healthcheck` request")?
+            .error_for_status()
+            .context("Fail to request `GET /providers/proxies/<name>/healthcheck`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `GET /providers/proxies/<name>/healthcheck`");
+
+        Ok(())
+    }
+
+    pub async fn update_provider<S>(&self, name: S) -> Result<()>
+    where
+        S: AsRef<str>,
+    {
+        let _ = self
+            .client
+            .put(self.api.join(&format!("/providers/proxies/{}", name.as_ref()))?)
+            .send()
+            .await
+            .context("Fail to send `PUT /providers/proxies/<name>`")?
+            .error_for_status()
+            .context("Fail to request `PUT /providers/proxies/<name>`")?
+            .bytes()
+            .await
+            .context("Fail to parse response of `PUT /providers/proxies/<name>`")?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -165,6 +301,44 @@ mod tests {
                 .with_max_level(tracing::Level::DEBUG)
                 .try_init();
         });
+    }
+
+    #[tokio::test]
+    async fn test_test_proxy() {
+        init_logger();
+        let api = init_api();
+        let delay = api
+            .test_proxy("新加坡①一优化".into(), "https://www.gstatic.com/generate_204".into(), 5000)
+            .await
+            .unwrap();
+        debug!("delay: {delay}");
+    }
+
+    #[tokio::test]
+    async fn test_test_proxy_group() {
+        init_logger();
+        let api = init_api();
+        let delay = api
+            .test_proxy_group("新加坡".into(), "https://www.gstatic.com/generate_204".into(), 5000)
+            .await
+            .unwrap();
+        debug!("delay: {delay:?}");
+    }
+
+    #[tokio::test]
+    async fn test_get_proxies() {
+        init_logger();
+        let api = init_api();
+        let proxies = api.get_proxies().await.unwrap();
+        debug!("proxies: {proxies:?}");
+    }
+
+    #[tokio::test]
+    async fn test_get_providers() {
+        init_logger();
+        let api = init_api();
+        let providers = api.get_providers().await.unwrap();
+        debug!("providers: {providers:?}");
     }
 
     #[tokio::test]

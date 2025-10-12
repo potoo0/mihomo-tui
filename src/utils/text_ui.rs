@@ -22,3 +22,18 @@ pub fn popup_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
     let [area] = horizontal.areas(area);
     area
 }
+
+pub fn space_between<'a>(width: u16, left: Span<'a>, right: Span<'a>) -> Line<'a> {
+    let space = width.saturating_sub((left.width() + right.width()) as u16);
+    Line::from(vec![left, Span::raw(" ".repeat(space as usize)), right])
+}
+
+pub fn space_between_many<'a>(width: u16, left: Vec<Span<'a>>, right: Span<'a>) -> Line<'a> {
+    let left_width: usize = left.iter().map(|s| s.width()).sum();
+    let space = width.saturating_sub((left_width + right.width()) as u16);
+
+    let mut spans = left;
+    spans.push(Span::raw(" ".repeat(space as usize)));
+    spans.push(right);
+    Line::from(spans)
+}

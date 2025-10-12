@@ -1,4 +1,4 @@
-use color_eyre::Result;
+use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -10,9 +10,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use tui_input::{Input, InputRequest};
 
 use crate::action::Action;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 #[derive(Debug, Clone, Default)]
 pub struct SearchComponent {
@@ -64,12 +64,25 @@ impl Component for SearchComponent {
     }
 
     fn shortcuts(&self) -> Vec<Shortcut> {
-        vec![Shortcut::new(vec![
-            Fragment::raw("esc "),
-            Fragment::hl("Esc"),
-            Fragment::raw("/"),
-            Fragment::hl("↵"),
-        ])]
+        vec![
+            Shortcut::new(vec![
+                Fragment::hl("←/C-←"),
+                Fragment::raw(" move "),
+                Fragment::hl("→/C-→"),
+            ]),
+            Shortcut::new(vec![
+                Fragment::hl("Back/C-Back"),
+                Fragment::raw(" del "),
+                Fragment::hl("Del/C-Del"),
+            ]),
+            Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")]),
+            Shortcut::new(vec![
+                Fragment::raw("esc "),
+                Fragment::hl("Esc"),
+                Fragment::raw("/"),
+                Fragment::hl("↵"),
+            ]),
+        ]
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {

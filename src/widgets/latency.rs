@@ -1,0 +1,136 @@
+use ratatui::prelude::{Color, Span};
+use ratatui::symbols::bar;
+use ratatui::text::Line;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Latency(Option<i64>);
+
+#[repr(usize)]
+#[derive(Debug)]
+pub enum LatencyQuality {
+    Fast = 0,
+    Medium = 1,
+    Slow = 2,
+    NotConnected = 3,
+}
+
+#[derive(Debug)]
+pub struct QualityStats([usize; LatencyQuality::COUNT]);
+
+impl Latency {
+    pub fn is_none(&self) -> bool {
+        self.0.is_none()
+    }
+
+    pub fn as_span<'a>(&self, threshold: (u64, u64)) -> Span<'a> {
+        Span::styled(
+            self.0.filter(|v| *v > 0).map(|v| format!("{}", v)).unwrap_or("-".into()),
+            LatencyQuality::from(*self, threshold).color(),
+        )
+    }
+}
+
+impl From<Option<i64>> for Latency {
+    fn from(value: Option<i64>) -> Self {
+        Latency(value)
+    }
+}
+
+// impl<'a> From<Latency> for Span<'a> {
+//     fn from(value: Latency) -> Self {
+//         Span::styled(
+//             value.0.filter(|v| *v > 0).map(|v| format!("{}", v)).unwrap_or("-".into()),
+//             LatencyQuality::from(value).color(),
+//         )
+//     }
+// }
+
+// impl From<Latency> for LatencyQuality {
+//     fn from(value: Latency) -> Self {
+//         match value.0 {
+//             None => LatencyQuality::NotConnected,
+//             Some(d) if d <= 0 => LatencyQuality::NotConnected,
+//             Some(d) if d < THRESHOLD.0 => LatencyQuality::Fast,
+//             Some(d) if d < THRESHOLD.1 => LatencyQuality::Medium,
+//             Some(_) => LatencyQuality::Slow,
+//         }
+//     }
+// }
+
+impl LatencyQuality {
+    pub const COUNT: usize = 4;
+
+    pub fn color(&self) -> Color {
+        match self {
+            LatencyQuality::Fast => Color::Rgb(0, 166, 62),
+            LatencyQuality::Medium => Color::Rgb(240, 177, 0),
+            LatencyQuality::Slow => Color::Rgb(251, 44, 54),
+            LatencyQuality::NotConnected => Color::DarkGray,
+        }
+    }
+
+    pub fn from(latency: Latency, threshold: (u64, u64)) -> Self {
+        match latency.0 {
+            None => LatencyQuality::NotConnected,
+            Some(d) if d <= 0 => LatencyQuality::NotConnected,
+            Some(d) if d < threshold.0 as i64 => LatencyQuality::Fast,
+            Some(d) if d < threshold.1 as i64 => LatencyQuality::Medium,
+            Some(_) => LatencyQuality::Slow,
+        }
+    }
+}
+
+impl From<LatencyQuality> for usize {
+    fn from(value: LatencyQuality) -> Self {
+        value as usize
+    }
+}
+
+impl TryFrom<usize> for LatencyQuality {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(LatencyQuality::Fast),
+            1 => Ok(LatencyQuality::Medium),
+            2 => Ok(LatencyQuality::Slow),
+            3 => Ok(LatencyQuality::NotConnected),
+            _ => Err(()),
+        }
+    }
+}
+
+impl QualityStats {
+    pub fn new(stats: [usize; LatencyQuality::COUNT]) -> Self {
+        QualityStats(stats)
+    }
+
+    pub fn as_line<'a>(&self, width: u16, total: usize) -> Line<'a> {
+        let mut segments: Vec<(u16, f64)> = self
+            .0
+            .iter()
+            .map(|&v| {
+                let exact = v as f64 * width as f64 / total as f64;
+                (exact.floor() as u16, exact.fract())
+            })
+            .collect();
+
+        for _ in 0..width - segments.iter().map(|(n, _)| *n).sum::<u16>() {
+            let seg = segments.iter_mut().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+
+            seg.0 += 1;
+            seg.1 = 0.0;
+        }
+
+        segments
+            .into_iter()
+            .enumerate()
+            .map(|(i, (c, _))| {
+                Span::styled(
+                    bar::THREE_EIGHTHS.repeat(c as usize),
+                    LatencyQuality::try_from(i).unwrap().color(),
+                )
+            })
+            .collect()
+    }
+}

@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 use std::{env, fs};
 
-use color_eyre::Result;
-use color_eyre::eyre::{WrapErr, eyre};
+use anyhow::{Context, Result, anyhow};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -43,7 +42,7 @@ impl Config {
 
     fn read_from_file(path: &PathBuf) -> Result<Self> {
         if !path.is_file() {
-            return Err(eyre!("Config file `{}` does not exist", path.display()));
+            return Err(anyhow!("Config file `{}` does not exist", path.display()));
         }
         let result = fs::File::open(path)
             .with_context(|| format!("Fail to open file `{}`", path.display()))?;
@@ -88,7 +87,7 @@ pub fn get_config_path() -> PathBuf {
 #[allow(dead_code)]
 pub fn get_project_dir() -> ProjectDirs {
     ProjectDirs::from("io.github", "potoo0", env!("CARGO_PKG_NAME"))
-        .ok_or(eyre!("Fail to determine project directory"))
+        .ok_or(anyhow!("Fail to determine project directory"))
         .unwrap()
 }
 

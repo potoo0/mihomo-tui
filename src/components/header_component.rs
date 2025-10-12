@@ -9,10 +9,10 @@ use tracing::{error, info};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::shortcut::{Fragment, Shortcut};
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::Version;
 use crate::utils::symbols::SUPERSCRIPT;
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 #[derive(Default)]
 pub struct HeaderComponent {
@@ -23,7 +23,7 @@ pub struct HeaderComponent {
 }
 
 impl HeaderComponent {
-    fn load_version(&mut self, api: Arc<Api>) -> color_eyre::Result<()> {
+    fn load_version(&mut self, api: Arc<Api>) -> anyhow::Result<()> {
         info!("Loading version");
         let version = Arc::clone(&self.version);
         tokio::task::Builder::new().name("version-loader").spawn(async move {
@@ -81,19 +81,19 @@ impl Component for HeaderComponent {
         ComponentId::Header
     }
 
-    fn init(&mut self, api: Arc<Api>) -> color_eyre::Result<()> {
+    fn init(&mut self, api: Arc<Api>) -> anyhow::Result<()> {
         self.api = Some(Arc::clone(&api));
         self.load_version(api)
     }
 
-    fn update(&mut self, action: Action) -> color_eyre::Result<Option<Action>> {
+    fn update(&mut self, action: Action) -> anyhow::Result<Option<Action>> {
         if let Action::TabSwitch(to) = action {
             self.main_component = to;
         }
         Ok(None)
     }
 
-    fn draw(&mut self, frame: &mut Frame, area: Rect) -> color_eyre::Result<()> {
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> anyhow::Result<()> {
         let chunks = Layout::horizontal([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area);
 

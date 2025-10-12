@@ -16,3 +16,9 @@ pub mod triangle {
     pub const UP: &str = "▲";
     pub const DOWN: &str = "▼";
 }
+
+#[allow(unused)]
+pub mod dot {
+    pub const GREEN_LARGE: &str = "🟢";
+    pub const RED_LARGE: &str = "🔴";
+}
