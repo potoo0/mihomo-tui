@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock, RwLock};
 
 use anyhow::Result;
@@ -9,7 +10,7 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -59,6 +60,12 @@ impl ConnectionTerminateComponent {
         self.target = Some(connection);
     }
 
+    pub fn hide(&mut self) {
+        self.token.cancel();
+        *self.phase.write().unwrap() = Phase::Hidden;
+        self.target = None;
+    }
+
     fn cols_def() -> &'static [&'static ColDef<Connection>] {
         static HOST_RULE_COLS: OnceLock<Vec<&'static ColDef<Connection>>> = OnceLock::new();
         HOST_RULE_COLS
@@ -74,6 +81,7 @@ impl ConnectionTerminateComponent {
     }
 
     fn terminate_connection(&mut self) -> Result<()> {
+        debug!("Terminating connection: id={:?}", self.target.as_ref().map(|c| c.id.clone()));
         let phase = Arc::clone(&self.phase);
         *self.phase.write().unwrap() = Phase::Terminating;
 
@@ -81,7 +89,7 @@ impl ConnectionTerminateComponent {
         let id = self.target.as_deref().unwrap().id.clone();
         let token = self.token.clone();
 
-        tokio::task::Builder::new().name("memory-loader").spawn(async move {
+        tokio::task::Builder::new().name("connection-terminator").spawn(async move {
             tokio::select! {
                 _ = token.cancelled() => {
                     info!("Connection termination cancelled");
@@ -99,6 +107,14 @@ impl ConnectionTerminateComponent {
         })?;
 
         Ok(())
+    }
+
+    fn render_msgbox(frame: &mut Frame, area: Rect, color: Color, msg: &str) {
+        let block = Block::bordered().border_type(BorderType::Rounded).border_style(color);
+        let paragraph = Paragraph::new(Span::styled(msg, Style::default().fg(color)))
+            .block(block)
+            .alignment(Alignment::Center);
+        frame.render_widget(paragraph, area);
     }
 }
 
@@ -130,20 +146,21 @@ impl Component for ConnectionTerminateComponent {
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.token.cancel();
+                self.hide();
                 return Ok(Some(Action::Quit));
             }
             KeyCode::Char('q') | KeyCode::Char('n') | KeyCode::Esc => {
                 if self.phase.read().unwrap().ne(&Phase::Terminating) {
-                    self.token.cancel();
+                    self.hide();
                     return Ok(Some(Action::Unfocus));
                 }
             }
             KeyCode::Char('y') | KeyCode::Enter => {
-                let should_term = {
-                    let phase = self.phase.read().unwrap();
-                    !matches!(*phase, Phase::Terminating | Phase::DoneOk)
-                };
+                let should_term =
+                    self.target.as_ref().is_some_and(|v| !v.inactive.load(Ordering::Relaxed)) && {
+                        let phase = self.phase.read().unwrap();
+                        !matches!(*phase, Phase::Terminating | Phase::DoneOk)
+                    };
                 if should_term {
                     self.terminate_connection()?;
                 }
@@ -167,6 +184,9 @@ impl Component for ConnectionTerminateComponent {
         if let Phase::Hidden = phase {
             return Ok(());
         }
+        let Some(conn) = self.target.as_deref() else {
+            return Ok(());
+        };
 
         // outer border
         let area = popup_area(area, 60, 50);
@@ -181,7 +201,6 @@ impl Component for ConnectionTerminateComponent {
         let chunks = Layout::vertical([Constraint::Min(3), Constraint::Length(3)]).split(inner);
 
         // content
-        let conn = self.target.as_deref().unwrap();
         let mut lines: Vec<Line> = Self::cols_def()
             .iter()
             .map(|def| {
@@ -200,13 +219,19 @@ impl Component for ConnectionTerminateComponent {
         let content = Paragraph::new(lines).wrap(Wrap { trim: true }).alignment(Alignment::Left);
         frame.render_widget(content, chunks[0]);
 
-        // status
+        // msg box
+        if conn.inactive.load(Ordering::Relaxed) {
+            Self::render_msgbox(
+                frame,
+                chunks[1],
+                Color::DarkGray,
+                "Connection is already inactive.",
+            );
+            return Ok(());
+        }
+
         if let Some((color, msg)) = phase.ui() {
-            let block = Block::bordered().border_type(BorderType::Rounded).border_style(color);
-            let paragraph = Paragraph::new(Span::styled(msg, Style::default().fg(color)))
-                .block(block)
-                .alignment(Alignment::Center);
-            frame.render_widget(paragraph, chunks[1]);
+            Self::render_msgbox(frame, chunks[1], color, msg);
         }
 
         Ok(())

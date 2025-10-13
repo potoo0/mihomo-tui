@@ -129,6 +129,9 @@ impl ConnectionsComponent {
         let len = records.len();
         // update scroller, viewport = area.height - 2 (border) - 2 (table header)
         self.navigator.length(len, (area.height - 2 - 2) as usize);
+        // update table selected, which is relative position in current viewport
+        *self.table_state.selected_mut() =
+            self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
@@ -194,8 +197,6 @@ impl ConnectionsComponent {
         .column_spacing(2)
         .row_highlight_style(selected_row_style);
 
-        *self.table_state.selected_mut() =
-            self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
         frame.render_stateful_widget(table, area, &mut self.table_state);
     }
 
@@ -290,10 +291,9 @@ impl Component for ConnectionsComponent {
             }
             KeyCode::Char('t') => {
                 let action = self
-                    .table_state
-                    .selected()
+                    .navigator
+                    .focused
                     .and_then(|idx| self.store.get(idx))
-                    .filter(|v| !v.inactive.load(Ordering::Relaxed))
                     .map(Action::ConnectionTerminateRequest);
                 return Ok(action);
             }
@@ -303,8 +303,8 @@ impl Component for ConnectionsComponent {
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
             KeyCode::Enter => {
                 let action = self
-                    .table_state
-                    .selected()
+                    .navigator
+                    .focused
                     .and_then(|idx| self.store.get(idx))
                     .map(Action::ConnectionDetail);
                 return Ok(action);
