@@ -295,6 +295,11 @@ impl Component for ProxiesComponent {
                 Fragment::hl(arrow::DOWN),
             ]),
             Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
+            Shortcut::new(vec![
+                Fragment::hl("PgUp"),
+                Fragment::raw(" page "),
+                Fragment::hl("PgDn"),
+            ]),
             Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
             Shortcut::from("refresh", 0).unwrap(),
             Shortcut::from("setting", 0).unwrap(),
