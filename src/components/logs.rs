@@ -36,8 +36,12 @@ impl Logs {
         });
     }
 
-    pub fn view(&self) -> Vec<Arc<Log>> {
-        self.view.read().unwrap().to_vec()
+    pub fn with_view<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&CircularBuffer<LOGS_BUFFER_SIZE, Arc<Log>>) -> R,
+    {
+        let guard = self.view.read().unwrap();
+        f(&guard)
     }
 }
 
