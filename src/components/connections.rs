@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 
 use circular_buffer::CircularBuffer;
 use const_format::concatcp;
@@ -80,8 +80,12 @@ impl Connections {
         }
     }
 
-    pub fn view(&self) -> Vec<Arc<Connection>> {
-        self.view.read().unwrap().to_vec()
+    pub fn with_view<R, F>(&self, f: F) -> R
+    where
+        F: FnOnce(&RwLockReadGuard<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>) -> R,
+    {
+        let guard = self.view.read().unwrap();
+        f(&guard)
     }
 
     pub fn get(&self, index: usize) -> Option<Arc<Connection>> {

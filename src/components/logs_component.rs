@@ -117,13 +117,18 @@ impl LogsComponent {
     }
 
     fn render_list(&mut self, frame: &mut Frame, area: Rect) {
-        let records = self.store.view();
-        let len = records.len();
-        self.navigator.length(len, (area.height - 2) as usize);
+        let records = self.store.with_view(|records| {
+            let len = records.len();
+            // update scroller, viewport = area.height - 2 (border)
+            self.navigator.length(len, (area.height - 2) as usize);
+            // NOTE: end_pos() depends on length()
+            records
+                .range(len - self.navigator.scroller.end_pos()..len - self.navigator.scroller.pos())
+                .cloned()
+                .collect::<Vec<_>>()
+        });
 
-        let visible =
-            &records[len - self.navigator.scroller.end_pos()..len - self.navigator.scroller.pos()];
-        let items: Vec<ListItem> = visible
+        let items: Vec<ListItem> = records
             .iter()
             .rev()
             .map(|item| {

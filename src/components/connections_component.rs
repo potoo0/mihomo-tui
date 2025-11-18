@@ -125,10 +125,16 @@ impl ConnectionsComponent {
     }
 
     fn render_table(&mut self, frame: &mut Frame, area: Rect) {
-        let records = self.store.view();
-        let len = records.len();
-        // update scroller, viewport = area.height - 2 (border) - 2 (table header)
-        self.navigator.length(len, (area.height - 2 - 2) as usize);
+        let records = self.store.with_view(|records| {
+            // update scroller, viewport = area.height - 2 (border) - 2 (table header)
+            self.navigator.length(records.len(), (area.height - 2 - 2) as usize);
+            // NOTE: end_pos() depends on length()
+            records
+                .range(self.navigator.scroller.pos()..self.navigator.scroller.end_pos())
+                .cloned()
+                .collect::<Vec<_>>()
+        });
+
         // update table selected, which is relative position in current viewport
         *self.table_state.selected_mut() =
             self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
@@ -170,8 +176,7 @@ impl ConnectionsComponent {
         let selected_row_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
         let alive_col_width = if self.capture_mode.load(Ordering::Relaxed) { 6 } else { 0 };
 
-        let visible = &records[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
-        let rows: Vec<Row> = visible
+        let rows: Vec<Row> = records
             .iter()
             .map(|item| {
                 Row::new(CONNECTION_COLS.iter().map(|def| (def.accessor)(item)))
