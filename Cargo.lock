@@ -2458,6 +2458,7 @@ dependencies = [
  "tracing-error",
  "tracing-subscriber",
  "tui-input",
+ "unicode-segmentation",
  "url",
  "vergen-gix",
 ]

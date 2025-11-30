@@ -15,6 +15,7 @@ use throbber_widgets_tui::{Throbber, ThrobberState};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::action::Action;
 use crate::api::Api;
@@ -25,6 +26,8 @@ use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
+
+const HORIZ_STEP: usize = 4;
 
 #[derive(Default)]
 pub struct LogsComponent {
@@ -39,6 +42,7 @@ pub struct LogsComponent {
     filter_pattern_changed: bool,
 
     list_state: ListState,
+    horiz_offset: usize,
     navigator: ScrollableNavigator,
     throbber_state: ThrobberState,
     action_tx: Option<UnboundedSender<Action>>,
@@ -132,11 +136,18 @@ impl LogsComponent {
             .iter()
             .rev()
             .map(|item| {
+                let payload_span: Span = if self.horiz_offset == 0 {
+                    Span::raw(&item.payload)
+                } else if self.horiz_offset >= item.payload.len() {
+                    Span::raw("")
+                } else {
+                    item.payload.graphemes(true).skip(self.horiz_offset).collect::<String>().into()
+                };
+                // LOG_COLS.iter().map(|def| (def.accessor)(item)).map(Span::from).collect();
                 let content = vec![
                     Span::styled(format!(" {:<9}", item.r#type), Self::level_style(&item.r#type)),
-                    Span::raw(item.payload.as_str()),
+                    payload_span,
                 ];
-                // LOG_COLS.iter().map(|def| (def.accessor)(item)).map(Span::from).collect();
                 ListItem::new(Line::from(content))
             })
             .collect();
@@ -213,7 +224,11 @@ impl Component for LogsComponent {
         vec![
             Shortcut::new(vec![
                 Fragment::hl(arrow::UP),
+                Fragment::raw("/"),
+                Fragment::hl(arrow::LEFT),
                 Fragment::raw(" nav "),
+                Fragment::hl(arrow::RIGHT),
+                Fragment::raw("/"),
                 Fragment::hl(arrow::DOWN),
             ]),
             Shortcut::new(vec![
@@ -251,6 +266,8 @@ impl Component for LogsComponent {
             KeyCode::Char('w') => self.set_level(LogLevel::Warning),
             KeyCode::Char('i') => self.set_level(LogLevel::Info),
             KeyCode::Char('d') => self.set_level(LogLevel::Debug),
+            KeyCode::Left => self.horiz_offset = self.horiz_offset.saturating_sub(HORIZ_STEP),
+            KeyCode::Right => self.horiz_offset = self.horiz_offset.saturating_add(HORIZ_STEP),
             _ => (),
         };
 
