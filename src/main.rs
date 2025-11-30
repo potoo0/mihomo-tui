@@ -31,6 +31,10 @@ async fn main() -> anyhow::Result<()> {
     logging::init(&config)?;
 
     let api = api::Api::new(&config)?;
+    if let Err(e) = api.get_version().await {
+        tracing::error!("Failed to get version from API: {:?}", e);
+        anyhow::bail!("`mihomo-api` unavailable, exiting: {:?}", e);
+    }
     let mut app = app::App::new(config, api)?;
     app.run().await?;
 
