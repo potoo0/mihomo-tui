@@ -14,7 +14,7 @@ use strum::IntoEnumIterator;
 use throbber_widgets_tui::{Throbber, ThrobberState};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::action::Action;
@@ -295,8 +295,16 @@ impl Component for LogsComponent {
                 }
             }
             Action::SearchInputChanged(pattern) => {
+                debug!("handle Action::SearchInputChanged, got pattern={pattern:?}");
                 *self.filter_pattern.lock().unwrap() = pattern;
                 self.filter_pattern_changed = true;
+            }
+            Action::TabSwitch(to) => {
+                if to == self.id() {
+                    let pattern = self.filter_pattern.lock().unwrap().clone();
+                    debug!("handle Action::TabSwitch, current search pattern={pattern:?}");
+                    return Ok(Some(Action::SearchInputSet(pattern)));
+                }
             }
             _ => {}
         }

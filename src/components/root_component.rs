@@ -325,8 +325,12 @@ impl Component for RootComponent {
             }
             _ => {}
         }
-        // propagate action to all components
-        for component in self.components.values_mut() {
+        // propagate action to all non-idle components
+        for (component_id, component) in self.components.iter_mut() {
+            if self.idle_tabs.contains_key(component_id) {
+                continue;
+            }
+
             if let Some(action) = component.update(action.clone())? {
                 action_tx.send(action)?;
             }

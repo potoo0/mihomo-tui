@@ -23,7 +23,11 @@ pub enum Action {
     TabSwitch(ComponentId),
     Shortcuts(Vec<Shortcut>),
     ConnectionDetail(Arc<Connection>),
+    /// Search -> target components: search query changed by user input
     SearchInputChanged(Option<String>),
+    /// Target components -> Search: programmatically set the search input
+    /// (does not emit `SearchInputChanged`).
+    SearchInputSet(Option<String>),
     ConnectionTerminateRequest(Arc<Connection>),
     ProxyDetail(Arc<Proxy>, Vec<Arc<Proxy>>),
     ProxyUpdateRequest(String, String),

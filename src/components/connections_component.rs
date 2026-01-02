@@ -12,7 +12,7 @@ use throbber_widgets_tui::{BRAILLE_SIX, CANADIAN, Throbber, ThrobberState, Which
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::mpsc::{Receiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -329,7 +329,15 @@ impl Component for ConnectionsComponent {
                 }
             }
             Action::SearchInputChanged(pattern) => {
+                debug!("handle Action::SearchInputChanged, got pattern={pattern:?}");
                 self.search_state.lock().unwrap().pattern = pattern;
+            }
+            Action::TabSwitch(to) => {
+                if to == self.id() {
+                    let pattern = self.search_state.lock().unwrap().pattern.clone();
+                    debug!("handle Action::TabSwitch, current search pattern={pattern:?}");
+                    return Ok(Some(Action::SearchInputSet(pattern)));
+                }
             }
             _ => {}
         }

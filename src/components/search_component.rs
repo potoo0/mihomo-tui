@@ -7,6 +7,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Paragraph};
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::debug;
 use tui_input::{Input, InputRequest};
 
 use crate::action::Action;
@@ -114,9 +115,9 @@ impl Component for SearchComponent {
         match action {
             Action::Focus(ComponentId::Search) => self.is_active = true,
             Action::Tick => self.send()?,
-            Action::TabSwitch(_) => {
-                self.input.reset();
-                self.action_tx.as_ref().unwrap().send(Action::SearchInputChanged(None))?;
+            Action::SearchInputSet(pattern) => {
+                debug!("handle Action::SearchInputSet, pattern={pattern:?}");
+                self.input = pattern.unwrap_or_default().into();
             }
             _ => (),
         }
