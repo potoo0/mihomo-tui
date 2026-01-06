@@ -1,9 +1,16 @@
 
+## 0.2.2 - 2026-01-06
+
+### Features
+
+- Remember search pattern across components
+- Release for Linux x86_64 musl
+
 ## 0.2.1 - 2025-12-17
 
 ### Features
 
-- implement horizontal scrolling for logs component
+- Implement horizontal scrolling for logs component
 
 ### Chores
 
