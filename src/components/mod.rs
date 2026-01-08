@@ -17,6 +17,8 @@ mod proxy_providers_component;
 mod proxy_setting;
 mod proxy_setting_component;
 pub mod root_component;
+mod rules;
+mod rules_component;
 mod search_component;
 pub mod state;
 
@@ -34,16 +36,18 @@ use crate::api::Api;
 use crate::tui::Event;
 use crate::widgets::shortcut::Shortcut;
 
-const TABS: [ComponentId; 5] = [
+const TABS: [ComponentId; 6] = [
     ComponentId::Overview,
     ComponentId::Connections,
     ComponentId::Proxies,
     ComponentId::ProxyProviders,
     ComponentId::Logs,
+    ComponentId::Rules,
 ];
 const BUFFER_SIZE: usize = 100;
 const CONNS_BUFFER_SIZE: usize = 500;
 const LOGS_BUFFER_SIZE: usize = 500;
+const HORIZ_STEP: usize = 4;
 
 #[derive(Default, PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
 pub enum ComponentId {
@@ -62,6 +66,7 @@ pub enum ComponentId {
     ProxyProviders,
     ProxyProviderDetail,
     Logs,
+    Rules,
     Search,
 }
 

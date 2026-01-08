@@ -30,6 +30,7 @@ use crate::components::proxy_detail_component::ProxyDetailComponent;
 use crate::components::proxy_provider_detail_component::ProxyProviderDetailComponent;
 use crate::components::proxy_providers_component::ProxyProvidersComponent;
 use crate::components::proxy_setting_component::ProxySettingComponent;
+use crate::components::rules_component::RulesComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::{Connection, ConnectionStats};
@@ -96,6 +97,7 @@ impl RootComponent {
                     Box::new(ProxyProviderDetailComponent::default())
                 }
                 ComponentId::Logs => Box::new(LogsComponent::new()),
+                ComponentId::Rules => Box::new(RulesComponent::default()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::ConnectionTerminate => {
@@ -361,7 +363,10 @@ impl Component for RootComponent {
         self.get_or_init(ComponentId::Header).draw(frame, chunks[0])?;
 
         // draw main area
-        if self.current_tab == ComponentId::Connections || self.current_tab == ComponentId::Logs {
+        if self.current_tab == ComponentId::Connections
+            || self.current_tab == ComponentId::Rules
+            || self.current_tab == ComponentId::Logs
+        {
             let inner_chunks =
                 Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
             self.get_or_init(ComponentId::Search).draw(frame, inner_chunks[0])?;

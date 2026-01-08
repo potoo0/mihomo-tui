@@ -16,7 +16,7 @@ use url::Url;
 use crate::config::Config;
 use crate::models::provider::ProxyProvidersWrapper;
 use crate::models::proxy::ProxiesWrapper;
-use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, Traffic, Version};
+use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, RulesWrapper, Traffic, Version};
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -279,6 +279,22 @@ impl Api {
 
         Ok(())
     }
+
+    pub async fn get_rules(&self) -> Result<RulesWrapper> {
+        let body = self
+            .client
+            .get(self.api.join("/rules")?)
+            .send()
+            .await
+            .context("Fail to send `GET /rules`")?
+            .error_for_status()
+            .context("Fail to request `GET /rules`")?
+            .json::<RulesWrapper>()
+            .await
+            .context("Fail to parse response of `GET /rules`")?;
+
+        Ok(body)
+    }
 }
 
 #[cfg(test)]
@@ -301,6 +317,14 @@ mod tests {
                 .with_max_level(tracing::Level::DEBUG)
                 .try_init();
         });
+    }
+
+    #[tokio::test]
+    async fn test_get_rules() {
+        init_logger();
+        let api = init_api();
+        let rules = api.get_rules().await.unwrap();
+        debug!("rules: {rules:?}");
     }
 
     #[tokio::test]
