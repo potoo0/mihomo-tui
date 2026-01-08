@@ -154,7 +154,11 @@ pub static CONNECTION_COLS: &[ColDef<Connection>] = &[
         title: "Chains",
         filterable: true,
         sortable: true,
-        accessor: |c: &Connection| Cow::Owned(c.chains.join(" > ")),
+        accessor: |c: &Connection| {
+            // Reverse to display in correct order
+            let chains: Vec<&str> = c.chains.iter().rev().map(String::as_str).collect();
+            Cow::Owned(chains.join(" > "))
+        },
         sort_key: None,
     },
     ColDef {
