@@ -28,7 +28,7 @@ use anyhow::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use strum::Display;
+use strum::IntoStaticStr;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -36,6 +36,12 @@ use crate::api::Api;
 use crate::tui::Event;
 use crate::widgets::shortcut::Shortcut;
 
+const BUFFER_SIZE: usize = 100;
+const CONNS_BUFFER_SIZE: usize = 500;
+const LOGS_BUFFER_SIZE: usize = 500;
+const HORIZ_STEP: usize = 4;
+
+/// Header tabs in display order; index is used for tab navigation and shortcuts
 const TABS: [ComponentId; 6] = [
     ComponentId::Overview,
     ComponentId::Connections,
@@ -44,12 +50,8 @@ const TABS: [ComponentId; 6] = [
     ComponentId::Logs,
     ComponentId::Rules,
 ];
-const BUFFER_SIZE: usize = 100;
-const CONNS_BUFFER_SIZE: usize = 500;
-const LOGS_BUFFER_SIZE: usize = 500;
-const HORIZ_STEP: usize = 4;
 
-#[derive(Default, PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
+#[derive(Default, PartialEq, Debug, IntoStaticStr, Clone, Eq, Hash, Copy)]
 pub enum ComponentId {
     Help,
     Root,
@@ -68,6 +70,24 @@ pub enum ComponentId {
     Logs,
     Rules,
     Search,
+}
+
+impl ComponentId {
+    pub fn short_name(&self) -> Option<&'static str> {
+        match self {
+            ComponentId::Overview => Some("View"),
+            ComponentId::Connections => Some("Conn"),
+            ComponentId::Proxies => Some("Pxy"),
+            ComponentId::ProxyProviders => Some("Pxy-Pr"),
+            ComponentId::Logs => Some("Log"),
+            ComponentId::Rules => Some("Rule"),
+            _ => Some(self.full_name()),
+        }
+    }
+
+    pub fn full_name(&self) -> &'static str {
+        self.into()
+    }
 }
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.

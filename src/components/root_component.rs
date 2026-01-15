@@ -60,7 +60,7 @@ pub struct RootComponent {
 impl RootComponent {
     pub fn new() -> Self {
         let components: Vec<Box<dyn Component>> =
-            vec![Box::new(HeaderComponent::default()), Box::new(FooterComponent::default())];
+            vec![Box::new(HeaderComponent::new()), Box::new(FooterComponent::default())];
         let components = components.into_iter().map(|c| (c.id(), c)).collect::<HashMap<_, _>>();
         let (stats_tx, stats_rx) = watch::channel(None);
         let (conns_tx, conns_rx) = mpsc::channel(2);
