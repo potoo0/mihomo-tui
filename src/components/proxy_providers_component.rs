@@ -55,7 +55,7 @@ impl ProxyProvidersComponent {
 
         tokio::task::Builder::new().name("proxy-providers-loader").spawn(async move {
             match api.get_providers().await {
-                Ok(providers) => store.write().unwrap().push(providers.providers),
+                Ok(providers) => store.write().unwrap().push(providers),
                 Err(e) => warn!("Failed to get proxy providers: {e}"),
             }
             loading.store(false, Ordering::Relaxed);

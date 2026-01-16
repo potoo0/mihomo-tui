@@ -42,7 +42,7 @@ impl RulesComponent {
         tokio::task::Builder::new().name("log-loader").spawn(async move {
             match api.get_rules().await {
                 Ok(rules) => {
-                    store.push(rules.rules);
+                    store.push(rules);
                     // initial view
                     let filter_pattern = filter_pattern.lock().unwrap();
                     let filter_pattern = filter_pattern.as_deref();

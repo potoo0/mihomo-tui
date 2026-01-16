@@ -1,13 +1,6 @@
-use std::collections::HashMap;
-
 use serde::Deserialize;
 
 use crate::widgets::latency::Latency;
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ProxiesWrapper {
-    pub proxies: HashMap<String, Proxy>,
-}
 
 /// for [Proxy](mihomo/adapter/adapter.go#Proxy)
 #[derive(Debug, Clone, Deserialize)]

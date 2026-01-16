@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Result, anyhow};
 use futures_util::{Stream, StreamExt};
+use indexmap::IndexMap;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
 use serde::Deserialize;
@@ -14,9 +15,9 @@ use tracing::debug;
 use url::Url;
 
 use crate::config::Config;
-use crate::models::provider::ProxyProvidersWrapper;
-use crate::models::proxy::ProxiesWrapper;
-use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, RulesWrapper, Traffic, Version};
+use crate::models::proxy::Proxy;
+use crate::models::proxy_provider::ProxyProvider;
+use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, Rule, Traffic, Version};
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -147,7 +148,12 @@ impl Api {
         self.create_stream::<Traffic>("/traffic", None).await
     }
 
-    pub async fn get_proxies(&self) -> Result<ProxiesWrapper> {
+    pub async fn get_proxies(&self) -> Result<IndexMap<String, Proxy>> {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            proxies: IndexMap<String, Proxy>,
+        }
+
         let body = self
             .client
             .get(self.api.join("/proxies")?)
@@ -156,11 +162,11 @@ impl Api {
             .context("Fail to send `GET /proxies`")?
             .error_for_status()
             .context("Fail to request `GET /proxies`")?
-            .json::<ProxiesWrapper>()
+            .json::<Wrapper>()
             .await
             .context("Fail to parse response of `GET /proxies`")?;
 
-        Ok(body)
+        Ok(body.proxies)
     }
 
     pub async fn update_proxy(&self, selector_name: String, name: String) -> Result<()> {
@@ -226,7 +232,12 @@ impl Api {
         Ok(body)
     }
 
-    pub async fn get_providers(&self) -> Result<ProxyProvidersWrapper> {
+    pub async fn get_providers(&self) -> Result<IndexMap<String, ProxyProvider>> {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            providers: IndexMap<String, ProxyProvider>,
+        }
+
         let body = self
             .client
             .get(self.api.join("/providers/proxies")?)
@@ -235,17 +246,14 @@ impl Api {
             .context("Fail to send `GET /providers/proxies`")?
             .error_for_status()
             .context("Fail to request `GET /providers/proxies`")?
-            .json::<ProxyProvidersWrapper>()
+            .json::<Wrapper>()
             .await
             .context("Fail to parse response of `GET /providers/proxies`")?;
 
-        Ok(body)
+        Ok(body.providers)
     }
 
-    pub async fn health_check_provider<S>(&self, name: S) -> Result<()>
-    where
-        S: AsRef<str>,
-    {
+    pub async fn health_check_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
         let _ = self
             .client
             .get(self.api.join(&format!("/providers/proxies/{}/healthcheck", name.as_ref()))?)
@@ -261,10 +269,7 @@ impl Api {
         Ok(())
     }
 
-    pub async fn update_provider<S>(&self, name: S) -> Result<()>
-    where
-        S: AsRef<str>,
-    {
+    pub async fn update_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
         let _ = self
             .client
             .put(self.api.join(&format!("/providers/proxies/{}", name.as_ref()))?)
@@ -280,7 +285,12 @@ impl Api {
         Ok(())
     }
 
-    pub async fn get_rules(&self) -> Result<RulesWrapper> {
+    pub async fn get_rules(&self) -> Result<Vec<Rule>> {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            rules: Vec<Rule>,
+        }
+
         let body = self
             .client
             .get(self.api.join("/rules")?)
@@ -289,11 +299,11 @@ impl Api {
             .context("Fail to send `GET /rules`")?
             .error_for_status()
             .context("Fail to request `GET /rules`")?
-            .json::<RulesWrapper>()
+            .json::<Wrapper>()
             .await
             .context("Fail to parse response of `GET /rules`")?;
 
-        Ok(body)
+        Ok(body.rules)
     }
 }
 

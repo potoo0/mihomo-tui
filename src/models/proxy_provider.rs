@@ -1,13 +1,6 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::models::proxy::Proxy;
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ProxyProvidersWrapper {
-    pub providers: HashMap<String, ProxyProvider>,
-}
 
 /// for [providerForApi](mihomo/adapter/provider/provider.go#providerForApi)
 #[derive(Debug, Clone, Deserialize)]

@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::components::ComponentId;
 use crate::models::Connection;
-use crate::models::provider::ProxyProvider;
 use crate::models::proxy::Proxy;
+use crate::models::proxy_provider::ProxyProvider;
 use crate::widgets::shortcut::Shortcut;
 
 #[derive(Debug, Clone)]

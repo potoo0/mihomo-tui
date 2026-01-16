@@ -78,7 +78,7 @@ impl ProxiesComponent {
         // match tokio::try_join!(api.get_proxies(), api.get_providers()) {
         match api.get_proxies().await {
             Ok(proxies) => {
-                store.write().unwrap().push(proxies.proxies);
+                store.write().unwrap().push(proxies);
                 cb();
                 Ok(())
             }
