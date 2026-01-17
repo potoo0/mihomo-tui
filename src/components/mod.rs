@@ -73,7 +73,11 @@ pub enum ComponentId {
 }
 
 impl ComponentId {
-    pub fn short_name(&self) -> Option<&'static str> {
+    pub fn supports_search(self) -> bool {
+        matches!(self, ComponentId::Connections | ComponentId::Logs | ComponentId::Rules)
+    }
+
+    pub fn short_name(self) -> Option<&'static str> {
         match self {
             ComponentId::Overview => Some("View"),
             ComponentId::Connections => Some("Conn"),
@@ -85,7 +89,7 @@ impl ComponentId {
         }
     }
 
-    pub fn full_name(&self) -> &'static str {
+    pub fn full_name(self) -> &'static str {
         self.into()
     }
 }

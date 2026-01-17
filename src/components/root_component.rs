@@ -363,10 +363,7 @@ impl Component for RootComponent {
         self.get_or_init(ComponentId::Header).draw(frame, chunks[0])?;
 
         // draw main area
-        if self.current_tab == ComponentId::Connections
-            || self.current_tab == ComponentId::Rules
-            || self.current_tab == ComponentId::Logs
-        {
+        if self.current_tab.supports_search() {
             let inner_chunks =
                 Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
             self.get_or_init(ComponentId::Search).draw(frame, inner_chunks[0])?;
