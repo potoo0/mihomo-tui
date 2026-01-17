@@ -1,10 +1,13 @@
+use std::process::Command;
 use std::sync::Arc;
+use std::thread::sleep;
+use std::time::Duration;
 
 use anyhow::Result;
 use ratatui::layout::Rect;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, trace};
+use tracing::{error, info, trace};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -103,6 +106,33 @@ impl App {
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
                 Action::Error(ref err) => error!("Error: {}", err),
+                Action::SpawnExternalEditor(ref editor, ref filepath) => {
+                    tui.exit()?;
+
+                    // TODO better error handling
+                    info!("Spawning external editor `{}` for file `{:?}`...", editor, filepath);
+                    println!("Spawning external editor `{}` for file `{:?}`...", editor, filepath);
+                    match Command::new(editor.as_str()).arg(filepath).status() {
+                        Ok(status) => {
+                            if !status.success() {
+                                error!(
+                                    "Command `{}` exited with non-zero status: {}",
+                                    editor, status
+                                );
+                                eprintln!("\nCommand exited with status: {}", status);
+                                sleep(Duration::from_secs(3));
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to spawn editor `{}`: {}", editor, e);
+                            eprintln!("\nFailed to spawn editor `{}`: {}", editor, e);
+                            sleep(Duration::from_secs(3));
+                        }
+                    }
+
+                    tui.enter()?;
+                    tui.terminal.clear()?;
+                }
                 _ => {}
             }
             if let Some(action) = self.root.update(action.clone())? {

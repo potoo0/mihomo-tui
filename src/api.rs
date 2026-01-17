@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{Context, Result, anyhow};
 use futures_util::{Stream, StreamExt};
 use indexmap::IndexMap;
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue};
 use reqwest::{Client, header};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -18,7 +18,7 @@ use crate::config::Config;
 use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
 use crate::models::{
-    ConnectionsWrapper, Log, LogLevel, Memory, Rule, RuleProvider, Traffic, Version,
+    ConnectionsWrapper, CoreConfig, Log, LogLevel, Memory, Rule, RuleProvider, Traffic, Version,
 };
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -344,6 +344,124 @@ impl Api {
 
         Ok(())
     }
+
+    pub async fn get_core_config(&self) -> Result<CoreConfig> {
+        let body = self
+            .client
+            .get(self.api.join("/configs")?)
+            .send()
+            .await
+            .context("Fail to send `GET /configs`")?
+            .error_for_status()
+            .context("Fail to request `GET /configs`")?
+            .json::<CoreConfig>()
+            .await
+            .context("Fail to parse response of `GET /configs`")?;
+
+        Ok(body)
+    }
+
+    pub async fn update_core_config(&self, body: Vec<u8>) -> Result<()> {
+        let _ = self
+            .client
+            .patch(self.api.join("/configs")?)
+            .body(body)
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .send()
+            .await
+            .context("Fail to send `PATCH /configs` request")?
+            .error_for_status()
+            .context("Fail to request `PATCH /configs`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PATCH /configs`");
+
+        Ok(())
+    }
+
+    pub async fn reload_config(&self) -> Result<()> {
+        let body = r#"{"path":"","payload":""}"#;
+        let _ = self
+            .client
+            .put(self.api.join("/configs")?)
+            .body(body)
+            .query(&[("force", "true")])
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .send()
+            .await
+            .context("Fail to send `PUT /configs` request")?
+            .error_for_status()
+            .context("Fail to request `PUT /configs`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PUT /configs`");
+
+        Ok(())
+    }
+
+    pub async fn restart(&self) -> Result<()> {
+        let _ = self
+            .client
+            .post(self.api.join("/restart")?)
+            .send()
+            .await
+            .context("Fail to send `POST /restart` request")?
+            .error_for_status()
+            .context("Fail to request `POST /restart`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /restart`");
+
+        Ok(())
+    }
+
+    pub async fn flush_fake_ip_cache(&self) -> Result<()> {
+        let _ = self
+            .client
+            .post(self.api.join("/cache/fakeip/flush")?)
+            .send()
+            .await
+            .context("Fail to send `POST /cache/fakeip/flush` request")?
+            .error_for_status()
+            .context("Fail to request `POST /cache/fakeip/flush`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /cache/fakeip/flush`");
+
+        Ok(())
+    }
+
+    pub async fn flush_dns_cache(&self) -> Result<()> {
+        let _ = self
+            .client
+            .post(self.api.join("/cache/dns/flush")?)
+            .send()
+            .await
+            .context("Fail to send `POST /cache/dns/flush` request")?
+            .error_for_status()
+            .context("Fail to request `POST /cache/dns/flush`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /cache/dns/flush`");
+
+        Ok(())
+    }
+
+    pub async fn update_geo(&self) -> Result<()> {
+        let _ = self
+            .client
+            .post(self.api.join("/configs/geo")?)
+            .send()
+            .await
+            .context("Fail to send `POST /configs/geo` request")?
+            .error_for_status()
+            .context("Fail to request `POST /configs/geo`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /configs/geo`");
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -353,6 +471,7 @@ mod tests {
 
     use futures_util::{StreamExt, future, pin_mut};
     use tokio::sync::mpsc;
+    use tokio::time::sleep;
     use tokio_util::sync::CancellationToken;
 
     use super::*;
@@ -366,6 +485,36 @@ mod tests {
                 .with_max_level(tracing::Level::DEBUG)
                 .try_init();
         });
+    }
+
+    #[tokio::test]
+    async fn test_update_core_config() {
+        async fn get_tun_enable(api: &Api) -> Option<bool> {
+            let config = api.get_core_config().await.unwrap();
+            config.get("tun").and_then(|tun| tun.get("enable")).and_then(|v| v.as_bool())
+        }
+        init_logger();
+        let api = init_api();
+        let before = get_tun_enable(&api).await;
+        debug!("core config .tun.enable before: {:?}", before);
+        let body = format!(r#" {{ "tun": {{ "enable": {} }}}} "#, !before.unwrap_or_default())
+            .into_bytes();
+        println!("body: {}", String::from_utf8_lossy(&body));
+        api.update_core_config(body).await.unwrap();
+        sleep(std::time::Duration::from_secs(1)).await; // wait for config to apply
+        let after = get_tun_enable(&api).await;
+        debug!("core config .tun.enable after: {:?}", after);
+        assert_ne!(before, after);
+    }
+
+    #[tokio::test]
+    async fn test_get_core_config() {
+        init_logger();
+        let api = init_api();
+        let config = api.get_core_config().await.unwrap();
+        let tun = config.get("tun").unwrap();
+        debug!("core config type: {}\n\t\t{:?}", std::any::type_name_of_val(&config), config);
+        debug!("core config .tun type: {}\n\t\t{:?}", std::any::type_name_of_val(&tun), tun);
     }
 
     #[tokio::test]

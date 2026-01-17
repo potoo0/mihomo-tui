@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::components::ComponentId;
@@ -19,6 +20,8 @@ pub enum Action {
     Unfocus,
     ClearScreen,
     Error(String),
+    /// Spawn an external editor to edit a file. args: `(editor command, file path)`
+    SpawnExternalEditor(String, PathBuf),
     Help,
     TabSwitch(ComponentId),
     Shortcuts(Vec<Shortcut>),

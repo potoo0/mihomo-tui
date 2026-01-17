@@ -17,6 +17,7 @@ use tracing::{debug, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
+use crate::components::backend_config_component::BackendConfigComponent;
 use crate::components::connection_detail_component::ConnectionDetailComponent;
 use crate::components::connection_terminate_component::ConnectionTerminateComponent;
 use crate::components::connections_component::ConnectionsComponent;
@@ -100,6 +101,7 @@ impl RootComponent {
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Rules => Box::new(RulesComponent::default()),
                 ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
+                ComponentId::Config => Box::new(BackendConfigComponent::default()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::ConnectionTerminate => {

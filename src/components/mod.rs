@@ -1,3 +1,4 @@
+mod backend_config_component;
 mod connection_detail_component;
 mod connection_terminate_component;
 mod connections;
@@ -44,7 +45,7 @@ const LOGS_BUFFER_SIZE: usize = 500;
 const HORIZ_STEP: usize = 4;
 
 /// Header tabs in display order; index is used for tab navigation and shortcuts
-const TABS: [ComponentId; 7] = [
+const TABS: [ComponentId; 8] = [
     ComponentId::Overview,
     ComponentId::Connections,
     ComponentId::Proxies,
@@ -52,6 +53,7 @@ const TABS: [ComponentId; 7] = [
     ComponentId::Logs,
     ComponentId::Rules,
     ComponentId::RuleProviders,
+    ComponentId::Config,
 ];
 
 #[derive(Default, PartialEq, Debug, IntoStaticStr, Clone, Eq, Hash, Copy)]
@@ -73,6 +75,7 @@ pub enum ComponentId {
     Logs,
     Rules,
     RuleProviders,
+    Config,
     Search,
 }
 
@@ -96,6 +99,7 @@ impl ComponentId {
             ComponentId::Logs => Some("Log"),
             ComponentId::Rules => Some("Rule"),
             ComponentId::RuleProviders => Some("R-Pr"),
+            ComponentId::Config => Some("Cfg"),
             _ => Some(self.full_name()),
         }
     }
