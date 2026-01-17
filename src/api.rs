@@ -17,7 +17,9 @@ use url::Url;
 use crate::config::Config;
 use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
-use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, Rule, Traffic, Version};
+use crate::models::{
+    ConnectionsWrapper, Log, LogLevel, Memory, Rule, RuleProvider, Traffic, Version,
+};
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -305,6 +307,43 @@ impl Api {
 
         Ok(body.rules)
     }
+
+    pub async fn get_rule_providers(&self) -> Result<IndexMap<String, RuleProvider>> {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            providers: IndexMap<String, RuleProvider>,
+        }
+
+        let body = self
+            .client
+            .get(self.api.join("/providers/rules")?)
+            .send()
+            .await
+            .context("Fail to send `GET /providers/rules`")?
+            .error_for_status()
+            .context("Fail to request `GET /providers/rules`")?
+            .json::<Wrapper>()
+            .await
+            .context("Fail to parse response of `GET /providers/rules`")?;
+
+        Ok(body.providers)
+    }
+
+    pub async fn update_rule_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
+        let _ = self
+            .client
+            .put(self.api.join(&format!("/providers/rules/{}", name.as_ref()))?)
+            .send()
+            .await
+            .context("Fail to send `PUT /providers/rules/<name>` request")?
+            .error_for_status()
+            .context("Fail to request `PUT /providers/rules/<name>`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PUT /providers/rules/<name>`");
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -327,6 +366,28 @@ mod tests {
                 .with_max_level(tracing::Level::DEBUG)
                 .try_init();
         });
+    }
+
+    #[tokio::test]
+    async fn test_update_rule_provider() {
+        init_logger();
+        let api = init_api();
+        let providers = api.get_rule_providers().await.unwrap();
+        if let Some(name) = providers.keys().next() {
+            debug!("rule providers {name} updating...");
+            api.update_rule_provider(name).await.unwrap();
+            debug!("rule providers {name} updated");
+        } else {
+            debug!("no rule providers found");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_rule_providers() {
+        init_logger();
+        let api = init_api();
+        let providers = api.get_rule_providers().await.unwrap();
+        debug!("rule providers: {providers:?}");
     }
 
     #[tokio::test]

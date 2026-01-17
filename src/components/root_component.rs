@@ -30,6 +30,7 @@ use crate::components::proxy_detail_component::ProxyDetailComponent;
 use crate::components::proxy_provider_detail_component::ProxyProviderDetailComponent;
 use crate::components::proxy_providers_component::ProxyProvidersComponent;
 use crate::components::proxy_setting_component::ProxySettingComponent;
+use crate::components::rule_providers_component::RuleProvidersComponent;
 use crate::components::rules_component::RulesComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
@@ -98,6 +99,7 @@ impl RootComponent {
                 }
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Rules => Box::new(RulesComponent::default()),
+                ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::ConnectionTerminate => {

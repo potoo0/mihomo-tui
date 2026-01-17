@@ -17,6 +17,8 @@ mod proxy_providers_component;
 mod proxy_setting;
 mod proxy_setting_component;
 pub mod root_component;
+mod rule_providers;
+mod rule_providers_component;
 mod rules;
 mod rules_component;
 mod search_component;
@@ -42,13 +44,14 @@ const LOGS_BUFFER_SIZE: usize = 500;
 const HORIZ_STEP: usize = 4;
 
 /// Header tabs in display order; index is used for tab navigation and shortcuts
-const TABS: [ComponentId; 6] = [
+const TABS: [ComponentId; 7] = [
     ComponentId::Overview,
     ComponentId::Connections,
     ComponentId::Proxies,
     ComponentId::ProxyProviders,
     ComponentId::Logs,
     ComponentId::Rules,
+    ComponentId::RuleProviders,
 ];
 
 #[derive(Default, PartialEq, Debug, IntoStaticStr, Clone, Eq, Hash, Copy)]
@@ -69,12 +72,19 @@ pub enum ComponentId {
     ProxyProviderDetail,
     Logs,
     Rules,
+    RuleProviders,
     Search,
 }
 
 impl ComponentId {
     pub fn supports_search(self) -> bool {
-        matches!(self, ComponentId::Connections | ComponentId::Logs | ComponentId::Rules)
+        matches!(
+            self,
+            ComponentId::Connections
+                | ComponentId::Logs
+                | ComponentId::Rules
+                | ComponentId::RuleProviders
+        )
     }
 
     pub fn short_name(self) -> Option<&'static str> {
@@ -85,6 +95,7 @@ impl ComponentId {
             ComponentId::ProxyProviders => Some("Pxy-Pr"),
             ComponentId::Logs => Some("Log"),
             ComponentId::Rules => Some("Rule"),
+            ComponentId::RuleProviders => Some("R-Pr"),
             _ => Some(self.full_name()),
         }
     }
