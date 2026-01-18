@@ -1,3 +1,4 @@
+mod backend_config_component;
 mod connection_detail_component;
 mod connection_terminate_component;
 mod connections;
@@ -17,6 +18,10 @@ mod proxy_providers_component;
 mod proxy_setting;
 mod proxy_setting_component;
 pub mod root_component;
+mod rule_providers;
+mod rule_providers_component;
+mod rules;
+mod rules_component;
 mod search_component;
 pub mod state;
 
@@ -26,7 +31,7 @@ use anyhow::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use strum::Display;
+use strum::IntoStaticStr;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -34,18 +39,24 @@ use crate::api::Api;
 use crate::tui::Event;
 use crate::widgets::shortcut::Shortcut;
 
-const TABS: [ComponentId; 5] = [
+const BUFFER_SIZE: usize = 100;
+const CONNS_BUFFER_SIZE: usize = 500;
+const LOGS_BUFFER_SIZE: usize = 500;
+const HORIZ_STEP: usize = 4;
+
+/// Header tabs in display order; index is used for tab navigation and shortcuts
+const TABS: [ComponentId; 8] = [
     ComponentId::Overview,
     ComponentId::Connections,
     ComponentId::Proxies,
     ComponentId::ProxyProviders,
     ComponentId::Logs,
+    ComponentId::Rules,
+    ComponentId::RuleProviders,
+    ComponentId::Config,
 ];
-const BUFFER_SIZE: usize = 100;
-const CONNS_BUFFER_SIZE: usize = 500;
-const LOGS_BUFFER_SIZE: usize = 500;
 
-#[derive(Default, PartialEq, Debug, Display, Clone, Eq, Hash, Copy)]
+#[derive(Default, PartialEq, Debug, IntoStaticStr, Clone, Eq, Hash, Copy)]
 pub enum ComponentId {
     Help,
     Root,
@@ -62,7 +73,40 @@ pub enum ComponentId {
     ProxyProviders,
     ProxyProviderDetail,
     Logs,
+    Rules,
+    RuleProviders,
+    Config,
     Search,
+}
+
+impl ComponentId {
+    pub fn supports_search(self) -> bool {
+        matches!(
+            self,
+            ComponentId::Connections
+                | ComponentId::Logs
+                | ComponentId::Rules
+                | ComponentId::RuleProviders
+        )
+    }
+
+    pub fn short_name(self) -> Option<&'static str> {
+        match self {
+            ComponentId::Overview => Some("View"),
+            ComponentId::Connections => Some("Conn"),
+            ComponentId::Proxies => Some("Pxy"),
+            ComponentId::ProxyProviders => Some("Pxy-Pr"),
+            ComponentId::Logs => Some("Log"),
+            ComponentId::Rules => Some("Rule"),
+            ComponentId::RuleProviders => Some("R-Pr"),
+            ComponentId::Config => Some("Cfg"),
+            _ => Some(self.full_name()),
+        }
+    }
+
+    pub fn full_name(self) -> &'static str {
+        self.into()
+    }
 }
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.

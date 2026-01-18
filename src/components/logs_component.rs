@@ -20,14 +20,12 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::logs::Logs;
-use crate::components::{Component, ComponentId};
+use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::LogLevel;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
-
-const HORIZ_STEP: usize = 4;
 
 #[derive(Default)]
 pub struct LogsComponent {

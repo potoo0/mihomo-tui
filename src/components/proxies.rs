@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use indexmap::IndexMap;
+
 use crate::components::proxy_setting::get_proxy_setting;
 use crate::models::proxy::Proxy;
 use crate::widgets::latency::{LatencyQuality, QualityStats};
@@ -18,7 +20,7 @@ pub struct Proxies {
 }
 
 impl Proxies {
-    pub fn push(&mut self, mut proxies: HashMap<String, Proxy>) {
+    pub fn push(&mut self, mut proxies: IndexMap<String, Proxy>) {
         self.update_delay(&mut proxies);
         self.proxies = proxies.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
         let threshold = get_proxy_setting().read().unwrap().threshold;
@@ -51,8 +53,8 @@ impl Proxies {
         })
     }
 
-    fn update_delay(&mut self, proxies: &mut HashMap<String, Proxy>) {
-        fn update(key: &str, proxies: &mut HashMap<String, Proxy>) {
+    fn update_delay(&mut self, proxies: &mut IndexMap<String, Proxy>) {
+        fn update(key: &str, proxies: &mut IndexMap<String, Proxy>) {
             let (selected, has_children) = {
                 let proxy = match proxies.get_mut(key) {
                     // only update if not set

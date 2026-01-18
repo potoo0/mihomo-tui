@@ -1,14 +1,20 @@
 mod connection;
+mod core_config;
 mod log;
 mod memory;
-pub mod provider;
 pub mod proxy;
+pub mod proxy_provider;
+mod rule;
+mod rule_provider;
 pub mod sort;
 mod traffic;
 mod version;
 
 pub use connection::{Connection, ConnectionStats, ConnectionsWrapper};
+pub use core_config::CoreConfig;
 pub use log::{Log, LogLevel};
 pub use memory::Memory;
+pub use rule::Rule;
+pub use rule_provider::RuleProvider;
 pub use traffic::Traffic;
 pub use version::Version;

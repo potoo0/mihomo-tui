@@ -17,6 +17,7 @@ use tracing::{debug, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
+use crate::components::backend_config_component::BackendConfigComponent;
 use crate::components::connection_detail_component::ConnectionDetailComponent;
 use crate::components::connection_terminate_component::ConnectionTerminateComponent;
 use crate::components::connections_component::ConnectionsComponent;
@@ -30,6 +31,8 @@ use crate::components::proxy_detail_component::ProxyDetailComponent;
 use crate::components::proxy_provider_detail_component::ProxyProviderDetailComponent;
 use crate::components::proxy_providers_component::ProxyProvidersComponent;
 use crate::components::proxy_setting_component::ProxySettingComponent;
+use crate::components::rule_providers_component::RuleProvidersComponent;
+use crate::components::rules_component::RulesComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::models::{Connection, ConnectionStats};
@@ -59,7 +62,7 @@ pub struct RootComponent {
 impl RootComponent {
     pub fn new() -> Self {
         let components: Vec<Box<dyn Component>> =
-            vec![Box::new(HeaderComponent::default()), Box::new(FooterComponent::default())];
+            vec![Box::new(HeaderComponent::new()), Box::new(FooterComponent::default())];
         let components = components.into_iter().map(|c| (c.id(), c)).collect::<HashMap<_, _>>();
         let (stats_tx, stats_rx) = watch::channel(None);
         let (conns_tx, conns_rx) = mpsc::channel(2);
@@ -96,6 +99,9 @@ impl RootComponent {
                     Box::new(ProxyProviderDetailComponent::default())
                 }
                 ComponentId::Logs => Box::new(LogsComponent::new()),
+                ComponentId::Rules => Box::new(RulesComponent::default()),
+                ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
+                ComponentId::Config => Box::new(BackendConfigComponent::default()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::ConnectionTerminate => {
@@ -361,7 +367,7 @@ impl Component for RootComponent {
         self.get_or_init(ComponentId::Header).draw(frame, chunks[0])?;
 
         // draw main area
-        if self.current_tab == ComponentId::Connections || self.current_tab == ComponentId::Logs {
+        if self.current_tab.supports_search() {
             let inner_chunks =
                 Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
             self.get_or_init(ComponentId::Search).draw(frame, inner_chunks[0])?;

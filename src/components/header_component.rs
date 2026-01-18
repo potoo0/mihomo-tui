@@ -1,4 +1,4 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, OnceLock};
 
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Color, Style};
@@ -14,15 +14,37 @@ use crate::models::Version;
 use crate::utils::symbols::SUPERSCRIPT;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
+static TABS_FULL_WIDTH: LazyLock<u16> = LazyLock::new(|| {
+    let len = TABS.len();
+    let (superscript_width, padding_len) = (1usize, 3usize);
+
+    let tabs_width: usize = TABS.iter().map(|id| superscript_width + id.full_name().len()).sum();
+    let padding_width = len.saturating_sub(1) * padding_len;
+
+    (tabs_width + padding_width) as u16
+});
+
 #[derive(Default)]
 pub struct HeaderComponent {
-    main_component: ComponentId,
+    selected: usize,
 
     api: Option<Arc<Api>>,
     version: Arc<OnceLock<Version>>,
 }
 
 impl HeaderComponent {
+    pub fn new() -> Self {
+        Self {
+            selected: Self::component_index(ComponentId::default()),
+            api: None,
+            version: Arc::new(OnceLock::new()),
+        }
+    }
+
+    fn component_index(id: ComponentId) -> usize {
+        TABS.iter().position(|c| *c == id).unwrap_or(0)
+    }
+
     fn load_version(&mut self, api: Arc<Api>) -> anyhow::Result<()> {
         info!("Loading version");
         let version = Arc::clone(&self.version);
@@ -42,19 +64,25 @@ impl HeaderComponent {
     }
 
     fn render_tab(&self, frame: &mut Frame, rect: Rect) {
+        let compact_mode = rect.width < *TABS_FULL_WIDTH;
         let tabs: Vec<Line> = TABS
             .iter()
             .enumerate()
             .map(|(i, cid)| {
+                let name = if compact_mode && i != self.selected {
+                    cid.short_name().unwrap_or_else(|| cid.full_name())
+                } else {
+                    cid.full_name()
+                };
                 Shortcut::new(vec![
-                    Fragment::hl(SUPERSCRIPT[i + 1 % SUPERSCRIPT.len()]),
-                    Fragment::raw(cid.to_string()),
+                    // TODO: Use proper superscript for index > 9
+                    Fragment::hl(SUPERSCRIPT[i + 1]),
+                    Fragment::raw(name),
                 ])
                 .into()
             })
             .collect();
-        let selected_index = TABS.iter().position(|cid| *cid == self.main_component).unwrap_or(0);
-        let tabs = Tabs::new(tabs).select(selected_index).divider("|");
+        let tabs = Tabs::new(tabs).select(self.selected).divider("|");
         frame.render_widget(tabs, rect);
     }
 
@@ -88,7 +116,7 @@ impl Component for HeaderComponent {
 
     fn update(&mut self, action: Action) -> anyhow::Result<Option<Action>> {
         if let Action::TabSwitch(to) = action {
-            self.main_component = to;
+            self.selected = Self::component_index(to);
         }
         Ok(None)
     }

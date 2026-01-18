@@ -1,9 +1,10 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::components::ComponentId;
 use crate::models::Connection;
-use crate::models::provider::ProxyProvider;
 use crate::models::proxy::Proxy;
+use crate::models::proxy_provider::ProxyProvider;
 use crate::widgets::shortcut::Shortcut;
 
 #[derive(Debug, Clone)]
@@ -19,6 +20,8 @@ pub enum Action {
     Unfocus,
     ClearScreen,
     Error(String),
+    /// Spawn an external editor to edit a file. args: `(editor command, file path)`
+    SpawnExternalEditor(String, PathBuf),
     Help,
     TabSwitch(ComponentId),
     Shortcuts(Vec<Shortcut>),

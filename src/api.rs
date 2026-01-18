@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::{Context, Result, anyhow};
 use futures_util::{Stream, StreamExt};
-use reqwest::header::{HeaderMap, HeaderValue};
+use indexmap::IndexMap;
+use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue};
 use reqwest::{Client, header};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -14,9 +15,11 @@ use tracing::debug;
 use url::Url;
 
 use crate::config::Config;
-use crate::models::provider::ProxyProvidersWrapper;
-use crate::models::proxy::ProxiesWrapper;
-use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, Traffic, Version};
+use crate::models::proxy::Proxy;
+use crate::models::proxy_provider::ProxyProvider;
+use crate::models::{
+    ConnectionsWrapper, CoreConfig, Log, LogLevel, Memory, Rule, RuleProvider, Traffic, Version,
+};
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -147,7 +150,12 @@ impl Api {
         self.create_stream::<Traffic>("/traffic", None).await
     }
 
-    pub async fn get_proxies(&self) -> Result<ProxiesWrapper> {
+    pub async fn get_proxies(&self) -> Result<IndexMap<String, Proxy>> {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            proxies: IndexMap<String, Proxy>,
+        }
+
         let body = self
             .client
             .get(self.api.join("/proxies")?)
@@ -156,11 +164,11 @@ impl Api {
             .context("Fail to send `GET /proxies`")?
             .error_for_status()
             .context("Fail to request `GET /proxies`")?
-            .json::<ProxiesWrapper>()
+            .json::<Wrapper>()
             .await
             .context("Fail to parse response of `GET /proxies`")?;
 
-        Ok(body)
+        Ok(body.proxies)
     }
 
     pub async fn update_proxy(&self, selector_name: String, name: String) -> Result<()> {
@@ -226,7 +234,12 @@ impl Api {
         Ok(body)
     }
 
-    pub async fn get_providers(&self) -> Result<ProxyProvidersWrapper> {
+    pub async fn get_providers(&self) -> Result<IndexMap<String, ProxyProvider>> {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            providers: IndexMap<String, ProxyProvider>,
+        }
+
         let body = self
             .client
             .get(self.api.join("/providers/proxies")?)
@@ -235,17 +248,14 @@ impl Api {
             .context("Fail to send `GET /providers/proxies`")?
             .error_for_status()
             .context("Fail to request `GET /providers/proxies`")?
-            .json::<ProxyProvidersWrapper>()
+            .json::<Wrapper>()
             .await
             .context("Fail to parse response of `GET /providers/proxies`")?;
 
-        Ok(body)
+        Ok(body.providers)
     }
 
-    pub async fn health_check_provider<S>(&self, name: S) -> Result<()>
-    where
-        S: AsRef<str>,
-    {
+    pub async fn health_check_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
         let _ = self
             .client
             .get(self.api.join(&format!("/providers/proxies/{}/healthcheck", name.as_ref()))?)
@@ -261,10 +271,7 @@ impl Api {
         Ok(())
     }
 
-    pub async fn update_provider<S>(&self, name: S) -> Result<()>
-    where
-        S: AsRef<str>,
-    {
+    pub async fn update_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
         let _ = self
             .client
             .put(self.api.join(&format!("/providers/proxies/{}", name.as_ref()))?)
@@ -279,6 +286,182 @@ impl Api {
 
         Ok(())
     }
+
+    pub async fn get_rules(&self) -> Result<Vec<Rule>> {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            rules: Vec<Rule>,
+        }
+
+        let body = self
+            .client
+            .get(self.api.join("/rules")?)
+            .send()
+            .await
+            .context("Fail to send `GET /rules`")?
+            .error_for_status()
+            .context("Fail to request `GET /rules`")?
+            .json::<Wrapper>()
+            .await
+            .context("Fail to parse response of `GET /rules`")?;
+
+        Ok(body.rules)
+    }
+
+    pub async fn get_rule_providers(&self) -> Result<IndexMap<String, RuleProvider>> {
+        #[derive(Deserialize)]
+        struct Wrapper {
+            providers: IndexMap<String, RuleProvider>,
+        }
+
+        let body = self
+            .client
+            .get(self.api.join("/providers/rules")?)
+            .send()
+            .await
+            .context("Fail to send `GET /providers/rules`")?
+            .error_for_status()
+            .context("Fail to request `GET /providers/rules`")?
+            .json::<Wrapper>()
+            .await
+            .context("Fail to parse response of `GET /providers/rules`")?;
+
+        Ok(body.providers)
+    }
+
+    pub async fn update_rule_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
+        let _ = self
+            .client
+            .put(self.api.join(&format!("/providers/rules/{}", name.as_ref()))?)
+            .send()
+            .await
+            .context("Fail to send `PUT /providers/rules/<name>` request")?
+            .error_for_status()
+            .context("Fail to request `PUT /providers/rules/<name>`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PUT /providers/rules/<name>`");
+
+        Ok(())
+    }
+
+    pub async fn get_core_config(&self) -> Result<CoreConfig> {
+        let body = self
+            .client
+            .get(self.api.join("/configs")?)
+            .send()
+            .await
+            .context("Fail to send `GET /configs`")?
+            .error_for_status()
+            .context("Fail to request `GET /configs`")?
+            .json::<CoreConfig>()
+            .await
+            .context("Fail to parse response of `GET /configs`")?;
+
+        Ok(body)
+    }
+
+    pub async fn update_core_config(&self, body: Vec<u8>) -> Result<()> {
+        let _ = self
+            .client
+            .patch(self.api.join("/configs")?)
+            .body(body)
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .send()
+            .await
+            .context("Fail to send `PATCH /configs` request")?
+            .error_for_status()
+            .context("Fail to request `PATCH /configs`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PATCH /configs`");
+
+        Ok(())
+    }
+
+    pub async fn reload_config(&self) -> Result<()> {
+        let body = r#"{"path":"","payload":""}"#;
+        let _ = self
+            .client
+            .put(self.api.join("/configs")?)
+            .body(body)
+            .query(&[("force", "true")])
+            .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .send()
+            .await
+            .context("Fail to send `PUT /configs` request")?
+            .error_for_status()
+            .context("Fail to request `PUT /configs`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PUT /configs`");
+
+        Ok(())
+    }
+
+    pub async fn restart(&self) -> Result<()> {
+        let _ = self
+            .client
+            .post(self.api.join("/restart")?)
+            .send()
+            .await
+            .context("Fail to send `POST /restart` request")?
+            .error_for_status()
+            .context("Fail to request `POST /restart`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /restart`");
+
+        Ok(())
+    }
+
+    pub async fn flush_fake_ip_cache(&self) -> Result<()> {
+        let _ = self
+            .client
+            .post(self.api.join("/cache/fakeip/flush")?)
+            .send()
+            .await
+            .context("Fail to send `POST /cache/fakeip/flush` request")?
+            .error_for_status()
+            .context("Fail to request `POST /cache/fakeip/flush`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /cache/fakeip/flush`");
+
+        Ok(())
+    }
+
+    pub async fn flush_dns_cache(&self) -> Result<()> {
+        let _ = self
+            .client
+            .post(self.api.join("/cache/dns/flush")?)
+            .send()
+            .await
+            .context("Fail to send `POST /cache/dns/flush` request")?
+            .error_for_status()
+            .context("Fail to request `POST /cache/dns/flush`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /cache/dns/flush`");
+
+        Ok(())
+    }
+
+    pub async fn update_geo(&self) -> Result<()> {
+        let _ = self
+            .client
+            .post(self.api.join("/configs/geo")?)
+            .send()
+            .await
+            .context("Fail to send `POST /configs/geo` request")?
+            .error_for_status()
+            .context("Fail to request `POST /configs/geo`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /configs/geo`");
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -288,6 +471,7 @@ mod tests {
 
     use futures_util::{StreamExt, future, pin_mut};
     use tokio::sync::mpsc;
+    use tokio::time::sleep;
     use tokio_util::sync::CancellationToken;
 
     use super::*;
@@ -301,6 +485,66 @@ mod tests {
                 .with_max_level(tracing::Level::DEBUG)
                 .try_init();
         });
+    }
+
+    #[tokio::test]
+    async fn test_update_core_config() {
+        async fn get_tun_enable(api: &Api) -> Option<bool> {
+            let config = api.get_core_config().await.unwrap();
+            config.get("tun").and_then(|tun| tun.get("enable")).and_then(|v| v.as_bool())
+        }
+        init_logger();
+        let api = init_api();
+        let before = get_tun_enable(&api).await;
+        debug!("core config .tun.enable before: {:?}", before);
+        let body = format!(r#" {{ "tun": {{ "enable": {} }}}} "#, !before.unwrap_or_default())
+            .into_bytes();
+        println!("body: {}", String::from_utf8_lossy(&body));
+        api.update_core_config(body).await.unwrap();
+        sleep(std::time::Duration::from_secs(1)).await; // wait for config to apply
+        let after = get_tun_enable(&api).await;
+        debug!("core config .tun.enable after: {:?}", after);
+        assert_ne!(before, after);
+    }
+
+    #[tokio::test]
+    async fn test_get_core_config() {
+        init_logger();
+        let api = init_api();
+        let config = api.get_core_config().await.unwrap();
+        let tun = config.get("tun").unwrap();
+        debug!("core config type: {}\n\t\t{:?}", std::any::type_name_of_val(&config), config);
+        debug!("core config .tun type: {}\n\t\t{:?}", std::any::type_name_of_val(&tun), tun);
+    }
+
+    #[tokio::test]
+    async fn test_update_rule_provider() {
+        init_logger();
+        let api = init_api();
+        let providers = api.get_rule_providers().await.unwrap();
+        if let Some(name) = providers.keys().next() {
+            debug!("rule providers {name} updating...");
+            api.update_rule_provider(name).await.unwrap();
+            debug!("rule providers {name} updated");
+        } else {
+            debug!("no rule providers found");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_rule_providers() {
+        init_logger();
+        let api = init_api();
+        let providers = api.get_rule_providers().await.unwrap();
+        debug!("rule providers: {providers:?}");
+    }
+
+    #[tokio::test]
+    async fn test_get_rules() {
+        init_logger();
+        let api = init_api();
+        let rules = api.get_rules().await.unwrap();
+        debug!("rules: {rules:?}");
     }
 
     #[tokio::test]

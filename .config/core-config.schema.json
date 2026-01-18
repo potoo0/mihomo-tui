@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Core Configuration Schema",
+  "type": "object",
+  "properties": {
+    "tun": {
+      "type": "object",
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "tun 转发开关"
+        }
+      }
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "global",
+        "rule",
+        "direct"
+      ],
+      "description": "运行模式，可选值：global, rule, direct"
+    }
+  }
+}
