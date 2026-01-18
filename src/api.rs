@@ -625,7 +625,7 @@ mod tests {
         let stream = api.get_connections().await.unwrap().take(10);
         pin_mut!(stream);
         while let Some(msg) = stream.next().await {
-            let value = msg.unwrap().connections[0].metadata.clone();
+            let value = msg.unwrap().connections.unwrap()[0].metadata.clone();
             debug!("meta: {value:?}");
         }
     }

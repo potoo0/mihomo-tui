@@ -17,7 +17,7 @@ pub struct ConnectionStats {
 impl From<&ConnectionsWrapper> for ConnectionStats {
     fn from(value: &ConnectionsWrapper) -> Self {
         ConnectionStats {
-            conns_size: value.connections.len(),
+            conns_size: value.connections.as_ref().map(Vec::len).unwrap_or_default(),
             memory: value.memory.into(),
             down_total: value.download_total.into(),
             up_total: value.upload_total.into(),
@@ -30,7 +30,7 @@ impl From<&ConnectionsWrapper> for ConnectionStats {
 pub struct ConnectionsWrapper {
     pub download_total: u64,
     pub upload_total: u64,
-    pub connections: Vec<Connection>,
+    pub connections: Option<Vec<Connection>>,
     pub memory: u64,
 }
 

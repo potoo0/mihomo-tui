@@ -173,17 +173,19 @@ impl RootComponent {
             let stream = match api.get_connections().await {
                 Ok(stream) => stream,
                 Err(e) => {
-                    warn!("Failed to get connections stream: {e}");
+                    warn!(error = ?e, "Failed to get connections stream.");
                     return;
                 }
             };
             stream
                 .take_until(token.cancelled())
-                .inspect_err(|e| warn!("Failed to parse connections: {e}"))
+                .inspect_err(|e| warn!(error = ?e, "Failed to parse connections."))
                 .filter_map(|res| future::ready(res.ok()))
                 .for_each(|record| {
                     let _ = stats_tx.send(Some((&record).into()));
-                    if let Err(TrySendError::Full(v)) = conns_tx.try_send(record.connections) {
+                    if let Err(TrySendError::Full(v)) =
+                        conns_tx.try_send(record.connections.unwrap_or_default())
+                    {
                         // drop oldest
                         if let Ok(mut guard) = conns_rx.try_lock() {
                             let _ = guard.try_recv();
