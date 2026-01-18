@@ -64,28 +64,17 @@ impl HelpComponent {
             // `connections` key bindings
             (
                 Line::raw("---").into(),
-                Line::raw("connections").italic().bold().into(),
+                Line::raw("# Connections (Conn)").italic().bold().into(),
                 Line::raw("---").into(),
             ),
             (Line::raw("Left, Right").into(), None, Line::raw("select sort column").into()),
             (Line::raw("t").into(), None, Line::raw("terminate connection").into()),
             (Line::raw("r").into(), None, Line::raw("reverse sort direction").into()),
             (Line::raw("c").into(), None, Line::raw("capture mode").into()),
-            // `logs` key bindings
-            (
-                Line::raw("---").into(),
-                Line::raw("logs").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (
-                Line::raw("e, w, i, d").into(),
-                None,
-                Line::raw("filter log level: error, warn, info, debug").into(),
-            ),
             // proxies / proxy detail
             (
                 Line::raw("---").into(),
-                Line::raw("proxies").italic().bold().into(),
+                Line::raw("# Proxies (Pxy)").italic().bold().into(),
                 Line::raw("---").into(),
             ),
             (Line::raw("r").into(), None, Line::raw("refresh proxies").into()),
@@ -94,11 +83,48 @@ impl HelpComponent {
             // proxy providers / proxy provider detail
             (
                 Line::raw("---").into(),
-                Line::raw("providers").italic().bold().into(),
+                Line::raw("# ProxyProviders (Pxy-Pr)").italic().bold().into(),
                 Line::raw("---").into(),
             ),
             (Line::raw("Enter").into(), None, Line::raw("show provider detail").into()),
             (Line::raw("u").into(), None, Line::raw("update providers").into()),
+            // `logs` key bindings
+            (
+                Line::raw("---").into(),
+                Line::raw("# Logs (log)").italic().bold().into(),
+                Line::raw("---").into(),
+            ),
+            (
+                Line::raw("e, w, i, d").into(),
+                None,
+                Line::raw("filter log level: error, warn, info, debug").into(),
+            ),
+            // `rule providers` key bindings
+            (
+                Line::raw("---").into(),
+                Line::raw("# RuleProviders (rule)").italic().bold().into(),
+                Line::raw("---").into(),
+            ),
+            (Line::raw("r").into(), None, Line::raw("refresh rule providers").into()),
+            (Line::raw("u").into(), None, Line::raw("update rule providers").into()),
+            // `config` key bindings
+            (
+                Line::raw("---").into(),
+                Line::raw("# Config (Cfg)").italic().bold().into(),
+                Line::raw("---").into(),
+            ),
+            (
+                Line::raw("Shift+Tab, Tab").into(),
+                None,
+                Line::raw("submit editor content or execute focused action").into(),
+            ),
+            (Line::raw("Enter").into(), None, Line::raw("execute focused action / confirm").into()),
+            (
+                Line::raw("e").into(),
+                None,
+                Line::raw("open config in external editor ($EDITOR → vim → vi)").into(),
+            ),
+            (Line::raw("d").into(), None, Line::raw("discard changes and reload config").into()),
             (None, None, None),
             (None, None, None),
         ]
@@ -144,10 +170,11 @@ impl Component for HelpComponent {
         let offset = (self.scroller.pos() as u16, 0u16);
 
         // content
+        // todo: improve layout
         let cols = Layout::horizontal([
-            Constraint::Percentage(40),
-            Constraint::Length(12),
+            Constraint::Percentage(35),
             Constraint::Fill(1),
+            Constraint::Percentage(45),
         ])
         .split(inner);
 
