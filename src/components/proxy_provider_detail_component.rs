@@ -111,12 +111,12 @@ impl Component for ProxyProviderDetailComponent {
                 Fragment::raw("/"),
                 Fragment::hl(arrow::DOWN),
             ]),
-            Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
             Shortcut::new(vec![
                 Fragment::hl("PgUp"),
                 Fragment::raw(" page "),
                 Fragment::hl("PgDn"),
             ]),
+            Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
             Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
         ]
     }
