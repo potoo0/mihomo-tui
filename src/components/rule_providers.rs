@@ -4,10 +4,14 @@ use std::sync::{Arc, RwLock};
 
 use fuzzy_matcher::skim::SkimMatcherV2;
 use indexmap::IndexMap;
+use time::macros::format_description;
 
 use crate::models::RuleProvider;
-use crate::utils::columns::ColDef;
+use crate::utils::columns::{ColDef, SortKey};
 use crate::utils::row_filter::RowFilter;
+
+const DATETIME_FMT: &[time::format_description::FormatItem<'static>] =
+    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
 #[derive(Default)]
 pub struct RuleProviders {
@@ -79,7 +83,14 @@ pub static RULE_PROVIDER_COLS: &[ColDef<RuleProvider>] = &[
         title: "UpdatedAt",
         filterable: false,
         sortable: true,
-        accessor: |c: &RuleProvider| Cow::Borrowed(c.updated_at.as_deref().unwrap_or("-")),
-        sort_key: None,
+        accessor: |c: &RuleProvider| {
+            c.updated_at
+                .and_then(|dt| dt.format(DATETIME_FMT).ok())
+                .map(Cow::Owned)
+                .unwrap_or(Cow::Borrowed("-"))
+        },
+        sort_key: Some(|c: &RuleProvider| {
+            SortKey::U64(c.updated_at.map(|dt| dt.unix_timestamp() as u64).unwrap_or(0))
+        }),
     },
 ];
