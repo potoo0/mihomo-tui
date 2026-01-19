@@ -152,8 +152,8 @@ impl RuleProvidersComponent {
     fn render_table(&mut self, frame: &mut Frame, area: Rect) {
         let records = self.store.with_view(|records| {
             let len = records.len();
-            // update scroller, viewport = area.height - 2 (border)
-            self.navigator.length(len, (area.height - 2) as usize);
+            // update scroller, viewport = area.height - 4 (border + header + header margin)
+            self.navigator.length(len, (area.height - 4) as usize);
             // NOTE: end_pos() depends on length()
             records
                 .get(self.navigator.scroller.pos()..self.navigator.scroller.end_pos())
@@ -178,24 +178,27 @@ impl RuleProvidersComponent {
             Span::raw(TOP_TITLE_RIGHT),
         ]);
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
-        let header = RULE_PROVIDER_COLS
-            .iter()
-            .map(|def| def.title)
-            .map(|title| Cell::from(title).bold())
+        let header = std::iter::once(Cell::from(""))
+            .chain(RULE_PROVIDER_COLS.iter().map(|def| Cell::from(def.title).bold()))
             .collect::<Row>()
             .height(1)
             .bottom_margin(1);
         let selected_row_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
 
-        let rows: Vec<Row> = records
-            .iter()
-            .map(|item| {
-                Row::new(RULE_PROVIDER_COLS.iter().map(|def| (def.accessor)(item))).height(1u16)
-            })
-            .collect();
+        let rows: Vec<Row> =
+            records
+                .iter()
+                .map(|item| {
+                    Row::new(std::iter::once(Cell::from("")).chain(
+                        RULE_PROVIDER_COLS.iter().map(|def| Cell::from((def.accessor)(item))),
+                    ))
+                    .height(1u16)
+                })
+                .collect();
         let table = Table::new(
             rows,
             [
+                Constraint::Length(1),
                 Constraint::Min(30),
                 Constraint::Min(15),
                 Constraint::Min(15),
@@ -227,11 +230,7 @@ impl Component for RuleProvidersComponent {
         vec![
             Shortcut::new(vec![
                 Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::LEFT),
                 Fragment::raw(" nav "),
-                Fragment::hl(arrow::RIGHT),
-                Fragment::raw("/"),
                 Fragment::hl(arrow::DOWN),
             ]),
             Shortcut::new(vec![

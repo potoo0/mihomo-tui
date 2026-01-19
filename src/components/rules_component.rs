@@ -81,20 +81,29 @@ impl RulesComponent {
             Span::raw(TOP_TITLE_RIGHT),
         ]);
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
-        let header = RULE_COLS
-            .iter()
-            .map(|def| Cell::from(def.title).bold())
+        let header = std::iter::once(Cell::from(""))
+            .chain(RULE_COLS.iter().map(|def| Cell::from(def.title).bold()))
             .collect::<Row>()
             .height(1)
             .bottom_margin(1);
         let selected_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
 
-        let constraints =
-            [Constraint::Percentage(25), Constraint::Percentage(45), Constraint::Percentage(30)];
+        let constraints = [
+            Constraint::Length(1),
+            Constraint::Percentage(25),
+            Constraint::Percentage(45),
+            Constraint::Percentage(30),
+        ];
 
         let rows: Vec<Row> = records
             .iter()
-            .map(|rule| Row::new(RULE_COLS.iter().map(|def| (def.accessor)(rule))).height(1))
+            .map(|rule| {
+                Row::new(
+                    std::iter::once(Cell::from(""))
+                        .chain(RULE_COLS.iter().map(|def| Cell::from((def.accessor)(rule)))),
+                )
+                .height(1)
+            })
             .collect();
 
         let table = Table::new(rows, constraints)
