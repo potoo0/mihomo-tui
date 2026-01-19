@@ -308,6 +308,23 @@ impl Api {
         Ok(body.rules)
     }
 
+    pub async fn update_rules_disabled_state(&self, body: IndexMap<usize, bool>) -> Result<()> {
+        let _ = self
+            .client
+            .patch(self.api.join("/rules/disable")?)
+            .json(&body)
+            .send()
+            .await
+            .context("Fail to send `PATCH /rules/disable` request")?
+            .error_for_status()
+            .context("Fail to request `PATCH /rules/disable`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `PATCH /rules/disable`");
+
+        Ok(())
+    }
+
     pub async fn get_rule_providers(&self) -> Result<IndexMap<String, RuleProvider>> {
         #[derive(Deserialize)]
         struct Wrapper {

@@ -91,7 +91,7 @@ impl HelpComponent {
             // `logs` key bindings
             (
                 Line::raw("---").into(),
-                Line::raw("# Logs (log)").italic().bold().into(),
+                Line::raw("# Logs (Log)").italic().bold().into(),
                 Line::raw("---").into(),
             ),
             (
@@ -99,10 +99,23 @@ impl HelpComponent {
                 None,
                 Line::raw("filter log level: error, warn, info, debug").into(),
             ),
+            // `rules` key bindings
+            (
+                Line::raw("---").into(),
+                Line::raw("# Rules (Rule)").italic().bold().into(),
+                Line::raw("---").into(),
+            ),
+            (Line::raw("r").into(), None, Line::raw("refresh rules").into()),
+            (
+                Line::raw("t").into(),
+                None,
+                Line::raw("toggle disabled state (selected or all filtered)").into(),
+            ),
+            (Line::raw("s").into(), None, Line::raw("submit disabled state changes").into()),
             // `rule providers` key bindings
             (
                 Line::raw("---").into(),
-                Line::raw("# RuleProviders (rule)").italic().bold().into(),
+                Line::raw("# RuleProviders (R-Pr)").italic().bold().into(),
                 Line::raw("---").into(),
             ),
             (Line::raw("r").into(), None, Line::raw("refresh rule providers").into()),
