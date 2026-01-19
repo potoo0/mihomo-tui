@@ -159,10 +159,9 @@ impl Component for RulesComponent {
         if self.navigator.handle_key_event(false, key) {
             return Ok(None);
         }
-        match key.code {
-            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
-            _ => (),
-        };
+        if let KeyCode::Char('f') = key.code {
+            return Ok(Some(Action::Focus(ComponentId::Search)));
+        }
 
         Ok(None)
     }

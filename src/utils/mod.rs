@@ -4,6 +4,6 @@ pub mod columns;
 pub mod editor;
 pub mod json5_formatter;
 pub mod row_filter;
+pub mod rule_parser;
 pub mod symbols;
 pub mod text_ui;
-pub mod rule_parser;
