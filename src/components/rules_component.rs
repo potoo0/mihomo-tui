@@ -3,16 +3,16 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
-use ratatui::layout::{Margin, Rect};
-use ratatui::prelude::{Color, Line, Modifier, Span, Style};
-use ratatui::widgets::{Block, BorderType, List, ListItem, ListState};
+use ratatui::layout::{Constraint, Margin, Rect};
+use ratatui::prelude::{Color, Line, Modifier, Span, Style, Stylize};
+use ratatui::widgets::{Block, BorderType, Cell, Row, Table, TableState};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::rules::Rules;
-use crate::components::{Component, ComponentId, HORIZ_STEP};
+use crate::components::rules::{RULE_COLS, Rules};
+use crate::components::{Component, ComponentId};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -25,9 +25,8 @@ pub struct RulesComponent {
     filter_pattern_changed: bool,
     filter_pattern: Arc<Mutex<Option<String>>>,
 
-    horiz_offset: usize,
     navigator: ScrollableNavigator,
-    list_state: ListState,
+    table_state: TableState,
 
     action_tx: Option<UnboundedSender<Action>>,
 }
@@ -55,11 +54,10 @@ impl RulesComponent {
         Ok(())
     }
 
-    fn render_list(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_table(&mut self, frame: &mut Frame, area: Rect) {
         let records = self.store.with_view(|records| {
             let len = records.len();
-            // update scroller, viewport = area.height - 2 (border)
-            self.navigator.length(len, (area.height - 2) as usize);
+            self.navigator.length(len, (area.height - 4) as usize); // viewport height
             // NOTE: end_pos() depends on length()
             records
                 .get(self.navigator.scroller.pos()..self.navigator.scroller.end_pos())
@@ -67,27 +65,9 @@ impl RulesComponent {
                 .to_vec()
         });
 
-        let items: Vec<ListItem> = records
-            .iter()
-            .map(|rule| {
-                let mut content = String::with_capacity(
-                    rule.r#type.len() + rule.payload.len() + rule.proxy.len() + 2,
-                );
-                content.push_str(&rule.r#type);
-                if !rule.payload.is_empty() {
-                    content.push(',');
-                    content.push_str(&rule.payload);
-                }
-                content.push(',');
-                content.push_str(&rule.proxy);
-                let content = if content.len() > self.horiz_offset {
-                    &content[self.horiz_offset..]
-                } else {
-                    ""
-                };
-                ListItem::new(content.to_string())
-            })
-            .collect();
+        *self.table_state.selected_mut() =
+            self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
+
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
             Span::raw("rules ("),
@@ -101,11 +81,29 @@ impl RulesComponent {
             Span::raw(TOP_TITLE_RIGHT),
         ]);
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
+        let header = RULE_COLS
+            .iter()
+            .map(|def| Cell::from(def.title).bold())
+            .collect::<Row>()
+            .height(1)
+            .bottom_margin(1);
         let selected_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
-        let logs = List::new(items).block(block).highlight_style(selected_style);
-        *self.list_state.selected_mut() =
-            self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
-        frame.render_stateful_widget(logs, area, &mut self.list_state);
+
+        let constraints =
+            [Constraint::Percentage(25), Constraint::Percentage(45), Constraint::Percentage(30)];
+
+        let rows: Vec<Row> = records
+            .iter()
+            .map(|rule| Row::new(RULE_COLS.iter().map(|def| (def.accessor)(rule))).height(1))
+            .collect();
+
+        let table = Table::new(rows, constraints)
+            .block(block)
+            .header(header)
+            .row_highlight_style(selected_style)
+            .column_spacing(2);
+
+        frame.render_stateful_widget(table, area, &mut self.table_state);
     }
 }
 
@@ -124,11 +122,7 @@ impl Component for RulesComponent {
         vec![
             Shortcut::new(vec![
                 Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::LEFT),
                 Fragment::raw(" nav "),
-                Fragment::hl(arrow::RIGHT),
-                Fragment::raw("/"),
                 Fragment::hl(arrow::DOWN),
             ]),
             Shortcut::new(vec![
@@ -158,8 +152,6 @@ impl Component for RulesComponent {
         }
         match key.code {
             KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
-            KeyCode::Left => self.horiz_offset = self.horiz_offset.saturating_sub(HORIZ_STEP),
-            KeyCode::Right => self.horiz_offset = self.horiz_offset.saturating_add(HORIZ_STEP),
             _ => (),
         };
 
@@ -196,7 +188,7 @@ impl Component for RulesComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
-        self.render_list(frame, area);
+        self.render_table(frame, area);
         self.navigator.render(frame, area.inner(Margin::new(0, 1)));
 
         Ok(())

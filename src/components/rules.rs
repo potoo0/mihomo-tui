@@ -53,7 +53,7 @@ pub static RULE_COLS: &[ColDef<Rule>] = &[
         title: "Payload",
         filterable: true,
         sortable: false,
-        accessor: |c: &Rule| Cow::Borrowed(c.payload.as_str()),
+        accessor: |c: &Rule| crate::utils::rule_parser::format_payload(&c.r#type, &c.payload),
         sort_key: None,
     },
     ColDef {
