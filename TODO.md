@@ -20,3 +20,7 @@ TODO List
 - [x] 修复 tab 切换后搜索异常
 - [x] connections 支持 capture mode: 显示所有连接, 包括已关闭的
 - [x] 使用 anyhow 替换 color_eyre, 因为 panic hook 使用了其他 panic 展示库
+- [ ] 还原 rule 原始配置
+- [ ] 时间字段统一格式化
+- [ ] 错误提示优化, 关键错误应该弹窗提示
+- [ ] loading 时禁止临界操作并提示

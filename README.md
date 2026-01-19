@@ -82,3 +82,10 @@ Big thanks to the following projects:
 ## Contribution
 
 Contributions, issues and pull requests are welcome!
+
+### Code style
+
+```bash
+cargo +nightly fmt-check
+cargo clippy-strict
+```
