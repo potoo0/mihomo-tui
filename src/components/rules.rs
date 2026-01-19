@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -17,7 +18,15 @@ pub struct Rules {
 
 impl Rules {
     pub fn push(&self, records: Vec<Rule>) {
-        *self.buffer.write().unwrap() = records.into_iter().map(Arc::new).collect();
+        *self.buffer.write().unwrap() = records
+            .into_iter()
+            .map(|r| {
+                if let (Some(extra), Some(_)) = (r.extra.as_ref(), r.index) {
+                    r.disable_state.store(extra.disabled, Ordering::Relaxed);
+                }
+                Arc::new(r)
+            })
+            .collect();
     }
 
     pub fn compute_view(&self, pattern: Option<&str>) {
@@ -37,31 +46,91 @@ impl Rules {
         let guard = self.view.read().unwrap();
         f(&guard)
     }
+
+    pub fn supports_disable(&self) -> bool {
+        let records = self.buffer.read().unwrap();
+        records.first().map(|v| v.supports_disable()).unwrap_or(false)
+    }
 }
 
 pub static RULE_COLS: &[ColDef<Rule>] = &[
     ColDef {
-        id: "type",
-        title: "Type",
-        filterable: true,
+        id: "index",
+        title: "Index",
+        filterable: false,
         sortable: false,
-        accessor: |c: &Rule| Cow::Borrowed(c.r#type.as_str()),
+        accessor: |rule: &Rule| Cow::Owned(rule.index.map(|v| v.to_string()).unwrap_or("-".into())),
         sort_key: None,
     },
     ColDef {
-        id: "payload",
-        title: "Payload",
+        id: "rule",
+        title: "Rule",
         filterable: true,
         sortable: false,
-        accessor: |c: &Rule| Cow::Borrowed(c.payload.as_str()),
+        accessor: |rule: &Rule| {
+            let mut content = String::with_capacity(
+                rule.r#type.len() + rule.payload.len() + rule.proxy.len() + 2,
+            );
+            content.push_str(&rule.r#type);
+            if !rule.payload.is_empty() {
+                content.push(',');
+                content.push_str(&rule.payload);
+            }
+            content.push(',');
+            content.push_str(&rule.proxy);
+            Cow::Owned(content)
+        },
         sort_key: None,
     },
     ColDef {
-        id: "proxy",
-        title: "Proxy",
-        filterable: true,
+        id: "size",
+        title: "Size",
+        filterable: false,
         sortable: false,
-        accessor: |c: &Rule| Cow::Borrowed(c.proxy.as_str()),
+        accessor: |rule: &Rule| {
+            if rule.size <= -1 { Cow::Borrowed("-") } else { Cow::Owned(rule.size.to_string()) }
+        },
+        sort_key: None,
+    },
+    ColDef {
+        id: "disabled",
+        title: "Disabled",
+        filterable: false,
+        sortable: false,
+        accessor: |rule: &Rule| match rule.extra {
+            Some(ref extra) => {
+                let backend = extra.disabled;
+                let ui = rule.disable_state.load(Ordering::Relaxed);
+
+                match (backend, ui) {
+                    (true, true) => Cow::Borrowed("Y"),
+                    (false, false) => Cow::Borrowed("N"),
+                    (true, false) => Cow::Borrowed("Y -> N"),
+                    (false, true) => Cow::Borrowed("N -> Y"),
+                }
+            }
+            None => Cow::Borrowed("-"),
+        },
+        sort_key: None,
+    },
+    ColDef {
+        id: "hits",
+        title: "Hits",
+        filterable: false,
+        sortable: false,
+        accessor: |rule: &Rule| {
+            Cow::Owned(rule.extra.as_ref().map(|v| v.hit_count.to_string()).unwrap_or("-".into()))
+        },
+        sort_key: None,
+    },
+    ColDef {
+        id: "hit_at",
+        title: "HitAt",
+        filterable: false,
+        sortable: false,
+        accessor: |rule: &Rule| {
+            Cow::Owned(rule.extra.as_ref().and_then(|v| v.hit_at.clone()).unwrap_or("-".into()))
+        },
         sort_key: None,
     },
 ];
