@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::fs::File;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
@@ -10,7 +10,7 @@ use ratatui::prelude::{Span, Stylize};
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, BorderType, Paragraph};
 use serde::Serialize;
-use serde_json::Serializer;
+use serde_json::{Serializer, Value};
 use tempfile::{Builder, NamedTempFile};
 use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
@@ -19,6 +19,7 @@ use tracing::{error, info, warn};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::config::Config;
 use crate::models::CoreConfig;
 use crate::utils::editor::resolve_editor;
 use crate::utils::json5_formatter::{Json5Formatter, collect_paths, extract_comments};
@@ -39,9 +40,10 @@ const ACTION_CONSTRAINTS: [Constraint; ACTIONS.len()] = [Constraint::Min(1); ACT
 pub struct CoreConfigComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
+    config: Option<Arc<Config>>,
 
     active_pane: ActivePane,
-    store: Arc<RwLock<Vec<u8>>>,
+    store: Arc<RwLock<String>>,
     editor_state: EditorState,
     modified: Arc<AtomicBool>,
 
@@ -50,6 +52,18 @@ pub struct CoreConfigComponent {
 
     loading: Arc<AtomicBool>,
     throbber: ThrobberState,
+}
+
+/// Async task execution context (`'static + Send`).
+/// Contains only shared, thread-safe state; no UI-only fields.
+#[derive(Clone, Debug)]
+struct TaskContext {
+    api: Arc<Api>,
+    store: Arc<RwLock<String>>,
+    line_count: Arc<AtomicUsize>,
+    modified: Arc<AtomicBool>,
+    loading: Arc<AtomicBool>,
+    app_config: Arc<Config>,
 }
 
 #[derive(Debug, Default)]
@@ -86,51 +100,55 @@ impl ActivePane {
 }
 
 impl CoreConfigComponent {
+    fn task_context(&self) -> TaskContext {
+        TaskContext {
+            api: Arc::clone(self.api.as_ref().unwrap()),
+            store: Arc::clone(&self.store),
+            line_count: Arc::clone(&self.line_count),
+            modified: Arc::clone(&self.modified),
+            loading: Arc::clone(&self.loading),
+            app_config: Arc::clone(self.config.as_ref().unwrap()),
+        }
+    }
+
     fn load_core_config(&mut self) -> Result<()> {
         info!("Loading core config");
-        let api = Arc::clone(self.api.as_ref().unwrap());
-        let store = Arc::clone(&self.store);
-        let line_count = Arc::clone(&self.line_count);
-        let modified = Arc::clone(&self.modified);
-        let loading = Arc::clone(&self.loading);
+        let ctx = self.task_context();
 
         tokio::task::Builder::new().name("core-config-loader").spawn(async move {
-            Self::refresh_core_config(&api, &store, &line_count, &modified, &loading).await;
+            Self::refresh_core_config(ctx).await;
         })?;
         Ok(())
     }
 
-    async fn refresh_core_config(
-        api: &Api,
-        store: &Arc<RwLock<Vec<u8>>>,
-        line_count: &Arc<AtomicUsize>,
-        modified: &Arc<AtomicBool>,
-        loading: &Arc<AtomicBool>,
-    ) {
-        match api
+    async fn refresh_core_config(ctx: TaskContext) {
+        match ctx
+            .api
             .get_core_config()
             .await
             .with_context(|| "failed to get core config from mihomo API")
-            .and_then(Self::pretty_print_core_config)
+            .and_then(|config| Self::pretty_print_core_config(&ctx, config))
         {
             Ok(config) => {
-                let lines = config.iter().filter(|&&b| b == b'\n').count();
-                line_count.store(lines, Ordering::Relaxed);
-                modified.store(false, Ordering::Relaxed);
-                loading.store(false, Ordering::Relaxed);
+                ctx.line_count.store(config.lines().count(), Ordering::Relaxed);
+                ctx.modified.store(false, Ordering::Relaxed);
+                ctx.loading.store(false, Ordering::Relaxed);
 
-                let mut writable = store.write().unwrap();
+                let mut writable = ctx.store.write().unwrap();
                 *writable = config;
             }
-            Err(e) => error!(error = ?e, "get core config failed"),
+            Err(e) => {
+                error!(error = ?e, "load core config failed");
+                ctx.loading.store(false, Ordering::Relaxed);
+            }
         }
     }
 
-    fn pretty_print_core_config(config: CoreConfig) -> Result<Vec<u8>> {
+    fn pretty_print_core_config(ctx: &TaskContext, config: CoreConfig) -> Result<String> {
         let paths = collect_paths(&config);
-        let json_schema = serde_json::from_str(DEFAULT_SCHEMA).unwrap_or_else(|err| {
-            error!("Failed to parse core config schema: {:?}", err);
-            serde_json::Value::Null
+        let json_schema = Self::load_config_schema(ctx.app_config.as_ref()).unwrap_or_else(|err| {
+            error!(error = ?err, "load core config schema failed, using empty schema");
+            Value::Null
         });
         let comments = extract_comments(&json_schema);
         let formatter = Json5Formatter::new(b"  ", paths, &comments);
@@ -140,7 +158,22 @@ impl CoreConfigComponent {
         let mut ser = Serializer::with_formatter(&mut buf, formatter);
         config.serialize(&mut ser)?;
 
-        Ok(buf)
+        String::from_utf8(buf).with_context(|| "failed to convert config to UTF-8")
+    }
+
+    fn load_config_schema(config: &Config) -> Result<Value> {
+        match config.mihomo_config_schema.as_deref() {
+            Some(path) => {
+                info!("Loading core config schema from file: {:?}", path);
+                let file = File::open(path).with_context(|| {
+                    format!("failed to open core config schema file: {:?}", path)
+                })?;
+                serde_json::from_reader(file)
+                    .with_context(|| format!("failed to parse core config schema file: {:?}", path))
+            }
+            None => serde_json::from_str(DEFAULT_SCHEMA)
+                .with_context(|| "failed to parse builtin core config schema file"),
+        }
     }
 
     fn edit_core_config(&mut self) -> Result<Option<Action>> {
@@ -149,7 +182,7 @@ impl CoreConfigComponent {
             let store = Arc::clone(&self.store);
             let readable = store.read().unwrap();
             use std::io::Write;
-            file.write_all(readable.as_slice())?;
+            file.write_all(readable.as_bytes())?;
             file.flush()?;
         }
         let filepath = file.path().to_owned();
@@ -167,13 +200,13 @@ impl CoreConfigComponent {
                 .with_context(|| format!("failed to read edited core config file: {:?}", path))?;
             let modified = {
                 let readable = self.store.read().unwrap();
-                content.as_bytes() != readable.deref()
+                content != *readable
             };
             if modified {
                 self.line_count.store(content.lines().count(), Ordering::Relaxed);
                 self.scroller.first();
                 let mut writable = self.store.write().unwrap();
-                *writable = content.into_bytes();
+                *writable = content;
             }
             info!("Core config edited and synced from file: {:?}", path);
             self.modified.store(modified, Ordering::Relaxed);
@@ -196,41 +229,34 @@ impl CoreConfigComponent {
         }
         info!("Submitting updated core config...");
 
-        let store = Arc::clone(&self.store);
-        let api = Arc::clone(self.api.as_ref().unwrap());
-        let line_count = Arc::clone(&self.line_count);
-        let modified = Arc::clone(&self.modified);
-        let loading = Arc::clone(&self.loading);
-        let action_tx = self.action_tx.as_ref().unwrap().clone();
-
         // prepare content
         let content = {
-            let readable = store.read().unwrap();
-            let value: serde_json::Value = json5::from_str(str::from_utf8(&readable)?)
-                .with_context(|| "failed to parse config as JSON5")?;
+            let readable = self.store.read().unwrap();
+            let value: Value =
+                json5::from_str(&readable).with_context(|| "failed to parse config as JSON5")?;
             serde_json::to_vec(&value)?
         };
 
-        loading.store(true, Ordering::Relaxed);
+        let ctx = self.task_context();
+        let action_tx = self.action_tx.as_ref().unwrap().clone();
+
+        ctx.loading.store(true, Ordering::Relaxed);
         tokio::task::Builder::new().name("core-config-submitter").spawn(async move {
-            match api.update_core_config(content).await {
+            match ctx.api.update_core_config(content).await {
                 Ok(_) => {
                     info!("Core config successfully submitted");
-                    modified.store(false, Ordering::Relaxed);
+                    ctx.modified.store(false, Ordering::Relaxed);
                 }
                 Err(e) => {
                     error!(error = ?e, "Failed to submit core config to mihomo API");
                     let _ = action_tx.send(Action::Error(("Submit core config", e).into()));
                 }
             }
-            Self::refresh_core_config(&api, &store, &line_count, &modified, &loading).await;
+            Self::refresh_core_config(ctx).await;
         })?;
         Ok(())
     }
 
-    /// Handles the action button click event.
-    ///
-    /// Skips the action if a loading process is already in progress to avoid state conflicts.
     fn handle_action_button(&mut self, idx: usize) -> Result<()> {
         let action_name = match ACTIONS.get(idx) {
             Some(name) => *name,
@@ -242,18 +268,17 @@ impl CoreConfigComponent {
         }
 
         info!("Triggering core action '{}'", action_name);
-        let api = Arc::clone(self.api.as_ref().unwrap());
+        let ctx = self.task_context();
         let action_tx = self.action_tx.as_ref().unwrap().clone();
-        let loading = Arc::clone(&self.loading);
 
-        loading.store(true, Ordering::Relaxed);
+        ctx.loading.store(true, Ordering::Relaxed);
         tokio::task::Builder::new().name("core-action-trigger").spawn(async move {
             let result = match idx {
-                0 => api.reload_config().await,
-                1 => api.restart().await,
-                2 => api.flush_fake_ip_cache().await,
-                3 => api.flush_dns_cache().await,
-                4 => api.update_geo().await,
+                0 => ctx.api.reload_config().await,
+                1 => ctx.api.restart().await,
+                2 => ctx.api.flush_fake_ip_cache().await,
+                3 => ctx.api.flush_dns_cache().await,
+                4 => ctx.api.update_geo().await,
                 _ => return,
             };
             match result {
@@ -263,7 +288,7 @@ impl CoreConfigComponent {
                     let _ = action_tx.send(Action::Error((action_name, e).into()));
                 }
             }
-            loading.store(false, Ordering::Relaxed);
+            ctx.loading.store(false, Ordering::Relaxed);
         })?;
         Ok(())
     }
@@ -309,7 +334,7 @@ impl CoreConfigComponent {
         // hold read lock while rendering: `content` borrows from `store`
         {
             let store = self.store.read().unwrap();
-            let content = String::from_utf8_lossy(&store);
+            let content = store.as_str();
 
             let block = Block::bordered()
                 .border_type(BorderType::Rounded)
@@ -398,13 +423,20 @@ impl Component for CoreConfigComponent {
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
-        self.load_core_config()?;
 
         Ok(())
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+
+        Ok(())
+    }
+
+    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
+        self.config = Some(config);
+        self.load_core_config()?;
+
         Ok(())
     }
 

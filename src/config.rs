@@ -14,6 +14,7 @@ const DEFAULT_CONFIG: &str = include_str!("../.config/config.yaml");
 pub struct Config {
     pub mihomo_api: Url,
     pub mihomo_secret: Option<String>,
+    pub mihomo_config_schema: Option<String>,
     pub log_file: Option<String>,
     pub log_level: Option<String>,
 }

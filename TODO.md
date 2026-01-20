@@ -24,5 +24,5 @@ TODO List
 - [ ] 时间字段统一格式化
 - [x] 错误提示优化, 关键错误应该弹窗提示
 - [x] loading 时禁止临界操作并提示
-- [ ] core-config.schema.json 允许从配置文件指定; 补全字段; 英文版本.
+- [x] core-config.schema.json 允许从配置文件指定; 补全字段; 英文版本.
 - [ ] schema 校验? [jsonschema](https://docs.rs/crate/jsonschema/latest)
