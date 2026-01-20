@@ -55,7 +55,7 @@ impl HeaderComponent {
                     Ok(())
                 }
                 Err(e) => {
-                    error!("Failed to load version: {}", e);
+                    error!(error = ?e, "Failed to load version");
                     Err(e)
                 }
             }

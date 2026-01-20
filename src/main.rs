@@ -8,17 +8,18 @@ mod app;
 mod cli;
 mod components;
 mod config;
-mod errors;
+mod error;
 mod logging;
 mod models;
 mod palette;
+mod panic;
 mod tui;
 mod utils;
 mod widgets;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    errors::init()?;
+    panic::init()?;
 
     // Enhance the help message for the config argument
     let def = get_config_path();

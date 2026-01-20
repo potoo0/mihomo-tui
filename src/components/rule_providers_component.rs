@@ -76,7 +76,7 @@ impl RuleProvidersComponent {
             // update
             for name in names.iter() {
                 if let Err(e) = api.update_rule_provider(name).await {
-                    error!("update rule provider {} failed: {e}", name);
+                    error!(error = ?e, provider = name, "update rule provider failed");
                 }
                 {
                     let mut guard = pending_update.write().unwrap();
@@ -105,7 +105,7 @@ impl RuleProvidersComponent {
                 let filter_pattern = filter_pattern.lock().unwrap();
                 store.compute_view(filter_pattern.as_deref());
             }
-            Err(e) => error!("Failed to get rule providers: {e}"),
+            Err(e) => error!(error = ?e, "Failed to get rule providers"),
         }
     }
 

@@ -14,7 +14,7 @@ use strum::IntoEnumIterator;
 use throbber_widgets_tui::{Throbber, ThrobberState};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::action::Action;
@@ -66,7 +66,7 @@ impl LogsComponent {
             let stream = match api.get_logs(level).await {
                 Ok(stream) => stream,
                 Err(e) => {
-                    warn!("Failed to get memory stream: {e}");
+                    error!(error = ?e, "Failed to get memory stream");
                     return;
                 }
             };

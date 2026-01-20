@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::components::ComponentId;
+use crate::error::UserError;
 use crate::models::Connection;
 use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
@@ -19,7 +20,7 @@ pub enum Action {
     Focus(ComponentId),
     Unfocus,
     ClearScreen,
-    Error(String),
+    Error(UserError),
     /// Spawn an external editor to edit a file. args: `(editor command, file path)`
     SpawnExternalEditor(String, PathBuf),
     Help,
