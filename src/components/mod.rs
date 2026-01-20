@@ -1,8 +1,8 @@
-mod backend_config_component;
 mod connection_detail_component;
 mod connection_terminate_component;
 mod connections;
 mod connections_component;
+mod core_config_component;
 mod footer_component;
 mod header_component;
 mod help_component;

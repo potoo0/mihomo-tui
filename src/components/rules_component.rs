@@ -114,6 +114,10 @@ impl RulesComponent {
         state
     }
 
+    /// Submits rules' disabled state changes to the API.
+    ///
+    /// Skips the submission if a loading process is already in progress to avoid
+    /// state conflicts, without showing a popup alert for now.
     fn submit_disabled_changes(&mut self) -> Result<()> {
         if self.loading.load(Ordering::Relaxed) {
             warn!("Rule operations are in progress, disabled change submission is skipped");

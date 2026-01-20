@@ -14,11 +14,10 @@ use serde_json::Serializer;
 use tempfile::{Builder, NamedTempFile};
 use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::backend_config_component::EditorState::Editing;
 use crate::components::{Component, ComponentId};
 use crate::models::CoreConfig;
 use crate::utils::editor::resolve_editor;
@@ -37,7 +36,7 @@ const ACTIONS: [&str; 5] = ["Reload", "Restart", "Flush FakeIP", "Flush DNS", "U
 const ACTION_CONSTRAINTS: [Constraint; ACTIONS.len()] = [Constraint::Min(1); ACTIONS.len()];
 
 #[derive(Debug, Default)]
-pub struct BackendConfigComponent {
+pub struct CoreConfigComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
 
@@ -86,7 +85,7 @@ impl ActivePane {
     }
 }
 
-impl BackendConfigComponent {
+impl CoreConfigComponent {
     fn load_core_config(&mut self) -> Result<()> {
         info!("Loading core config");
         let api = Arc::clone(self.api.as_ref().unwrap());
@@ -155,13 +154,13 @@ impl BackendConfigComponent {
         }
         let filepath = file.path().to_owned();
         let editor = resolve_editor();
-        self.editor_state = Editing(file);
+        self.editor_state = EditorState::Editing(file);
 
         Ok(Some(Action::SpawnExternalEditor(editor, filepath)))
     }
 
     fn sync_core_config(&mut self) -> Result<()> {
-        if let Editing(temp_file) = &self.editor_state {
+        if let EditorState::Editing(temp_file) = &self.editor_state {
             let path = temp_file.path();
             // write back to store
             let content = std::fs::read_to_string(path)
@@ -183,11 +182,18 @@ impl BackendConfigComponent {
         Ok(())
     }
 
+    /// Submits the edited core configuration to the API.
+    ///
+    /// Skips the submission if a loading process is already in progress to avoid state conflicts.
     fn submit_core_config(&mut self) -> Result<()> {
+        if self.loading.load(Ordering::Relaxed) {
+            warn!("Operations are in progress, submission is skipped");
+            return Ok(());
+        }
+
         if !self.modified.load(Ordering::Relaxed) {
             return Ok(());
         }
-        self.loading.store(true, Ordering::Relaxed);
         info!("Submitting updated core config...");
 
         let store = Arc::clone(&self.store);
@@ -205,6 +211,7 @@ impl BackendConfigComponent {
             serde_json::to_vec(&value)?
         };
 
+        loading.store(true, Ordering::Relaxed);
         tokio::task::Builder::new().name("core-config-submitter").spawn(async move {
             match api.update_core_config(content).await {
                 Ok(_) => {
@@ -221,15 +228,25 @@ impl BackendConfigComponent {
         Ok(())
     }
 
+    /// Handles the action button click event.
+    ///
+    /// Skips the action if a loading process is already in progress to avoid state conflicts.
     fn handle_action_button(&mut self, idx: usize) -> Result<()> {
         let action_name = match ACTIONS.get(idx) {
             Some(name) => *name,
             None => return Ok(()),
         };
-        info!("Triggering core action '{}'", action_name);
+        if self.loading.load(Ordering::Relaxed) {
+            warn!("Operations are in progress, action '{}' is skipped", action_name);
+            return Ok(());
+        }
 
+        info!("Triggering core action '{}'", action_name);
         let api = Arc::clone(self.api.as_ref().unwrap());
         let action_tx = self.action_tx.as_ref().unwrap().clone();
+        let loading = Arc::clone(&self.loading);
+
+        loading.store(true, Ordering::Relaxed);
         tokio::task::Builder::new().name("core-action-trigger").spawn(async move {
             let result = match idx {
                 0 => api.reload_config().await,
@@ -246,6 +263,7 @@ impl BackendConfigComponent {
                     let _ = action_tx.send(Action::Error((action_name, e).into()));
                 }
             }
+            loading.store(false, Ordering::Relaxed);
         })?;
         Ok(())
     }
@@ -336,7 +354,7 @@ impl BackendConfigComponent {
     }
 }
 
-impl Component for BackendConfigComponent {
+impl Component for CoreConfigComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Config
     }
