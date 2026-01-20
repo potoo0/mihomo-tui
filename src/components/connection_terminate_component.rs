@@ -98,7 +98,7 @@ impl ConnectionTerminateComponent {
                     match result {
                         Ok(_) => *phase.write().unwrap() = Phase::DoneOk,
                         Err(e) => {
-                            error!("Failed to terminate connection: {}", e);
+                            error!(error = ?e, "Failed to terminate connection");
                             *phase.write().unwrap() = Phase::DoneErr(e.to_string());
                         },
                     }

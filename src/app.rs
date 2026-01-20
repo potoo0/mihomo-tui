@@ -1,7 +1,5 @@
 use std::process::Command;
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::Duration;
 
 use anyhow::Result;
 use ratatui::layout::Rect;
@@ -105,28 +103,33 @@ impl App {
                 Action::ClearScreen => tui.terminal.clear()?,
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
-                Action::Error(ref err) => error!("Error: {}", err),
                 Action::SpawnExternalEditor(ref editor, ref filepath) => {
                     tui.exit()?;
 
-                    // TODO better error handling
                     info!("Spawning external editor `{}` for file `{:?}`...", editor, filepath);
+                    // print to stdout, so that user can see it in terminal
                     println!("Spawning external editor `{}` for file `{:?}`...", editor, filepath);
                     match Command::new(editor.as_str()).arg(filepath).status() {
                         Ok(status) => {
                             if !status.success() {
                                 error!(
-                                    "Command `{}` exited with non-zero status: {}",
+                                    editor = editor,
+                                    status_code = ?status.code(),
+                                    "Editor exited with non-zero status"
+                                );
+                                let msg = format!(
+                                    "Editor `{}` exited with non-zero status: {}",
                                     editor, status
                                 );
-                                eprintln!("\nCommand exited with status: {}", status);
-                                sleep(Duration::from_secs(3));
+                                self.action_tx.send(Action::Error(
+                                    ("Spawning external editor", msg).into(),
+                                ))?;
                             }
                         }
                         Err(e) => {
                             error!("Failed to spawn editor `{}`: {}", editor, e);
-                            eprintln!("\nFailed to spawn editor `{}`: {}", editor, e);
-                            sleep(Duration::from_secs(3));
+                            self.action_tx
+                                .send(Action::Error(("Spawning external editor", e).into()))?;
                         }
                     }
 
@@ -151,7 +154,7 @@ impl App {
     fn render(&mut self, tui: &mut Tui) -> Result<()> {
         tui.draw(|frame| {
             if let Err(err) = self.root.draw(frame, frame.area()) {
-                let _ = self.action_tx.send(Action::Error(format!("Failed to draw: {:?}", err)));
+                error!(error = ?err, "Failed to draw ROOT component");
             }
         })?;
         Ok(())

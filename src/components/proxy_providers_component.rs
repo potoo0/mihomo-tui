@@ -13,7 +13,7 @@ use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, W
 use time::UtcDateTime;
 use time::macros::format_description;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{info, warn};
+use tracing::{error, info};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -56,7 +56,7 @@ impl ProxyProvidersComponent {
         tokio::task::Builder::new().name("proxy-providers-loader").spawn(async move {
             match api.get_providers().await {
                 Ok(providers) => store.write().unwrap().push(providers),
-                Err(e) => warn!("Failed to get proxy providers: {e}"),
+                Err(e) => error!(error = ?e, "Failed to get proxy providers"),
             }
             loading.store(false, Ordering::Relaxed);
         })?;
@@ -74,7 +74,7 @@ impl ProxyProvidersComponent {
         tokio::task::Builder::new().name("proxy-provider-health-check").spawn(async move {
             match api.health_check_provider(name).await {
                 Ok(_) => _ = action_tx.send(Action::ProxyProviderRefresh),
-                Err(e) => warn!("Failed to health check provider: {e}"),
+                Err(e) => error!(error = ?e, "Failed to health check provider"),
             }
             pending_test.fetch_sub(1, Ordering::Relaxed);
         })?;
@@ -92,7 +92,10 @@ impl ProxyProvidersComponent {
         tokio::task::Builder::new().name("proxy-provider-update").spawn(async move {
             match api.update_provider(name).await {
                 Ok(_) => _ = action_tx.send(Action::ProxyProviderRefresh),
-                Err(e) => warn!("Failed to update provider: {e}"),
+                Err(e) => {
+                    error!(error = ?e, "Failed to update provider");
+                    let _ = action_tx.send(Action::Error(("Update proxy provider", e).into()));
+                }
             }
             loading.store(false, Ordering::Relaxed);
         })?;

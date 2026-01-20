@@ -11,7 +11,7 @@ use ratatui::style::Stylize;
 use ratatui::widgets::{Block, BorderType, Cell, Row, Table, TableState};
 use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -69,7 +69,7 @@ impl RulesComponent {
                 let filter_pattern = filter_pattern.as_deref();
                 store.compute_view(filter_pattern);
             }
-            Err(e) => warn!(error = ?e, "Failed to get rules"),
+            Err(e) => error!(error = ?e, "Failed to get rules"),
         }
     }
 
@@ -139,14 +139,19 @@ impl RulesComponent {
         let filter_pattern = Arc::clone(&self.filter_pattern);
         let loading = Arc::clone(&self.loading);
         loading.store(true, Ordering::Relaxed);
+        let action_tx = self.action_tx.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("rule-disabled-change-submitter").spawn(async move {
             match api.update_rules_disabled_state(changes).await {
                 Ok(_) => {
-                    info!("Successfully applied disabled rule changes");
+                    info!("Successfully submit disabled rule changes");
                     Self::refresh_rules(&api, &store, &filter_pattern).await;
                 }
-                Err(e) => warn!(error = ?e, "Failed to apply disabled rule changes"),
+                Err(e) => {
+                    error!(error = ?e, "Failed to submit disabled rule changes");
+                    let _ =
+                        action_tx.send(Action::Error(("Submit disabled rule changes", e).into()));
+                }
             }
             loading.store(false, Ordering::Relaxed);
         })?;

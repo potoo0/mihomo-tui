@@ -13,7 +13,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{Mutex as AsyncMutex, mpsc, watch};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -25,6 +25,7 @@ use crate::components::footer_component::FooterComponent;
 use crate::components::header_component::HeaderComponent;
 use crate::components::help_component::HelpComponent;
 use crate::components::logs_component::LogsComponent;
+use crate::components::overlay::OverlayComponent;
 use crate::components::overview_component::OverviewComponent;
 use crate::components::proxies_component::ProxiesComponent;
 use crate::components::proxy_detail_component::ProxyDetailComponent;
@@ -45,12 +46,17 @@ const IDLE_TICKS: u16 = 120 * 4;
 
 pub struct RootComponent {
     api: Option<Arc<Api>>,
+    action_tx: Option<UnboundedSender<Action>>,
+
     current_tab: ComponentId,
-    popup: Option<ComponentId>,
-    focused: Option<ComponentId>,
     idle_tabs: HashMap<ComponentId, u16>,
     components: HashMap<ComponentId, Box<dyn Component>>,
-    action_tx: Option<UnboundedSender<Action>>,
+
+    /// UI priority (input & render): `overlay` > `focused` > `popup` > `normal`.
+    /// Overlay lifecycle is owned and eagerly cleared by RootComponent
+    overlay: Option<OverlayComponent>,
+    focused: Option<ComponentId>,
+    popup: Option<ComponentId>,
 
     conn_token: Option<CancellationToken>,
     stats_tx: watch::Sender<Option<ConnectionStats>>,
@@ -73,6 +79,7 @@ impl RootComponent {
             popup: Default::default(),
             focused: Default::default(),
             idle_tabs: Default::default(),
+            overlay: Default::default(),
             components,
             action_tx: Default::default(),
 
@@ -118,6 +125,7 @@ impl RootComponent {
     }
 
     fn open_popup(&mut self, id: ComponentId) -> Result<()> {
+        info!("Opening popup {:?}", id);
         self.popup = Some(id);
 
         // get and init component, send shortcuts of current tab to footer
@@ -173,7 +181,7 @@ impl RootComponent {
             let stream = match api.get_connections().await {
                 Ok(stream) => stream,
                 Err(e) => {
-                    warn!(error = ?e, "Failed to get connections stream.");
+                    error!(error = ?e, "Failed to get connections stream.");
                     return;
                 }
             };
@@ -273,6 +281,14 @@ impl Component for RootComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        // The overlay component
+        if let Some(overlay) = &self.overlay {
+            if overlay.should_close_on_key(key) {
+                self.overlay = None;
+            }
+            return Ok(None);
+        }
+
         // The focused component exclusively handles key events.
         if let Some(focused) = self.focused {
             return self.get_or_init(focused).handle_key_event(key);
@@ -304,6 +320,10 @@ impl Component for RootComponent {
         match action {
             Action::Quit => self.stop_conn(),
             Action::Tick => self.on_tick(),
+            Action::Error(err) => {
+                self.overlay = Some(OverlayComponent::error(err.title, err.message));
+                return Ok(None);
+            }
             Action::TabSwitch(to) => {
                 self.renew_idle(to);
                 self.current_tab = to;
@@ -380,6 +400,7 @@ impl Component for RootComponent {
 
         // draw popup if any
         self.popup.map(|c| self.get_or_init(c).draw(frame, chunks[1])).transpose()?;
+        self.overlay.as_ref().map(|c| c.draw(frame, area)).transpose()?;
 
         // draw footer
         // get last row of main area for footer, with margin left/right = 1

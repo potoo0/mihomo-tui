@@ -11,7 +11,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{info, warn};
+use tracing::{error, info};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -83,7 +83,7 @@ impl ProxiesComponent {
                 Ok(())
             }
             Err(e) => {
-                warn!("Failed to get proxies: {e}");
+                error!(error = ?e, "Failed to get proxies");
                 Err(e)
             }
         }
@@ -128,7 +128,10 @@ impl ProxiesComponent {
                     })
                     .await;
                 }
-                Err(e) => warn!("Failed to update proxy: {e}"),
+                Err(e) => {
+                    error!(error = ?e, "Failed to update proxy");
+                    let _ = action_tx.send(Action::Error(("Select proxy", e).into()));
+                }
             }
         })?;
         Ok(())
@@ -168,7 +171,7 @@ impl ProxiesComponent {
                     })
                     .await;
                 }
-                Err(e) => warn!("Failed to test proxy: {e}"),
+                Err(e) => error!(error = ?e, "Failed to test proxy"),
             }
         })?;
         Ok(())

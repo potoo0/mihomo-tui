@@ -123,7 +123,7 @@ impl BackendConfigComponent {
                 let mut writable = store.write().unwrap();
                 *writable = config;
             }
-            Err(e) => error!("{:?}", e),
+            Err(e) => error!(error = ?e, "get core config failed"),
         }
     }
 
@@ -195,6 +195,7 @@ impl BackendConfigComponent {
         let line_count = Arc::clone(&self.line_count);
         let modified = Arc::clone(&self.modified);
         let loading = Arc::clone(&self.loading);
+        let action_tx = self.action_tx.as_ref().unwrap().clone();
 
         // prepare content
         let content = {
@@ -210,7 +211,10 @@ impl BackendConfigComponent {
                     info!("Core config successfully submitted");
                     modified.store(false, Ordering::Relaxed);
                 }
-                Err(e) => error!("failed to submit updated core config to mihomo API: {}", e),
+                Err(e) => {
+                    error!(error = ?e, "Failed to submit core config to mihomo API");
+                    let _ = action_tx.send(Action::Error(("Submit core config", e).into()));
+                }
             }
             Self::refresh_core_config(&api, &store, &line_count, &modified, &loading).await;
         })?;
@@ -225,6 +229,7 @@ impl BackendConfigComponent {
         info!("Triggering core action '{}'", action_name);
 
         let api = Arc::clone(self.api.as_ref().unwrap());
+        let action_tx = self.action_tx.as_ref().unwrap().clone();
         tokio::task::Builder::new().name("core-action-trigger").spawn(async move {
             let result = match idx {
                 0 => api.reload_config().await,
@@ -236,7 +241,10 @@ impl BackendConfigComponent {
             };
             match result {
                 Ok(_) => info!("Core action '{}' completed successfully", action_name),
-                Err(e) => error!("Core action '{}' failed: {}", action_name, e),
+                Err(e) => {
+                    error!(error = ?e, action = action_name, "Core action failed");
+                    let _ = action_tx.send(Action::Error((action_name, e).into()));
+                }
             }
         })?;
         Ok(())
@@ -396,7 +404,11 @@ impl Component for BackendConfigComponent {
                 match key.code {
                     KeyCode::Char('e') => return self.edit_core_config(),
                     KeyCode::Char('d') => self.load_core_config()?,
-                    KeyCode::Enter => self.submit_core_config()?,
+                    KeyCode::Enter => {
+                        return self.submit_core_config().map(|_| None).or_else(|e| {
+                            Ok(Some(Action::Error(("Submit core config", e).into())))
+                        });
+                    }
                     _ => (),
                 }
             }
@@ -415,7 +427,8 @@ impl Component for BackendConfigComponent {
         if let Action::Tick = action {
             if let Err(err) = self.sync_core_config() {
                 self.editor_state = EditorState::SyncFailed;
-                error!("Failed to sync core config: {:?}", err);
+                error!(error = ?err, "Failed to sync config from external editor");
+                return Ok(Some(Action::Error(("Sync config from external editor", err).into())));
             }
             if self.loading.load(Ordering::Relaxed) {
                 self.throbber.calc_next();

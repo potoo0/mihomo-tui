@@ -14,7 +14,7 @@ use ratatui::widgets::{
 };
 use tokio::sync::watch::Receiver;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -62,7 +62,7 @@ impl OverviewComponent {
             let stream = match api.get_memory().await {
                 Ok(stream) => stream,
                 Err(e) => {
-                    warn!("Failed to get memory stream: {e}");
+                    error!(error = ?e, "Failed to get memory stream");
                     return;
                 }
             };
@@ -91,7 +91,7 @@ impl OverviewComponent {
             let stream = match api.get_traffic().await {
                 Ok(stream) => stream,
                 Err(e) => {
-                    warn!("Failed to get traffic stream: {e}");
+                    error!(error = ?e, "Failed to get traffic stream");
                     return;
                 }
             };
