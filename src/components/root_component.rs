@@ -17,10 +17,10 @@ use tracing::{debug, error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::backend_config_component::BackendConfigComponent;
 use crate::components::connection_detail_component::ConnectionDetailComponent;
 use crate::components::connection_terminate_component::ConnectionTerminateComponent;
 use crate::components::connections_component::ConnectionsComponent;
+use crate::components::core_config_component::CoreConfigComponent;
 use crate::components::footer_component::FooterComponent;
 use crate::components::header_component::HeaderComponent;
 use crate::components::help_component::HelpComponent;
@@ -36,6 +36,7 @@ use crate::components::rule_providers_component::RuleProvidersComponent;
 use crate::components::rules_component::RulesComponent;
 use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
+use crate::config::Config;
 use crate::models::{Connection, ConnectionStats};
 use crate::utils::text_ui::top_title_line;
 
@@ -46,6 +47,7 @@ const IDLE_TICKS: u16 = 120 * 4;
 
 pub struct RootComponent {
     api: Option<Arc<Api>>,
+    config: Option<Arc<Config>>,
     action_tx: Option<UnboundedSender<Action>>,
 
     current_tab: ComponentId,
@@ -75,6 +77,7 @@ impl RootComponent {
 
         Self {
             api: Default::default(),
+            config: Default::default(),
             current_tab: Default::default(),
             popup: Default::default(),
             focused: Default::default(),
@@ -108,7 +111,7 @@ impl RootComponent {
                 ComponentId::Logs => Box::new(LogsComponent::new()),
                 ComponentId::Rules => Box::new(RulesComponent::default()),
                 ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
-                ComponentId::Config => Box::new(BackendConfigComponent::default()),
+                ComponentId::Config => Box::new(CoreConfigComponent::default()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::ConnectionTerminate => {
@@ -120,6 +123,9 @@ impl RootComponent {
             debug!("Initializing component `{:?}`", id);
             c.init(Arc::clone(self.api.as_ref().unwrap())).unwrap();
             c.register_action_handler(self.action_tx.as_ref().unwrap().clone()).unwrap();
+            if let Some(cfg) = self.config.as_ref() {
+                c.register_config_handler(Arc::clone(cfg)).unwrap();
+            }
             c
         })
     }
@@ -277,6 +283,12 @@ impl Component for RootComponent {
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
+        self.config = Some(config);
+
         Ok(())
     }
 

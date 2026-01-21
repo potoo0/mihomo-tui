@@ -1,8 +1,8 @@
-mod backend_config_component;
 mod connection_detail_component;
 mod connection_terminate_component;
 mod connections;
 mod connections_component;
+mod core_config_component;
 mod footer_component;
 mod header_component;
 mod help_component;
@@ -37,6 +37,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
 use crate::api::Api;
+use crate::config::Config;
 use crate::tui::Event;
 use crate::widgets::shortcut::Shortcut;
 
@@ -148,6 +149,20 @@ pub trait Component {
     /// * `Result<()>` - An Ok result or an error.
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         let _ = tx; // to appease clippy
+        Ok(())
+    }
+
+    /// Register a configuration handler that provides configuration settings if necessary.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Configuration settings.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<()>` - An Ok result or an error.
+    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
+        let _ = config; // to appease clippy
         Ok(())
     }
 

@@ -3,15 +3,6 @@
   "title": "Core Configuration Schema",
   "type": "object",
   "properties": {
-    "tun": {
-      "type": "object",
-      "properties": {
-        "enable": {
-          "type": "boolean",
-          "description": "tun 转发开关"
-        }
-      }
-    },
     "mode": {
       "type": "string",
       "enum": [
@@ -19,7 +10,133 @@
         "rule",
         "direct"
       ],
-      "description": "运行模式，可选值：global, rule, direct"
+      "description": "运行模式"
+    },
+    "log-level": {
+      "type": "string",
+      "enum": [
+        "error",
+        "warning",
+        "info",
+        "debug",
+        "silent"
+      ],
+      "description": "日志等级"
+    },
+    "ipv6": {
+      "type": "boolean",
+      "description": "[入站] 是否启用 IPv6 支持"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "[入站] HTTP proxy 监听端口, 为 0 则表示不监听"
+    },
+    "socks-port": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "[入站] SOCKS Proxy 监听端口, 为 0 则表示不监听"
+    },
+    "redir-port": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "[入站] Redirect Proxy 端口, 为 0 则表示不监听"
+    },
+    "tproxy-port": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "[入站] 透明代理端口, 为 0 则表示不监听"
+    },
+    "mixed-port": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "[入站] 混合(HTTP+SOCKS)代理端口, 为 0 则表示不监听"
+    },
+    "allow-lan": {
+      "type": "boolean",
+      "description": "[入站] 是否允许局域网访问以上代理(http/socks/redir/tproxy/mixed)端口"
+    },
+    "bind-address": {
+      "type": "string",
+      "description": "[入站] 代理监听地址, 仅 allow-lan=true 时有效, 默认为 '*'"
+    },
+    "skip-auth-prefixes": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "[入站] (socks/http/mixed)跳过认证的前缀列表"
+    },
+    "lan-allowed-ips": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "[入站] 允许局域网访问(socks/http/mixed)的 IP 列表, 仅 allow-lan=true 时有效"
+    },
+    "lan-disallowed-ips": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "[入站] lan-allowed-ips 的反向设置, 优先级高于 lan-allowed-ips"
+    },
+    "ss-config": {
+      "type": "string",
+      "description": "[入站] ShadowSocks Proxy 配置, 留空则表示不监听"
+    },
+    "vmess-config": {
+      "type": "string",
+      "description": "[入站] Vmess Proxy 配置, 留空则表示不监听"
+    },
+    "tuic-server": {
+      "type": "object",
+      "description": "[入站] TUIC Proxy 配置项"
+    },
+    "interface-name": {
+      "type": "string",
+      "description": "[出站] 指定网络接口名称, 为空则自动查找"
+    },
+    "sniffing": {
+      "type": "boolean",
+      "description": "是否启用域名嗅探功能"
+    },
+    "tcp-concurrent": {
+      "type": "boolean",
+      "description": "是否启用 TCP 并发连接. 若开启, 将并发请求所有 IP 地址, 然后选择延迟最低的一个进行连接"
+    },
+    "tun": {
+      "type": "object",
+      "description": "TUN 配置项",
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "是否开启 TUN"
+        }
+      }
+    },
+    "find-process-mode": {
+      "type": "string",
+      "enum": [
+        "always",
+        "strict",
+        "off"
+      ],
+      "description": "进程查找模式, 开启后会增加内存用量, 建议路由器上关闭"
     }
   }
 }

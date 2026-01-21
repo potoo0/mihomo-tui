@@ -55,6 +55,7 @@ impl RuleProvidersComponent {
         Ok(())
     }
 
+    /// Update rule providers. Safe to call during loading as it uses internal counters.
     fn update_rule_providers(&mut self) {
         let names = self.collect_update_names();
         if names.is_empty() {
@@ -247,11 +248,14 @@ impl Component for RuleProvidersComponent {
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
+        self.load_rule_providers()?;
+
         Ok(())
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+
         Ok(())
     }
 
@@ -291,8 +295,6 @@ impl Component for RuleProvidersComponent {
             }
             Action::TabSwitch(to) => {
                 if to == self.id() {
-                    // reload data when switch to this component
-                    self.load_rule_providers()?;
                     // send search pattern to search component
                     let pattern = self.filter_pattern.lock().unwrap().clone();
                     debug!("handle Action::TabSwitch, current search pattern={pattern:?}");

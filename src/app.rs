@@ -15,7 +15,7 @@ use crate::config::Config;
 use crate::tui::{Event, Tui};
 
 pub struct App {
-    _config: Config,
+    config: Arc<Config>,
     api: Arc<Api>,
     token: CancellationToken,
     root: RootComponent,
@@ -27,10 +27,10 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(_config: Config, api: Api) -> Result<Self> {
+    pub fn new(config: Config, api: Api) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         Ok(Self {
-            _config,
+            config: Arc::new(config),
             api: Arc::new(api),
             token: CancellationToken::new(),
             root: RootComponent::new(),
@@ -48,7 +48,7 @@ impl App {
 
         self.root.init(Arc::clone(&self.api))?;
         self.root.register_action_handler(self.action_tx.clone())?;
-        // self.root.register_config_handler(self.config.clone())?;
+        self.root.register_config_handler(Arc::clone(&self.config))?;
 
         let action_tx = self.action_tx.clone();
         // send initial tab
