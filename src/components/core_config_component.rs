@@ -8,6 +8,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::prelude::{Span, Stylize};
 use ratatui::style::{Color, Style};
+use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Paragraph};
 use serde::Serialize;
 use serde_json::{Serializer, Value};
@@ -31,6 +32,12 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 
 /// schema for core config JSON
 const DEFAULT_SCHEMA: &str = include_str!("../../.config/core-config.schema.json");
+/// core config editing notes
+const CORE_CONFIG_EDITING_NOTES: [&str; 2] = [
+    r#" 1. Partial updates are supported: include only the fields you want to change (e.g. {"tun": {"enable": true}})."#,
+    " 2. Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.",
+];
+const COMMENT_STYLE: Style = Style::new().fg(Color::DarkGray);
 
 /// Action button labels and constraints
 const ACTIONS: [&str; 5] = ["Reload", "Restart", "Flush FakeIP", "Flush DNS", "Update GEO"];
@@ -330,6 +337,15 @@ impl CoreConfigComponent {
             (_, EditorState::SyncFailed) => Style::default().fg(Color::Red),
             _ => Style::default(),
         };
+        // TODO ratatui 0.26 Flex layout
+        let chunks = Layout::vertical([Constraint::Length(2), Constraint::Min(1)]).split(area);
+        // render notes
+        let notes = CORE_CONFIG_EDITING_NOTES
+            .iter()
+            .map(|note| Line::styled(*note, COMMENT_STYLE))
+            .collect::<Vec<Line>>();
+        let paragraph = Paragraph::new(notes);
+        frame.render_widget(paragraph, chunks[0]);
 
         // hold read lock while rendering: `content` borrows from `store`
         {
@@ -340,11 +356,23 @@ impl CoreConfigComponent {
                 .border_type(BorderType::Rounded)
                 .border_style(block_style)
                 .title(title.into_centered_line());
+            let lines: Vec<_> = content
+                .lines()
+                .map(|v| {
+                    let span = if v.starts_with("//") {
+                        Span::styled(v, COMMENT_STYLE)
+                    } else {
+                        Span::raw(v)
+                    };
+                    Line::from(span)
+                })
+                .collect();
             let paragraph =
-                Paragraph::new(content).scroll((self.scroller.pos() as u16, 0)).block(block);
-            frame.render_widget(paragraph, area);
+                Paragraph::new(lines).scroll((self.scroller.pos() as u16, 0)).block(block);
+            frame.render_widget(paragraph, chunks[1]);
         }
-        self.scroller.render(frame, area);
+        self.scroller.render(frame, chunks[1]);
+        self.render_throbber(frame, chunks[1]);
     }
 
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
@@ -498,7 +526,6 @@ impl Component for CoreConfigComponent {
         // render content
         let chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(4)]).split(inner);
         self.render_cfg_preview(frame, chunks[0]);
-        self.render_throbber(frame, chunks[0]);
         self.render_actions(frame, chunks[1]);
 
         Ok(())
