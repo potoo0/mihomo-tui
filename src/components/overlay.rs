@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::prelude::{Color, Line, Span, Style};
-use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph};
+use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap};
 
 use crate::utils::symbols::dot;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, popup_area};
@@ -46,7 +46,7 @@ impl OverlayComponent {
             .border_style(Color::LightBlue)
             .title(title_line)
             .padding(Padding::symmetric(2, 1));
-        let paragraph = Paragraph::new(self.content.as_ref()).block(block);
+        let paragraph = Paragraph::new(self.content.as_ref()).wrap(Wrap::default()).block(block);
 
         frame.render_widget(Clear, area); // clears out the background
         frame.render_widget(paragraph, area);
