@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
-use ratatui::layout::Rect;
+use ratatui::layout::{Margin, Rect};
 use ratatui::prelude::{Color, Line, Span, Style};
 use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap};
 
@@ -32,8 +32,10 @@ impl OverlayComponent {
 
     pub fn draw(&self, frame: &mut Frame, area: Rect) -> Result<()> {
         let area = popup_area(area, 80, 75);
+        frame.render_widget(Clear, area); // clears out the background
 
         // content
+        let area = area.inner(Margin::new(2, 1));
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
             Span::styled(self.icon, self.icon_style),
@@ -48,7 +50,6 @@ impl OverlayComponent {
             .padding(Padding::symmetric(2, 1));
         let paragraph = Paragraph::new(self.content.as_ref()).wrap(Wrap::default()).block(block);
 
-        frame.render_widget(Clear, area); // clears out the background
         frame.render_widget(paragraph, area);
 
         Ok(())

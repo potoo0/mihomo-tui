@@ -32,8 +32,8 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 
 /// schema for core config JSON
 const DEFAULT_SCHEMA: &str = include_str!("../../.config/core-config.schema.json");
-/// core config editing notes
-const CORE_CONFIG_EDITING_NOTES: [&str; 2] = [
+/// ui hints displayed above the editor.
+const CORE_CONFIG_EDIT_HINTS: [&str; 2] = [
     r#" 1. Partial updates are supported: include only the fields you want to change (e.g. {"tun": {"enable": true}})."#,
     " 2. Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.",
 ];
@@ -139,16 +139,13 @@ impl CoreConfigComponent {
             Ok(config) => {
                 ctx.line_count.store(config.lines().count(), Ordering::Relaxed);
                 ctx.modified.store(false, Ordering::Relaxed);
-                ctx.loading.store(false, Ordering::Relaxed);
 
                 let mut writable = ctx.store.write().unwrap();
                 *writable = config;
             }
-            Err(e) => {
-                error!(error = ?e, "load core config failed");
-                ctx.loading.store(false, Ordering::Relaxed);
-            }
+            Err(e) => error!(error = ?e, "load core config failed"),
         }
+        ctx.loading.store(false, Ordering::Relaxed);
     }
 
     fn pretty_print_core_config(ctx: &TaskContext, config: CoreConfig) -> Result<String> {
@@ -253,13 +250,14 @@ impl CoreConfigComponent {
                 Ok(_) => {
                     info!("Core config successfully submitted");
                     ctx.modified.store(false, Ordering::Relaxed);
+                    Self::refresh_core_config(ctx).await;
                 }
                 Err(e) => {
                     error!(error = ?e, "Failed to submit core config to mihomo API");
                     let _ = action_tx.send(Action::Error(("Submit core config", e).into()));
+                    ctx.loading.store(false, Ordering::Relaxed);
                 }
             }
-            Self::refresh_core_config(ctx).await;
         })?;
         Ok(())
     }
@@ -322,7 +320,16 @@ impl CoreConfigComponent {
         switched
     }
 
-    fn render_cfg_preview(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_edit_hints(&mut self, frame: &mut Frame, area: Rect) {
+        let notes = CORE_CONFIG_EDIT_HINTS
+            .iter()
+            .map(|note| Line::styled(*note, COMMENT_STYLE))
+            .collect::<Vec<Line>>();
+        let paragraph = Paragraph::new(notes);
+        frame.render_widget(paragraph, area);
+    }
+
+    fn render_cfg_content(&mut self, frame: &mut Frame, area: Rect) {
         self.scroller.length(
             self.line_count.load(Ordering::Relaxed),
             area.height.saturating_sub(2) as usize,
@@ -337,15 +344,6 @@ impl CoreConfigComponent {
             (_, EditorState::SyncFailed) => Style::default().fg(Color::Red),
             _ => Style::default(),
         };
-        // TODO ratatui 0.26 Flex layout
-        let chunks = Layout::vertical([Constraint::Length(2), Constraint::Min(1)]).split(area);
-        // render notes
-        let notes = CORE_CONFIG_EDITING_NOTES
-            .iter()
-            .map(|note| Line::styled(*note, COMMENT_STYLE))
-            .collect::<Vec<Line>>();
-        let paragraph = Paragraph::new(notes);
-        frame.render_widget(paragraph, chunks[0]);
 
         // hold read lock while rendering: `content` borrows from `store`
         {
@@ -369,10 +367,17 @@ impl CoreConfigComponent {
                 .collect();
             let paragraph =
                 Paragraph::new(lines).scroll((self.scroller.pos() as u16, 0)).block(block);
-            frame.render_widget(paragraph, chunks[1]);
+            frame.render_widget(paragraph, area);
         }
-        self.scroller.render(frame, chunks[1]);
-        self.render_throbber(frame, chunks[1]);
+        self.scroller.render(frame, area);
+        self.render_throbber(frame, area);
+    }
+
+    fn render_cfg_preview(&mut self, frame: &mut Frame, area: Rect) {
+        // TODO ratatui 0.26 Flex layout
+        let chunks = Layout::vertical([Constraint::Length(2), Constraint::Min(1)]).split(area);
+        self.render_edit_hints(frame, chunks[0]);
+        self.render_cfg_content(frame, chunks[1]);
     }
 
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
@@ -387,7 +392,7 @@ impl CoreConfigComponent {
             .use_type(WhichUse::Spin);
         frame.render_stateful_widget(
             symbol,
-            Rect::new(area.right().saturating_sub(9), area.y, 8, 1),
+            Rect::new(area.right().saturating_sub(10), area.y, 9, 1),
             &mut self.throbber,
         );
     }
