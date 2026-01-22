@@ -63,6 +63,9 @@ mihomo-api: http://127.0.0.1:9093
 # Mihomo external controller secret, Optional
 #mihomo-secret:
 
+# Path to mihomo config JSON schema file, Optional, default is builtin core-config.schema.json
+#mihomo-config-schema:
+
 # Log file, Optional, write log only if exists
 log-file: /tmp/mihomo-tui.log
 
