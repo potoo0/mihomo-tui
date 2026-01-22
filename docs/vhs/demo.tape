@@ -1,7 +1,7 @@
 # https://github.com/charmbracelet/vhs
 
 # setup
-Output out.mp4
+Output out.gif
 Set TypingSpeed 0.1
 Set Width 1500
 Set Height 800
@@ -91,3 +91,22 @@ Sleep 500ms
 Type "fgo"
 Sleep 3s
 Enter
+
+############################# tab=6: Rules #################################
+Type "6"
+Sleep 150ms
+# navigate to first item, toggle disabled
+Down
+Sleep 300ms
+Type "t"
+Sleep 1500ms
+Type "s"
+Sleep 1500ms
+
+############################# tab=7: RuleProviders #################################
+Type "7"
+Sleep 1500ms
+
+############################# tab=8: Config #################################
+Type "8"
+Sleep 3s

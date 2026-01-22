@@ -14,8 +14,10 @@ if [ ! -d "sarasa" ]; then
   7z x SarasaMonoSC-TTF-1.0.33.7z -osarasa
 fi
 
-### run vhs in docker
-docker run --rm \
+### run vhs in container
+CONTAINER_RUNTIME=$(command -v docker >/dev/null 2>&1 && echo docker || echo podman)
+
+$CONTAINER_RUNTIME run --rm \
   --name vhs \
   --network host \
   -v $PWD:/vhs \

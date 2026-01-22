@@ -3,7 +3,7 @@
 - Cross-platform support (macOS, Windows, Linux)
 - Intuitive keyboard only control
 
-![demo](https://vhs.charm.sh/vhs-6ikOKdzftap8oTf8M9JhKs.gif)
+![demo](https://vhs.charm.sh/vhs-643E3TjiFfRjTL9PSsCU02.gif)
 > The terminal font shown in demo GIFs is [Sarasa Gothic](https://github.com/be5invis/Sarasa-Gothic),
 > licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
 
