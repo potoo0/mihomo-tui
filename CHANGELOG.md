@@ -1,4 +1,28 @@
 
+## 0.3.0 - 2026-01-22
+
+### Features
+
+- **Rules**
+  - Support toggling rule disabled state (requires Meta ≥ v1.19.19).
+  - Display rule hit statistics (requires Meta ≥ v1.19.19).
+- **Rule Providers**
+- **Config**
+  - Edit and apply basic core configuration.
+  - Trigger core actions: reload config, restart, flush Fake-IP cache, flush DNS cache, and update GEO database.
+
+### Bug Fixes
+
+- Correct connection chain display order.
+
+### Chores
+
+- Replace `HashMap` with `IndexMap` to preserve ordering where required.
+- Add Linux arm64 musl build to release pipeline.
+- Enhance error handling with `Action::Error`.
+- Improve error logging with more detailed context.
+- Reorder shortcut key display for clearer navigation semantics.
+
 ## 0.2.2 - 2026-01-06
 
 ### Features
