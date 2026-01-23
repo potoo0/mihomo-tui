@@ -77,10 +77,7 @@ impl Component for SearchComponent {
                 Fragment::raw(" del "),
                 Fragment::hl("Del/C-Del"),
             ]),
-            Shortcut::new(vec![
-                Fragment::raw("Yank "),
-                Fragment::hl("C-Y"),
-            ]),
+            Shortcut::new(vec![Fragment::raw("Yank "), Fragment::hl("C-Y")]),
             Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")]),
             Shortcut::new(vec![
                 Fragment::raw("esc "),
