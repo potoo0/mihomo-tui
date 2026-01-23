@@ -39,6 +39,7 @@ impl SearchComponent {
             | (Backspace, KeyModifiers::META)
             | (Backspace, KeyModifiers::ALT) => Some(DeletePrevWord),
             (Delete, KeyModifiers::CONTROL) => Some(DeleteNextWord),
+            (Char('y'), KeyModifiers::CONTROL) => Some(Yank),
             (Home, KeyModifiers::NONE) => Some(GoToStart),
             (End, KeyModifiers::NONE) => Some(GoToEnd),
             (Char(c), KeyModifiers::NONE) => Some(InsertChar(c)),
@@ -75,6 +76,10 @@ impl Component for SearchComponent {
                 Fragment::hl("Back/C-Back"),
                 Fragment::raw(" del "),
                 Fragment::hl("Del/C-Del"),
+            ]),
+            Shortcut::new(vec![
+                Fragment::raw("Yank "),
+                Fragment::hl("C-Y"),
             ]),
             Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")]),
             Shortcut::new(vec![
