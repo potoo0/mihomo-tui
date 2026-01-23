@@ -60,6 +60,7 @@ impl HelpComponent {
                 Line::raw("move cursor").into(),
             ),
             (Line::raw("Back, Ctrl+Back, Del, Ctrl-Del").into(), None, Line::raw("delete").into()),
+            (Line::raw("Ctrl+y").into(), None, Line::raw("yank last deleted word").into()),
             (Line::raw("Home, End").into(), None, Line::raw("jump to line start, end").into()),
             // `connections` key bindings
             (

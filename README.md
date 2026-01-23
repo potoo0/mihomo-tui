@@ -1,3 +1,6 @@
+
+[![Built With Ratatui](https://ratatui.rs/built-with-ratatui/badge.svg)](https://ratatui.rs/)
+
 ## Features
 
 - Cross-platform support (macOS, Windows, Linux)

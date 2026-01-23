@@ -9,7 +9,6 @@ use crate::utils::symbols::arrow;
 #[derive(Debug)]
 pub struct Scroller {
     step: usize,
-    position: usize,
     content_length: usize,
     viewport_content_length: usize,
 
@@ -24,13 +23,7 @@ impl Default for Scroller {
 
 impl Scroller {
     pub fn new(step: usize) -> Self {
-        Self {
-            step,
-            position: 0,
-            content_length: 0,
-            viewport_content_length: 0,
-            state: Default::default(),
-        }
+        Self { step, content_length: 0, viewport_content_length: 0, state: Default::default() }
     }
 
     pub fn step(&mut self, step: usize) -> &mut Self {
@@ -39,7 +32,6 @@ impl Scroller {
     }
 
     pub fn position(&mut self, position: usize) -> &mut Self {
-        self.position = position;
         self.state = self.state.position(position);
         self
     }
@@ -70,27 +62,25 @@ impl Scroller {
 
     pub fn next(&mut self) {
         if let Some(max_pos) = self.content_length.checked_sub(self.viewport_content_length) {
-            let pos = self.position.saturating_add(self.step).min(self.align_up(max_pos));
+            let pos = self.pos().saturating_add(self.step).min(self.align_up(max_pos));
             self.position(pos);
         }
     }
 
     pub fn prev(&mut self) {
-        self.position(self.position.saturating_sub(self.step));
+        self.position(self.pos().saturating_sub(self.step));
     }
 
     pub fn page_down(&mut self) {
         if let Some(max_pos) = self.content_length.checked_sub(self.viewport_content_length) {
-            let pos = self
-                .position
-                .saturating_add(self.viewport_content_length)
-                .min(self.align_up(max_pos));
+            let pos =
+                self.pos().saturating_add(self.viewport_content_length).min(self.align_up(max_pos));
             self.position(pos);
         }
     }
 
     pub fn page_up(&mut self) {
-        self.position(self.position.saturating_sub(self.viewport_content_length));
+        self.position(self.pos().saturating_sub(self.viewport_content_length));
     }
 
     /// Handle scroll key events
@@ -124,12 +114,16 @@ impl Scroller {
         frame.render_stateful_widget(scrollbar, area, &mut self.state);
     }
 
+    #[inline]
     pub fn pos(&self) -> usize {
-        self.position
+        self.state.get_position()
     }
 
     pub fn end_pos(&self) -> usize {
-        self.position.saturating_add(self.viewport_content_length).min(self.content_length)
+        self.state
+            .get_position()
+            .saturating_add(self.viewport_content_length)
+            .min(self.content_length)
     }
 
     pub fn content_length(&self) -> usize {
