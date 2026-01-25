@@ -1,9 +1,9 @@
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::Stylize;
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 
 use super::{Component, ComponentId};
@@ -19,136 +19,126 @@ pub struct HelpComponent {
     scroller: Scroller,
 }
 
+enum HelpRow<'a> {
+    Empty,
+    Title(Line<'a>),
+    Entry { left: Span<'a>, right: Span<'a> },
+}
+
+impl<'a> HelpRow<'a> {
+    fn key_title(s: impl Into<Span<'a>>) -> Self {
+        Self::Title(Line::from(vec!["--- ".into(), s.into().italic().bold(), " ---".into()]))
+    }
+
+    fn entry(left: impl Into<Span<'a>>, right: impl Into<Span<'a>>) -> Self {
+        Self::Entry { left: left.into(), right: right.into() }
+    }
+}
+
 impl HelpComponent {
-    fn lines<'a>() -> (Vec<Line<'a>>, Vec<Line<'a>>, Vec<Line<'a>>) {
+    fn rows<'a>() -> Vec<HelpRow<'a>> {
         vec![
-            (None, None, None),
-            (None, None, None),
-            (
-                Line::raw("Default configuration").bold().into(),
-                None,
-                Line::raw(format!("'{}'", get_config_path().display())).into(),
+            HelpRow::Empty,
+            HelpRow::Empty,
+            HelpRow::entry(
+                Span::raw("Default configuration").bold(),
+                format!("'{}'", get_config_path().display()),
             ),
-            (Line::raw("Version").bold().into(), None, Line::raw(REPOSITORY_URL).into()),
+            HelpRow::entry(Span::raw("Version").bold(), REPOSITORY_URL),
             // >>> key bindings
-            (None, None, None),
-            (Line::raw("Key").bold().into(), None, Line::raw("Description").bold().into()),
+            HelpRow::Empty,
+            HelpRow::entry(Span::raw("Key").bold(), Span::raw("Description").bold()),
             // common key bindings
-            (
-                Line::raw("---").into(),
-                Line::raw("common").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (Line::raw("h").into(), None, Line::raw("Toggle help").into()),
-            (Line::raw("q / Ctrl+c").into(), None, Line::raw("Quits program").into()),
-            (Line::raw("Number").into(), None, Line::raw("switch to tab").into()),
-            (Line::raw("k / Up, j / Down").into(), None, Line::raw("navigation").into()),
-            (Line::raw("g, G").into(), None, Line::raw("go to first, last").into()),
-            (Line::raw("PageUp, Space / PageDown").into(), None, Line::raw("page up, down").into()),
-            (Line::raw("Esc").into(), None, Line::raw("cancel / back / live toggle").into()),
-            (Line::raw("Enter").into(), None, Line::raw("confirm / open detail").into()),
+            HelpRow::key_title("common"),
+            HelpRow::entry("h", "Toggle help"),
+            HelpRow::entry("q / Ctrl+c", "Quits program"),
+            HelpRow::entry("Number", "switch to tab"),
+            HelpRow::entry("k / Up, j / Down", "navigation"),
+            HelpRow::entry("g, G", "go to first, last"),
+            HelpRow::entry("PageUp, Space / PageDown", "page up, down"),
+            HelpRow::entry("Esc", "cancel / back / live toggle"),
+            HelpRow::entry("Enter", "confirm / open detail"),
             // search / proxy setting input keys
-            (
-                Line::raw("---").into(),
-                Line::raw("input box").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (Line::raw("Shift+Tab, Tab").into(), None, Line::raw("navigate fields").into()),
-            (
-                Line::raw("Left, Right, Ctrl+Left, Ctrl+Right").into(),
-                None,
-                Line::raw("move cursor").into(),
-            ),
-            (Line::raw("Back, Ctrl+Back, Del, Ctrl-Del").into(), None, Line::raw("delete").into()),
-            (Line::raw("Ctrl+y").into(), None, Line::raw("yank last deleted word").into()),
-            (Line::raw("Home, End").into(), None, Line::raw("jump to line start, end").into()),
+            HelpRow::Empty,
+            HelpRow::key_title("input box"),
+            HelpRow::entry("Shift+Tab, Tab", "navigate fields"),
+            HelpRow::entry("Left, Right, Ctrl+Left, Ctrl+Right", "move cursor"),
+            HelpRow::entry("Back, Ctrl+Back, Del, Ctrl-Del", "delete"),
+            HelpRow::entry("Ctrl+y", "yank last deleted word"),
+            HelpRow::entry("Home, End", "jump to line start, end"),
             // `connections` key bindings
-            (
-                Line::raw("---").into(),
-                Line::raw("# Connections (Conn)").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (Line::raw("Left, Right").into(), None, Line::raw("select sort column").into()),
-            (Line::raw("t").into(), None, Line::raw("terminate connection").into()),
-            (Line::raw("r").into(), None, Line::raw("reverse sort direction").into()),
-            (Line::raw("c").into(), None, Line::raw("capture mode").into()),
+            HelpRow::Empty,
+            HelpRow::key_title("# Connections (Conn)"),
+            HelpRow::entry("Left, Right", "select sort column"),
+            HelpRow::entry("t", "terminate connection"),
+            HelpRow::entry("r", "reverse sort direction"),
+            HelpRow::entry("c", "capture mode"),
             // proxies / proxy detail
-            (
-                Line::raw("---").into(),
-                Line::raw("# Proxies (Pxy)").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (Line::raw("r").into(), None, Line::raw("refresh proxies").into()),
-            (Line::raw("s").into(), None, Line::raw("open settings").into()),
-            (Line::raw("t").into(), None, Line::raw("test proxy").into()),
+            HelpRow::Empty,
+            HelpRow::key_title("# Proxies (Pxy)"),
+            HelpRow::entry("r", "refresh proxies"),
+            HelpRow::entry("s", "open settings"),
+            HelpRow::entry("t", "test proxy"),
             // proxy providers / proxy provider detail
-            (
-                Line::raw("---").into(),
-                Line::raw("# ProxyProviders (Pxy-Pr)").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (Line::raw("Enter").into(), None, Line::raw("show provider detail").into()),
-            (Line::raw("u").into(), None, Line::raw("update providers").into()),
+            HelpRow::Empty,
+            HelpRow::key_title("# ProxyProviders (Pxy-Pr)"),
+            HelpRow::entry("Enter", "show provider detail"),
+            HelpRow::entry("u", "update providers"),
             // `logs` key bindings
-            (
-                Line::raw("---").into(),
-                Line::raw("# Logs (Log)").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (
-                Line::raw("e, w, i, d").into(),
-                None,
-                Line::raw("filter log level: error, warn, info, debug").into(),
-            ),
+            HelpRow::Empty,
+            HelpRow::key_title("# Logs (Log)"),
+            HelpRow::entry("e, w, i, d", "filter log level: error, warn, info, debug"),
             // `rules` key bindings
-            (
-                Line::raw("---").into(),
-                Line::raw("# Rules (Rule)").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (Line::raw("r").into(), None, Line::raw("refresh rules").into()),
-            (
-                Line::raw("t").into(),
-                None,
-                Line::raw("toggle disabled state (selected or all filtered)").into(),
-            ),
-            (Line::raw("s").into(), None, Line::raw("submit disabled state changes").into()),
+            HelpRow::Empty,
+            HelpRow::key_title("# Rules (Rule)"),
+            HelpRow::entry("r", "refresh rules"),
+            HelpRow::entry("t", "toggle disabled state (selected or all filtered)"),
+            HelpRow::entry("s", "submit disabled state changes"),
             // `rule providers` key bindings
-            (
-                Line::raw("---").into(),
-                Line::raw("# RuleProviders (R-Pr)").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (Line::raw("r").into(), None, Line::raw("refresh rule providers").into()),
-            (Line::raw("u").into(), None, Line::raw("update rule providers").into()),
+            HelpRow::Empty,
+            HelpRow::key_title("# RuleProviders (R-Pr)"),
+            HelpRow::entry("r", "refresh rule providers"),
+            HelpRow::entry("u", "update rule providers"),
             // `config` key bindings
-            (
-                Line::raw("---").into(),
-                Line::raw("# Config (Cfg)").italic().bold().into(),
-                Line::raw("---").into(),
-            ),
-            (
-                Line::raw("Shift+Tab, Tab").into(),
-                None,
-                Line::raw("submit editor content or execute focused action").into(),
-            ),
-            (Line::raw("Enter").into(), None, Line::raw("execute focused action / confirm").into()),
-            (
-                Line::raw("e").into(),
-                None,
-                Line::raw("open config in external editor ($EDITOR → vim → vi)").into(),
-            ),
-            (Line::raw("d").into(), None, Line::raw("discard changes and reload config").into()),
-            (None, None, None),
-            (None, None, None),
+            HelpRow::Empty,
+            HelpRow::key_title("# Config (Cfg)"),
+            HelpRow::entry("Shift+Tab, Tab", "submit editor content or execute focused action"),
+            HelpRow::entry("Enter", "execute focused action / confirm"),
+            HelpRow::entry("e", "open config in external editor ($EDITOR → vim → vi)"),
+            HelpRow::entry("d", "discard changes and reload config"),
+            HelpRow::Empty,
+            HelpRow::Empty,
         ]
-        .into_iter()
-        .fold((Vec::new(), Vec::new(), Vec::new()), |mut acc, (l, c, r)| {
-            acc.0.push(l.unwrap_or_else(|| Line::raw("")));
-            acc.1.push(c.unwrap_or_else(|| Line::raw("")));
-            acc.2.push(r.unwrap_or_else(|| Line::raw("")));
-            acc
-        })
+    }
+
+    fn lines<'a>(gap: u16, center: u16) -> Vec<Line<'a>> {
+        Self::rows()
+            .into_iter()
+            .map(|row| match row {
+                HelpRow::Empty => Line::raw(""),
+                HelpRow::Title(title) => {
+                    let title_len = title.width() as u16;
+                    // Center title around our weighted axis (center)
+                    let pad_left = center.saturating_sub(title_len / 2);
+                    let mut spans = vec![" ".repeat(pad_left as usize).into()];
+                    spans.extend(title.spans);
+                    Line::from(spans)
+                }
+                HelpRow::Entry { left, right } => {
+                    let left_len = left.width() as u16;
+
+                    // Pad left to align right-edge to center
+                    let pad_left = center.saturating_sub(left_len).saturating_sub(gap / 2);
+                    let spans = vec![
+                        " ".repeat(pad_left as usize).into(),
+                        left,
+                        " ".repeat(gap as usize).into(),
+                        right,
+                    ];
+                    Line::from(spans)
+                }
+            })
+            .collect()
     }
 }
 
@@ -174,37 +164,21 @@ impl Component for HelpComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
-        let (left, center, right) = Self::lines();
+        frame.render_widget(Clear, area);
 
         // border
         let border = Block::bordered().border_type(BorderType::Rounded);
         let inner = border.inner(area);
         frame.render_widget(border, area);
-        self.scroller.length(left.len(), inner.height as usize);
-        let offset = (self.scroller.pos() as u16, 0u16);
 
         // content
-        // todo: improve layout
-        let cols = Layout::horizontal([
-            Constraint::Percentage(35),
-            Constraint::Fill(1),
-            Constraint::Percentage(45),
-        ])
-        .split(inner);
+        let gap = 4; // gap between key and description
+        let center_x = (inner.width as f32 * 0.35) as u16;
+        let lines = Self::lines(gap, center_x);
 
-        frame.render_widget(Clear, inner);
-        frame.render_widget(
-            Paragraph::new(left).scroll(offset).alignment(Alignment::Right),
-            cols[0],
-        );
-        frame.render_widget(
-            Paragraph::new(center).scroll(offset).alignment(Alignment::Center),
-            cols[1],
-        );
-        frame.render_widget(
-            Paragraph::new(right).scroll(offset).alignment(Alignment::Left),
-            cols[2],
-        );
+        self.scroller.length(lines.len(), inner.height as usize);
+        let offset = (self.scroller.pos() as u16, 0u16);
+        frame.render_widget(Paragraph::new(lines).scroll(offset), inner);
 
         // scrollbar
         self.scroller.render(frame, area);
