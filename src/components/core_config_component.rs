@@ -373,7 +373,6 @@ impl CoreConfigComponent {
     }
 
     fn render_cfg_preview(&mut self, frame: &mut Frame, area: Rect) {
-        // TODO ratatui 0.26 Flex layout
         let chunks = Layout::vertical([Constraint::Length(2), Constraint::Min(1)]).split(area);
         self.render_edit_hints(frame, chunks[0]);
         self.render_cfg_content(frame, chunks[1]);
