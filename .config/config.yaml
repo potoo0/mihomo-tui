@@ -11,4 +11,8 @@ mihomo-api: http://127.0.0.1:9093
 log-file: mihomo-tui.log
 
 # Log level(silent/trace/debug/info/warning/error), Optional, default is error.
+# Examples:
+#   error
+#   info,mihomo_tui=debug
+#   info,mihomo_tui=trace,mihomo_tui::app=debug
 log-level: error

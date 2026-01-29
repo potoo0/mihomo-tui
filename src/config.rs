@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::LazyLock;
 use std::{env, fs};
 
 use anyhow::{Context, Result, anyhow};
@@ -7,7 +8,11 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 use url::Url;
 
-const DEFAULT_CONFIG: &str = include_str!("../.config/config.yaml");
+static DEFAULT_CONFIG: &str = include_str!("../.config/config.yaml");
+pub static PROJECT_NAME: LazyLock<&'static str> = LazyLock::new(|| {
+    let s = env!("CARGO_CRATE_NAME").replace('-', "_").to_ascii_uppercase();
+    Box::leak(s.into_boxed_str())
+});
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -16,6 +21,13 @@ pub struct Config {
     pub mihomo_secret: Option<String>,
     pub mihomo_config_schema: Option<String>,
     pub log_file: Option<String>,
+
+    /// Log filtering directives compatible with `tracing_subscriber::EnvFilter`.
+    /// This field accepts the same syntax as `RUST_LOG`, for example:
+    ///
+    /// - `"info"` — set the global log level
+    /// - `"info,mihomo_tui=trace"` — global `info`, override `mihomo_tui` to `trace`
+    /// - `"mihomo_tui::api=debug"` — enable logs only for a specific module
     pub log_level: Option<String>,
 }
 

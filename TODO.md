@@ -1,8 +1,10 @@
 TODO List
 
+- [ ] 还原 rule 原始配置
+- [ ] ~~crate/jsonschema 校验~~, 不做, 低频场景让 api 返回错误即可
 - [ ] ~~移除 mod.rs~~
+- [x] 自身日志补充; trace 级别仅针对当前 crate?
 - [x] root.draw 限制最小视图
-- [ ] 自身日志补充; trace 级别仅针对当前 crate?
 - [x] 更换 `tokio::select!` 为 `futures_util::stream::take_until`, 链式写法更清晰, select 宏代码提示/格式化不友好
 - [x] component 统一成 self.render xxx
 - [x] shortcut 与 highlight 合并
@@ -20,9 +22,7 @@ TODO List
 - [x] 修复 tab 切换后搜索异常
 - [x] connections 支持 capture mode: 显示所有连接, 包括已关闭的
 - [x] 使用 anyhow 替换 color_eyre, 因为 panic hook 使用了其他 panic 展示库
-- [ ] 还原 rule 原始配置
-- [ ] 时间字段统一格式化
+- [x] 时间字段统一格式化
 - [x] 错误提示优化, 关键错误应该弹窗提示
 - [x] loading 时禁止临界操作并提示
 - [x] core-config.schema.json 允许从配置文件指定; 补全字段; 英文版本.
-- [ ] schema 校验? [jsonschema](https://docs.rs/crate/jsonschema/latest)

@@ -2,11 +2,12 @@ use std::fs::OpenOptions;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use tracing::Level;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use crate::config::Config;
+use crate::config::{Config, PROJECT_NAME};
 
 pub fn init(config: &Config) -> Result<()> {
     let log_file = match &config.log_file {
@@ -18,12 +19,15 @@ pub fn init(config: &Config) -> Result<()> {
         .append(true)
         .open(&log_file)
         .with_context(|| format!("Fail to open file `{}`", &log_file.display()))?;
-    let log_level = config.log_level.clone().unwrap_or(tracing::Level::INFO.to_string());
 
-    // If the `RUST_LOG` environment variable is set, use that as the default, otherwise use the
-    // value of the `LOG_ENV` environment variable. If the `LOG_ENV` environment variable contains
-    // errors, then this will return an error.
-    let env_filter = EnvFilter::try_new(&log_level)?;
+    // Resolve log filtering rules with the following priority:
+    // 1. <PROJECT_NAME>_LOG_LEVEL (project-specific override)
+    // 2. RUST_LOG (standard tracing environment variable)
+    // 3. config.log_level (fallback, defaults to "info")
+    let log_level = config.log_level.as_deref().unwrap_or(Level::INFO.as_str());
+    let env_filter = EnvFilter::try_from_env(format!("{}_LOG_LEVEL", *PROJECT_NAME))
+        .or_else(|_| EnvFilter::try_from_default_env())
+        .or_else(|_| EnvFilter::try_new(log_level))?;
 
     let file_subscriber = fmt::layer()
         .with_file(true)
