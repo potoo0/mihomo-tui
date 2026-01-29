@@ -1,4 +1,22 @@
 
+## 0.3.1 - 2026-01-29
+
+### Features
+
+- **Search**
+  - Add `Ctrl+y` shortcut to yank the last deleted word.
+
+### Refactors
+
+- Improve readability of RFC3339Nano datetime in UI rendering.
+- Make log level resolution order explicit.
+- Improve Help component layout for better clarity and spacing.
+
+### Chores
+
+- Upgrade **ratatui** to `0.30.0` and adapt codebase to API changes.
+- Bump dependency versions.
+
 ## 0.3.0 - 2026-01-22
 
 ### Features
