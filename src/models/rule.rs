@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicBool;
 
 use serde::Deserialize;
+use time::OffsetDateTime;
 
 #[derive(Debug, Deserialize)]
 pub struct Rule {
@@ -34,7 +35,12 @@ pub struct RuleExtra {
     /// Total number of times this rule has been matched
     pub hit_count: u64,
     /// Last hit time in RFC3339Nano format, e.g. "2006-01-02T15:04:05.999999999Z07:00"
-    pub hit_at: Option<String>,
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub hit_at: Option<OffsetDateTime>,
+
+    // for ui only
+    #[serde(skip)]
+    pub hit_at_str: Option<Box<str>>,
 }
 
 impl Rule {

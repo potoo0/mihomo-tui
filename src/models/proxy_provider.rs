@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 
 use crate::models::proxy::Proxy;
 
@@ -10,9 +11,15 @@ pub struct ProxyProvider {
     pub vehicle_type: String,
     pub proxies: Vec<Proxy>,
     // pub test_url: String,
-    /// updated time in RFC3339Nano format, e.g. "2006-01-02T15:04:05.999999999Z07:00"
-    pub updated_at: Option<String>,
     pub subscription_info: Option<SubscriptionInfo>,
+
+    /// updated time in RFC3339Nano format, e.g. "2006-01-02T15:04:05.999999999Z07:00"
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub updated_at: Option<OffsetDateTime>,
+
+    // for ui only
+    #[serde(skip)]
+    pub updated_at_str: Option<Box<str>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

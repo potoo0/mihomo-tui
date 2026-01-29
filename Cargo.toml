@@ -37,7 +37,7 @@ strip-ansi-escapes = "0.2.1"
 strum = { version = "0.27.2", features = ["derive"] }
 tempfile = "3"
 throbber-widgets-tui = "0.10.0"
-time = { version = "0.3.44", features = ["formatting", "macros"] }
+time = { version = "0.3.44", features = ["formatting", "macros", "parsing", "serde"] }
 tokio = { version = "1.47.1", features = ["full", "tracing"] }
 tokio-tungstenite = { version = "0.28.0", features = ["url"] }
 tokio-util = "0.7.16"

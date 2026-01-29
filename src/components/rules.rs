@@ -7,6 +7,7 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use crate::models::Rule;
 use crate::utils::columns::ColDef;
 use crate::utils::row_filter::RowFilter;
+use crate::utils::time::format_datetime;
 
 #[derive(Default)]
 pub struct Rules {
@@ -20,7 +21,10 @@ impl Rules {
     pub fn push(&self, records: Vec<Rule>) {
         *self.buffer.write().unwrap() = records
             .into_iter()
-            .map(|r| {
+            .map(|mut r| {
+                if let Some(extra) = r.extra.as_mut() {
+                    extra.hit_at_str = extra.hit_at.and_then(format_datetime);
+                }
                 if let (Some(extra), Some(_)) = (r.extra.as_ref(), r.index) {
                     r.disable_state.store(extra.disabled, Ordering::Relaxed);
                 }
@@ -129,7 +133,7 @@ pub static RULE_COLS: &[ColDef<Rule>] = &[
         filterable: false,
         sortable: false,
         accessor: |rule: &Rule| {
-            Cow::Owned(rule.extra.as_ref().and_then(|v| v.hit_at.clone()).unwrap_or("-".into()))
+            Cow::Borrowed(rule.extra.as_ref().and_then(|v| v.hit_at_str.as_deref()).unwrap_or("-"))
         },
         sort_key: None,
     },

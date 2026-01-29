@@ -4,6 +4,7 @@ use indexmap::IndexMap;
 
 use crate::components::proxy_setting::get_proxy_setting;
 use crate::models::proxy_provider::ProxyProvider;
+use crate::utils::time::format_datetime;
 use crate::widgets::latency::{LatencyQuality, QualityStats};
 
 #[derive(Debug)]
@@ -24,6 +25,10 @@ impl ProxyProviders {
         self.providers = providers
             .into_values()
             .filter(|v| v.name != "default" && v.vehicle_type != "Compatible")
+            .map(|mut v| {
+                v.updated_at_str = v.updated_at.and_then(format_datetime);
+                v
+            })
             .map(|v| self.build_view(v, threshold))
             .collect();
     }

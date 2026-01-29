@@ -8,6 +8,7 @@ use indexmap::IndexMap;
 use crate::models::RuleProvider;
 use crate::utils::columns::ColDef;
 use crate::utils::row_filter::RowFilter;
+use crate::utils::time::format_datetime;
 
 #[derive(Default)]
 pub struct RuleProviders {
@@ -19,7 +20,14 @@ pub struct RuleProviders {
 
 impl RuleProviders {
     pub fn push(&self, records: IndexMap<String, RuleProvider>) {
-        *self.buffer.write().unwrap() = records.into_values().map(Arc::new).collect();
+        *self.buffer.write().unwrap() = records
+            .into_values()
+            .map(|mut v| {
+                v.updated_at_str = v.updated_at.and_then(format_datetime);
+                v
+            })
+            .map(Arc::new)
+            .collect();
     }
 
     pub fn compute_view(&self, pattern: Option<&str>) {
@@ -79,7 +87,7 @@ pub static RULE_PROVIDER_COLS: &[ColDef<RuleProvider>] = &[
         title: "UpdatedAt",
         filterable: false,
         sortable: true,
-        accessor: |c: &RuleProvider| Cow::Borrowed(c.updated_at.as_deref().unwrap_or("-")),
+        accessor: |c: &RuleProvider| Cow::Borrowed(c.updated_at_str.as_deref().unwrap_or("-")),
         sort_key: None,
     },
 ];

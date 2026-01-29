@@ -10,8 +10,6 @@ use ratatui::symbols::bar;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
-use time::UtcDateTime;
-use time::macros::format_description;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, info};
 
@@ -22,13 +20,12 @@ use crate::components::{Component, ComponentId};
 use crate::utils::byte_size::human_bytes;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, space_between_many};
+use crate::utils::time::format_timestamp;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const CARD_HEIGHT: u16 = 6;
 const CARDS_PER_ROW: usize = 2;
-const DATE_FMT: &[time::format_description::FormatItem<'static>] =
-    format_description!("[year]-[month]-[day]");
 
 #[derive(Debug, Default)]
 pub struct ProxyProvidersComponent {
@@ -201,19 +198,14 @@ impl ProxyProvidersComponent {
                         .subscription_info
                         .as_ref()
                         .and_then(|v| v.expire)
-                        .map(|ts| {
-                            UtcDateTime::from_unix_timestamp(ts as i64)
-                                .unwrap()
-                                .format(&DATE_FMT)
-                                .unwrap()
-                        })
+                        .and_then(format_timestamp)
                         .unwrap_or("-".to_string())
                 ),
                 Color::DarkGray,
             ),
         ));
         lines.push(Line::styled(
-            format!("Updated at: {}", view.provider.updated_at.as_deref().unwrap_or("-")),
+            format!("Updated at: {}", view.provider.updated_at_str.as_deref().unwrap_or("-")),
             Color::DarkGray,
         ));
         lines.push(view.quality_stats.as_line(inner_width, view.provider.proxies.len()));
