@@ -115,7 +115,7 @@ impl QualityStats {
             })
             .collect();
 
-        for _ in 0..width - segments.iter().map(|(n, _)| *n).sum::<u16>() {
+        for _ in 0..width.saturating_sub(segments.iter().map(|(n, _)| *n).sum::<u16>()) {
             let seg = segments.iter_mut().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
 
             seg.0 += 1;

@@ -246,8 +246,9 @@ impl ProxiesComponent {
             let threshold = get_proxy_setting().read().unwrap().threshold;
             let latency_span: Span = view.proxy.latency.as_span(threshold);
             let width = area.width - 10;
+            let padding_width = (10usize - 2).saturating_sub(latency_span.width());
             let mut stats: Line = view.quality_stats.as_line(width, children);
-            stats.push_span(Span::raw(" ".repeat(10 - 2 - latency_span.width())));
+            stats.push_span(Span::raw(" ".repeat(padding_width)));
             stats.push_span(latency_span);
             lines.push(stats);
         }

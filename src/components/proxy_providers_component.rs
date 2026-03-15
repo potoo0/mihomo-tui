@@ -129,6 +129,64 @@ impl ProxyProvidersComponent {
         }
     }
 
+    fn build_usage_line(view: &ProviderView, width: u16) -> Line<'_> {
+        let bar_width = width.saturating_sub(8);
+        let usage = (bar_width as f64 * view.usage_percent.unwrap_or_default() / 100f64) as usize;
+        space_between_many(
+            width,
+            vec![
+                Span::styled(bar::THREE_EIGHTHS.repeat(usage), Color::White),
+                Span::styled(
+                    bar::THREE_EIGHTHS.repeat((bar_width as usize).saturating_sub(usage)),
+                    Color::DarkGray,
+                ),
+            ],
+            Span::styled(format!("{:>6.1}%", view.usage_percent.unwrap_or_default()), Color::Cyan),
+        )
+    }
+
+    fn build_subscription_line(view: &ProviderView, width: u16) -> Line<'_> {
+        let left = vec![
+            Span::styled(
+                view.provider
+                    .subscription_info
+                    .as_ref()
+                    .filter(|v| v.download.is_some() || v.upload.is_some())
+                    .map(|v| {
+                        human_bytes(
+                            (v.download.unwrap_or_default() + v.upload.unwrap_or_default()) as f64,
+                            None,
+                        )
+                    })
+                    .unwrap_or("-".to_string()),
+                Color::DarkGray,
+            ),
+            Span::styled(" / ", Color::DarkGray),
+            Span::styled(
+                view.provider
+                    .subscription_info
+                    .as_ref()
+                    .and_then(|v| v.total)
+                    .map(|t| human_bytes(t as f64, None))
+                    .unwrap_or("-".to_string()),
+                Color::DarkGray,
+            ),
+        ];
+        let right = Span::styled(
+            format!(
+                "Expire: {}",
+                view.provider
+                    .subscription_info
+                    .as_ref()
+                    .and_then(|v| v.expire)
+                    .and_then(format_timestamp)
+                    .unwrap_or("-".to_string())
+            ),
+            Color::DarkGray,
+        );
+        space_between_many(width, left, right)
+    }
+
     fn render_provider(view: &ProviderView, focused: bool, frame: &mut Frame, area: Rect) {
         let title_line = Line::from(vec![
             Span::styled(view.provider.name.as_str(), Color::White),
@@ -150,60 +208,8 @@ impl ProxyProvidersComponent {
         let inner_width = area.width - 2;
 
         let mut lines = Vec::with_capacity(4);
-        let usage = (inner_width as f64 * view.usage_percent.unwrap_or_default() / 100f64) as usize;
-        lines.push(space_between_many(
-            inner_width,
-            vec![
-                Span::styled(bar::THREE_EIGHTHS.repeat(usage), Color::White),
-                Span::styled(
-                    bar::THREE_EIGHTHS.repeat(inner_width as usize - usage - 6),
-                    Color::DarkGray,
-                ),
-            ],
-            Span::styled(format!("{:>6.1}%", view.usage_percent.unwrap_or_default()), Color::Cyan),
-        ));
-        lines.push(space_between_many(
-            inner_width,
-            vec![
-                Span::styled(
-                    view.provider
-                        .subscription_info
-                        .as_ref()
-                        .filter(|v| v.download.is_some() || v.upload.is_some())
-                        .map(|v| {
-                            human_bytes(
-                                (v.download.unwrap_or_default() + v.upload.unwrap_or_default())
-                                    as f64,
-                                None,
-                            )
-                        })
-                        .unwrap_or("-".to_string()),
-                    Color::DarkGray,
-                ),
-                Span::styled(" / ", Color::DarkGray),
-                Span::styled(
-                    view.provider
-                        .subscription_info
-                        .as_ref()
-                        .and_then(|v| v.total)
-                        .map(|t| human_bytes(t as f64, None))
-                        .unwrap_or("-".to_string()),
-                    Color::DarkGray,
-                ),
-            ],
-            Span::styled(
-                format!(
-                    "Expire: {}",
-                    view.provider
-                        .subscription_info
-                        .as_ref()
-                        .and_then(|v| v.expire)
-                        .and_then(format_timestamp)
-                        .unwrap_or("-".to_string())
-                ),
-                Color::DarkGray,
-            ),
-        ));
+        lines.push(Self::build_usage_line(view, inner_width));
+        lines.push(Self::build_subscription_line(view, inner_width));
         lines.push(Line::styled(
             format!("Updated at: {}", view.provider.updated_at_str.as_deref().unwrap_or("-")),
             Color::DarkGray,
