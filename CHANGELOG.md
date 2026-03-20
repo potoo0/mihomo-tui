@@ -1,4 +1,14 @@
 
+## 0.3.2 - 2026-03-20
+
+### Bug Fixes
+
+- Fix integer underflow in UI component rendering.
+
+### Chores
+
+- Update Rust dependencies to newer minor versions.
+
 ## 0.3.1 - 2026-01-29
 
 ### Features
