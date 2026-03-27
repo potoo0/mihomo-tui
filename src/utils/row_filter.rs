@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::sync::Arc;
 
 use nucleo_matcher::pattern::{Atom, CaseMatching, Normalization};
@@ -49,10 +48,15 @@ where
             _ => return self.iter.next().cloned(),
         };
         while let Some(item) = self.iter.next() {
-            let hit = self.cols.iter().filter(|col| col.filterable).any(|col| {
-                let text: Cow<'_, str> = (col.accessor)(item);
+            let col_matcher = |col: &ColDef<T>| {
+                let text = (col.accessor)(item);
                 pat.score(Utf32Str::new(&text, &mut self.haystack_buffer), self.matcher).is_some()
-            });
+            };
+            let hit = if pat.negative {
+                self.cols.iter().filter(|col| col.filterable).all(col_matcher)
+            } else {
+                self.cols.iter().filter(|col| col.filterable).any(col_matcher)
+            };
             if hit {
                 return Some(Arc::clone(item));
             }
