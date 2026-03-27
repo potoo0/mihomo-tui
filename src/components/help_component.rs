@@ -66,6 +66,15 @@ impl HelpComponent {
             HelpRow::entry("Back, Ctrl+Back, Del, Ctrl-Del", "delete"),
             HelpRow::entry("Ctrl+y", "yank last deleted word"),
             HelpRow::entry("Home, End", "jump to line start, end"),
+            // filter syntax
+            HelpRow::Empty,
+            HelpRow::key_title("filter syntax"),
+            HelpRow::entry("str", "match using fuzzy search for 'str'"),
+            HelpRow::entry("^str", "match if the value starts with 'str'"),
+            HelpRow::entry("str$", "match if the value ends with 'str'"),
+            HelpRow::entry("^str$", "match exactly 'str'"),
+            HelpRow::entry("'str", "match if the value contains substring 'str'"),
+            HelpRow::entry("!<pattern>", "negate the match of <pattern>, examples: !^str, !'str"),
             // `connections` key bindings
             HelpRow::Empty,
             HelpRow::key_title("# Connections (Conn)"),
