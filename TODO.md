@@ -1,7 +1,8 @@
 TODO List
 
 - [ ] 还原 rule 原始配置
-- [ ] 过滤功能支持 (inverse-)exact-match, (inverse-)prefix/suffix-exact-match
+- [ ] 修复 connections capture 模式顺序不稳定
+- [x] 过滤功能支持 (inverse-)exact-match, (inverse-)prefix/suffix-exact-match
 - [ ] ~~crate/jsonschema 校验~~, 不做, 低频场景让 api 返回错误即可
 - [ ] ~~移除 mod.rs~~
 - [x] 自身日志补充; trace 级别仅针对当前 crate?
