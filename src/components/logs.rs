@@ -3,16 +3,16 @@ use std::string::ToString;
 use std::sync::{Arc, RwLock};
 
 use circular_buffer::CircularBuffer;
-use fuzzy_matcher::skim::SkimMatcherV2;
 
 use crate::components::LOGS_BUFFER_SIZE;
 use crate::models::Log;
 use crate::utils::columns::ColDef;
+use crate::utils::matcher::Matcher;
 use crate::utils::row_filter::RowFilter;
 
 #[derive(Default)]
 pub struct Logs {
-    matcher: Arc<SkimMatcherV2>,
+    matcher: Arc<Matcher>,
 
     buffer: RwLock<CircularBuffer<LOGS_BUFFER_SIZE, Arc<Log>>>,
     view: RwLock<CircularBuffer<LOGS_BUFFER_SIZE, Arc<Log>>>,

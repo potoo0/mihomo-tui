@@ -3,6 +3,7 @@ pub mod byte_size;
 pub mod columns;
 pub mod editor;
 pub mod json5_formatter;
+pub mod matcher;
 pub mod row_filter;
 pub mod symbols;
 pub mod text_ui;

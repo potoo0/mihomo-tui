@@ -1,9 +1,8 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use fuzzy_matcher::FuzzyMatcher;
-
 use crate::utils::columns::ColDef;
+use crate::utils::matcher::{Matcher, Pattern};
 
 /// An iterator that filters items based on a fuzzy pattern and column definitions
 pub struct RowFilter<'a, T, I>
@@ -11,8 +10,8 @@ where
     I: Iterator<Item = &'a Arc<T>>,
 {
     iter: I,
-    matcher: &'a dyn FuzzyMatcher,
-    pattern: Option<&'a str>,
+    matcher: &'a Matcher,
+    pattern: Option<Pattern<'a>>,
     cols: &'a [ColDef<T>],
 }
 
@@ -22,10 +21,11 @@ where
 {
     pub fn new(
         iter: I,
-        matcher: &'a dyn FuzzyMatcher,
+        matcher: &'a Matcher,
         pattern: Option<&'a str>,
         cols: &'a [ColDef<T>],
     ) -> Self {
+        let pattern = pattern.and_then(Pattern::parse);
         Self { iter, matcher, pattern, cols }
     }
 }
@@ -37,14 +37,14 @@ where
     type Item = Arc<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let pat = match self.pattern {
+        let pat = match self.pattern.as_ref() {
             Some(p) if !p.is_empty() => p,
             _ => return self.iter.next().cloned(),
         };
         while let Some(item) = self.iter.next() {
             let hit = self.cols.iter().filter(|col| col.filterable).any(|col| {
                 let text: Cow<'_, str> = (col.accessor)(item);
-                self.matcher.fuzzy_match(&text, pat).is_some()
+                self.matcher.matches(&text, pat)
             });
             if hit {
                 return Some(Arc::clone(item));

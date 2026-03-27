@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 
 use circular_buffer::CircularBuffer;
 use const_format::concatcp;
-use fuzzy_matcher::skim::SkimMatcherV2;
 use serde_json::Value;
 
 use crate::components::CONNS_BUFFER_SIZE;
@@ -13,12 +12,13 @@ use crate::components::state::SearchState;
 use crate::models::Connection;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey};
+use crate::utils::matcher::Matcher;
 use crate::utils::row_filter::RowFilter;
 use crate::utils::symbols::dot;
 
 #[derive(Default)]
 pub struct Connections {
-    matcher: Arc<SkimMatcherV2>,
+    matcher: Arc<Matcher>,
 
     buffer: RwLock<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>,
     view: RwLock<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>,

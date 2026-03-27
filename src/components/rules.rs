@@ -2,16 +2,15 @@ use std::borrow::Cow;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 
-use fuzzy_matcher::skim::SkimMatcherV2;
-
 use crate::models::Rule;
 use crate::utils::columns::ColDef;
+use crate::utils::matcher::Matcher;
 use crate::utils::row_filter::RowFilter;
 use crate::utils::time::format_datetime;
 
 #[derive(Default)]
 pub struct Rules {
-    matcher: Arc<SkimMatcherV2>,
+    matcher: Arc<Matcher>,
 
     buffer: RwLock<Vec<Arc<Rule>>>,
     view: RwLock<Vec<Arc<Rule>>>,
