@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 use std::string::ToString;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
-use fuzzy_matcher::skim::SkimMatcherV2;
 use indexmap::IndexMap;
+use nucleo_matcher::Matcher;
 
 use crate::models::RuleProvider;
 use crate::utils::columns::ColDef;
@@ -12,7 +12,7 @@ use crate::utils::time::format_datetime;
 
 #[derive(Default)]
 pub struct RuleProviders {
-    matcher: Arc<SkimMatcherV2>,
+    matcher: Mutex<Matcher>,
 
     buffer: RwLock<Vec<Arc<RuleProvider>>>,
     view: RwLock<Vec<Arc<RuleProvider>>>,
@@ -33,8 +33,8 @@ impl RuleProviders {
     pub fn compute_view(&self, pattern: Option<&str>) {
         let buffer = self.buffer.read().unwrap();
 
-        let matcher = self.matcher.as_ref();
-        let filtered = RowFilter::new(buffer.iter(), matcher, pattern, RULE_PROVIDER_COLS);
+        let mut matcher = self.matcher.lock().unwrap();
+        let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, RULE_PROVIDER_COLS);
         let mut guard = self.view.write().unwrap();
         guard.clear();
         filtered.for_each(|v| guard.push(v));

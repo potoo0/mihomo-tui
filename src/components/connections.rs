@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 
 use circular_buffer::CircularBuffer;
 use const_format::concatcp;
-use fuzzy_matcher::skim::SkimMatcherV2;
+use nucleo_matcher::Matcher;
 use serde_json::Value;
 
 use crate::components::CONNS_BUFFER_SIZE;
@@ -18,7 +18,7 @@ use crate::utils::symbols::dot;
 
 #[derive(Default)]
 pub struct Connections {
-    matcher: Arc<SkimMatcherV2>,
+    matcher: Mutex<Matcher>,
 
     buffer: RwLock<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>,
     view: RwLock<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>,
@@ -61,8 +61,8 @@ impl Connections {
         let buffer = self.buffer.read().unwrap();
 
         let pattern = search_state.pattern.as_deref();
-        let matcher = self.matcher.as_ref();
-        let filtered = RowFilter::new(buffer.iter(), matcher, pattern, CONNECTION_COLS);
+        let mut matcher = self.matcher.lock().unwrap();
+        let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, CONNECTION_COLS);
 
         if let Some(sort) = search_state.sort
             && let Some(col_def) = CONNECTION_COLS.get(sort.col)

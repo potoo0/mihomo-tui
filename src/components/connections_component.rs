@@ -353,35 +353,3 @@ impl Component for ConnectionsComponent {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_fuzzy_match() {
-        use fuzzy_matcher::FuzzyMatcher;
-        use fuzzy_matcher::skim::SkimMatcherV2;
-
-        let matcher = SkimMatcherV2::default();
-        let text = "nginx: worker process";
-
-        let pattern = "nginx";
-        let score = matcher.fuzzy_match(text, pattern);
-        assert!(score.is_some());
-        println!("Score: {:?}", score);
-
-        let pattern = "wrk";
-        let score = matcher.fuzzy_match(text, pattern);
-        assert!(score.is_some());
-        println!("Score: {:?}", score);
-
-        let pattern = "apache";
-        let score = matcher.fuzzy_match(text, pattern);
-        assert!(score.is_none());
-        println!("Score: {:?}", score);
-
-        let pattern = "krw";
-        let score = matcher.fuzzy_match(text, pattern);
-        assert!(score.is_none());
-        println!("Score: {:?}", score);
-    }
-}
