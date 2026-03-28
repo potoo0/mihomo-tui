@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
 
 use circular_buffer::CircularBuffer;
 use const_format::concatcp;
+use indexmap::IndexMap;
 use nucleo_matcher::Matcher;
 use serde_json::Value;
 
@@ -28,12 +29,10 @@ pub struct Connections {
 impl Connections {
     pub fn push(&self, capture_mode: bool, records: Vec<Connection>) {
         let mut guard = self.buffer.write().unwrap();
-        let mut history: HashMap<Arc<str>, Arc<Connection>> = {
-            if capture_mode {
-                guard.iter().cloned().map(|p| (Arc::<str>::from(p.id.as_str()), p)).collect()
-            } else {
-                Default::default()
-            }
+        let mut history: IndexMap<Arc<str>, Arc<Connection>> = if capture_mode {
+            guard.iter().cloned().map(|p| (p.id.as_str().into(), p)).collect()
+        } else {
+            Default::default()
         };
         guard.clear();
         {
@@ -41,7 +40,7 @@ impl Connections {
             let mut map_guard = self.last_bytes.lock().unwrap();
             records.into_iter().for_each(|mut item| {
                 let key = Arc::from(item.id.as_str());
-                history.remove(&key);
+                history.shift_remove(&key);
                 map.insert(Arc::clone(&key), (item.upload, item.download));
                 if let Some((up, down)) = map_guard.get(&key) {
                     item.upload_rate = item.upload.saturating_sub(*up);
