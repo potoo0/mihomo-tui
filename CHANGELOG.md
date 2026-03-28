@@ -1,4 +1,24 @@
 
+## 0.3.3 - 2026-03-28
+
+### Features
+
+- **Filter**: Replace `fuzzy_matcher` with `nucleo_matcher` for improved matching functionality. Syntax:
+  - `str`: fuzzy match for `str`
+  - `^str`: match if the value starts with `str`
+  - `str$`: match if the value ends with `str`
+  - `^str$`: match exactly `str`
+  - `'str`: match if the value contains substring `str`
+  - `!<pattern>`: negate the match of `<pattern>`, examples: `!^str`, `!'str`
+
+### Bug Fixes
+
+- **Connections**: Replace `HashMap` with `IndexMap` for stable history order.
+
+### Chores
+
+- Bump dependency versions.
+
 ## 0.3.2 - 2026-03-20
 
 ### Bug Fixes
@@ -13,8 +33,7 @@
 
 ### Features
 
-- **Search**
-  - Add `Ctrl+y` shortcut to yank the last deleted word.
+- **Filter**: Add `Ctrl+y` shortcut to yank the last deleted word.
 
 ### Refactors
 
@@ -55,7 +74,7 @@
 
 ### Features
 
-- Remember search pattern across components
+- Remember filter pattern across components
 - Release for Linux x86_64 musl
 
 ## 0.2.1 - 2025-12-17
