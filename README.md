@@ -21,26 +21,44 @@
 ## Limitations
 
 - The tool is designed only to interact with the [API](https://wiki.metacubex.one/api/). It does not manage any actual configuration files.
-- The tool uses a ring buffer to store the [last 500 connections](/src/components/mod.rs#L31).
+- The tool uses a ring buffer to store the [last 500 connections](/src/components/mod.rs#L45).
 
 ## Installation
+
+### From binaries (Linux, macOS, Windows)
+
+#### Via Script (Recommended)
+
+Install the latest version to `~/.local/bin`:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/potoo0/mihomo-tui/main/install.sh | sh
+# or
+wget -O- -nv https://raw.githubusercontent.com/potoo0/mihomo-tui/main/install.sh | sh
+```
+
+Or a specific version and custom directory:
+
+```bash
+# Install v0.3.3 to /usr/local/bin
+curl -sSfL https://raw.githubusercontent.com/potoo0/mihomo-tui/main/install.sh | sh -s -- -b /usr/local/bin v0.3.3
+```
+
+#### Manual Download
+
+1. Download the [latest release binary](https://github.com/potoo0/mihomo-tui/releases)
+2. Set the `PATH` environment variable
 
 ### With Cargo (Linux, macOS, Windows)
 
 Installation via cargo:
 
-```shell
+```bash
 rustup update stable
 
 git clone https://github.com/potoo0/mihomo-tui && cd mihomo-tui
 cargo install --path . --locked
-
 ```
-
-### From binaries (Linux, macOS, Windows)
-
-1. Download the [latest release binary](https://github.com/potoo0/mihomo-tui/releases)
-2. Set the `PATH` environment variable
 
 ## Usage
 
