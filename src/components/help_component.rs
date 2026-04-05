@@ -88,6 +88,11 @@ impl HelpComponent {
             HelpRow::entry("r", "refresh proxies"),
             HelpRow::entry("s", "open settings"),
             HelpRow::entry("t", "test proxy"),
+            // proxy detail
+            HelpRow::Empty,
+            HelpRow::key_title("## Proxy Detail"),
+            HelpRow::entry("Enter", "update selected proxy"),
+            HelpRow::entry("c", "jump to current selected proxy"),
             // proxy providers / proxy provider detail
             HelpRow::Empty,
             HelpRow::key_title("# ProxyProviders (Pxy-Pr)"),

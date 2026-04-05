@@ -82,6 +82,20 @@ impl ScrollableNavigator {
         }
     }
 
+    /// Focus and scroll to the item at the given index
+    pub fn focus(&mut self, idx: usize) {
+        if !self.ensure_focusable() || idx >= self.scroller.content_length() {
+            return;
+        }
+        self.focused = Some(idx);
+        while idx < self.scroller.pos() {
+            self.scroller.prev();
+        }
+        while idx >= self.scroller.end_pos() {
+            self.scroller.next();
+        }
+    }
+
     pub fn first(&mut self) {
         if !self.ensure_focusable() {
             return;

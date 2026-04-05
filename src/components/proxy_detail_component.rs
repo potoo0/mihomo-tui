@@ -8,6 +8,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
+use tracing::{debug, info};
 
 use crate::action::Action;
 use crate::components::proxy_setting::get_proxy_setting;
@@ -38,7 +39,7 @@ pub struct ProxyDetailComponent {
 
 impl ProxyDetailComponent {
     pub fn show(&mut self, proxy: Arc<Proxy>, store: Vec<Arc<Proxy>>) {
-        tracing::debug!("Show proxy detail: {}, loading: {}", proxy.name, self.loading);
+        debug!("Show proxy detail: {}, loading: {}", proxy.name, self.loading);
         self.show = true;
         self.proxy = Some(proxy);
         self.store = Some(store);
@@ -54,6 +55,23 @@ impl ProxyDetailComponent {
 
         self.navigator.focused = None;
         self.navigator.scroller.position(0);
+    }
+
+    fn is_selected(&self, name: &str) -> bool {
+        self.proxy.as_ref().and_then(|v| v.selected.as_deref()).is_some_and(|v| v == name)
+    }
+
+    fn focus_current(&mut self) {
+        let Some(current_sel) = self.proxy.as_ref().and_then(|v| v.selected.as_deref()) else {
+            return;
+        };
+        info!("Focus current proxy: {}", current_sel);
+        let Some(children) = self.store.as_ref() else {
+            return;
+        };
+        if let Some(idx) = children.iter().position(|p| p.name == current_sel) {
+            self.navigator.focus(idx);
+        }
     }
 
     fn title_line(&'_ self) -> Line<'_> {
@@ -98,10 +116,6 @@ impl ProxyDetailComponent {
                 &mut self.throbber,
             );
         }
-    }
-
-    fn is_selected(&self, name: &str) -> bool {
-        self.proxy.as_ref().and_then(|v| v.selected.as_deref()).is_some_and(|v| v == name)
     }
 
     fn render_card(&self, proxy: &Proxy, focused: bool, frame: &mut Frame, area: Rect) {
@@ -171,6 +185,7 @@ impl Component for ProxyDetailComponent {
                 Fragment::hl("PgDn"),
             ]),
             Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
+            Shortcut::from("current", 0).unwrap(),
             Shortcut::new(vec![Fragment::raw("select "), Fragment::hl("↵")]),
             Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
             Shortcut::from("refresh", 0).unwrap(),
@@ -183,6 +198,10 @@ impl Component for ProxyDetailComponent {
             return Ok(None);
         }
         match key.code {
+            KeyCode::Char('c') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.focus_current();
+                return Ok(None);
+            }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return Ok(Some(Action::Quit));
             }
