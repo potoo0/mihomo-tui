@@ -28,6 +28,12 @@ pub struct ProxyDetailComponent {
 
     proxy: Option<Arc<Proxy>>,
     store: Option<Vec<Arc<Proxy>>>,
+    /// Proxy group navigation stack (breadcrumbs).
+    ///
+    /// - first: top-level proxy group
+    /// - last:  currently viewed proxy group
+    layers: Vec<Layer>,
+
     navigator: ScrollableNavigator,
 
     loading: bool,
@@ -37,24 +43,53 @@ pub struct ProxyDetailComponent {
     pending_test_throbber: ThrobberState,
 }
 
+#[derive(Debug)]
+struct Layer {
+    name: String,
+    navigator: ScrollableNavigator,
+}
+
 impl ProxyDetailComponent {
     pub fn show(&mut self, proxy: Arc<Proxy>, store: Vec<Arc<Proxy>>) {
         debug!("Show proxy detail: {}, loading: {}", proxy.name, self.loading);
+        let name = proxy.name.clone();
         self.show = true;
         self.proxy = Some(proxy);
         self.store = Some(store);
 
         self.loading = false;
         self.pending_test = self.pending_test.saturating_sub(1);
+
+        self.sync_layer(name);
     }
 
     pub fn hide(&mut self) {
         self.show = false;
         self.proxy = None;
         self.store = None;
+        self.layers.clear();
+    }
 
-        self.navigator.focused = None;
-        self.navigator.scroller.position(0);
+    /// Sync navigation stack with proxy name:
+    /// - exists: navigate back → restore navigator
+    /// - not exists: navigate into child → push new layer & reset navigator
+    fn sync_layer(&mut self, name: String) {
+        if self.layers.iter().any(|l| l.name == name) {
+            // restore navigator state if navigating back
+            self.navigator = self.layers.last().unwrap().navigator.clone();
+        } else {
+            // push new layer when navigating into a child proxy group
+            self.layers.push(Layer { name, navigator: Default::default() });
+            // reset navigator for new layer
+            self.navigator.focused = None;
+            self.navigator.scroller.position(0);
+        }
+    }
+
+    fn backup_navigator(&mut self) {
+        if let Some(layer) = self.layers.last_mut() {
+            layer.navigator = self.navigator.clone();
+        }
     }
 
     fn is_selected(&self, name: &str) -> bool {
@@ -76,9 +111,10 @@ impl ProxyDetailComponent {
 
     fn title_line(&'_ self) -> Line<'_> {
         let proxy = self.proxy.as_ref().unwrap();
+        let names = self.layers.iter().map(|l| l.name.as_str()).collect::<Vec<_>>();
         Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::styled(proxy.name.as_str(), Color::White),
+            Span::styled(names.join(" > "), Color::White),
             Span::raw(" ("),
             Span::styled(
                 format!("{}", proxy.children.as_ref().map_or(0, Vec::len)),
@@ -185,8 +221,9 @@ impl Component for ProxyDetailComponent {
                 Fragment::hl("PgDn"),
             ]),
             Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
-            Shortcut::from("current", 0).unwrap(),
-            Shortcut::new(vec![Fragment::raw("select "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::hl("["), Fragment::raw(" layer "), Fragment::hl("]")]),
+            Shortcut::from("cur", 0).unwrap(),
+            Shortcut::new(vec![Fragment::raw("sel "), Fragment::hl("↵")]),
             Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
             Shortcut::from("refresh", 0).unwrap(),
             Shortcut::from("test", 0).unwrap(),
@@ -220,6 +257,7 @@ impl Component for ProxyDetailComponent {
             KeyCode::Char('r') => {
                 if !self.loading {
                     self.loading = true;
+                    self.backup_navigator();
                     return Ok(Some(Action::ProxiesRefresh));
                 }
             }
@@ -234,6 +272,7 @@ impl Component for ProxyDetailComponent {
                             .map(|v| Action::ProxyUpdateRequest(selector_name, v.name.clone()))
                     });
                     self.loading = action.is_some();
+                    self.backup_navigator();
                     return Ok(action);
                 }
             }
@@ -249,7 +288,40 @@ impl Component for ProxyDetailComponent {
                         _ => None,
                     };
                 self.pending_test = self.pending_test.saturating_add(1);
+                self.backup_navigator();
                 return Ok(action);
+            }
+            KeyCode::Char('[') => {
+                if !self.loading && self.pending_test == 0 && self.layers.len() > 1 {
+                    // pop current layer
+                    self.layers.pop();
+                    // unwrap is safe because layers.len() > 1
+                    let parent_name = self.layers.last().map(|l| l.name.clone()).unwrap();
+                    return Ok(Some(Action::ProxyDetailRequest(parent_name)));
+                }
+            }
+            KeyCode::Char(']') => {
+                if !self.loading && self.pending_test == 0 {
+                    // Use `navigator.focused` first; otherwise fall back to the stored selection.
+                    let proxy = match (self.navigator.focused, self.store.as_ref()) {
+                        (Some(focused), Some(store)) => store.get(focused),
+                        (None, Some(store)) => self.proxy.as_ref().and_then(|v| {
+                            v.selected
+                                .as_deref()
+                                .and_then(|sel| store.iter().find(|p| p.name == sel))
+                        }),
+                        _ => None,
+                    };
+                    if let Some(proxy) =
+                        proxy.filter(|p| p.children.as_ref().is_some_and(|c| !c.is_empty()))
+                    {
+                        // Save current focus index before navigating
+                        if let Some(layer) = self.layers.last_mut() {
+                            layer.navigator = self.navigator.clone();
+                        }
+                        return Ok(Some(Action::ProxyDetailRequest(proxy.name.clone())));
+                    }
+                }
             }
             _ => (),
         }

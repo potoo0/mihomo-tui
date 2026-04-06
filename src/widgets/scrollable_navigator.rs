@@ -6,7 +6,7 @@ use ratatui::layout::Rect;
 
 use crate::widgets::scrollbar::Scroller;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ScrollableNavigator {
     pub focused: Option<usize>,
     pub scroller: Scroller,

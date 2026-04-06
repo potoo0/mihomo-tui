@@ -97,6 +97,13 @@ impl Proxies {
         self.visible.clone()
     }
 
+    pub fn find_visible_by_name(&self, name: &str) -> Option<(usize, Arc<ProxyView>)> {
+        self.visible
+            .iter()
+            .enumerate()
+            .find_map(|(idx, v)| (v.proxy.name == name).then(|| (idx, Arc::clone(v))))
+    }
+
     pub fn children(&self, proxy: &Proxy) -> Vec<Arc<Proxy>> {
         proxy
             .children
