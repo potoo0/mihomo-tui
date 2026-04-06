@@ -159,20 +159,18 @@ impl ProxiesComponent {
                 api.test_proxy(name, test_url, test_timeout).await.map(|_| ())
             };
             match result {
-                Ok(_) => {
-                    let _ = Self::load_proxies_task(api, store, || {
-                        let _ =
-                            pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
-                                if x == 0 { None } else { Some(x - 1) }
-                            });
-                        if let Some(focused) = focused {
-                            let _ = action_tx.send(Action::ProxyDetailRefresh(focused));
-                        }
-                    })
-                    .await;
-                }
+                Ok(_) => (),
                 Err(e) => error!(error = ?e, "Failed to test proxy"),
             }
+            let _ = Self::load_proxies_task(api, store, || {
+                let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
+                    if x == 0 { None } else { Some(x - 1) }
+                });
+                if let Some(focused) = focused {
+                    let _ = action_tx.send(Action::ProxyDetailRefresh(focused));
+                }
+            })
+            .await;
         })?;
         Ok(())
     }
