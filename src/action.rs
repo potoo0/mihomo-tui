@@ -33,6 +33,7 @@ pub enum Action {
     /// (does not emit `SearchInputChanged`).
     SearchInputSet(Option<String>),
     ConnectionTerminateRequest(Arc<Connection>),
+    ProxyDetailRequest(String),
     ProxyDetail(Arc<Proxy>, Vec<Arc<Proxy>>),
     ProxyUpdateRequest(String, String),
     ProxyDetailRefresh(usize),

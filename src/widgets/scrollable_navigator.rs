@@ -6,7 +6,7 @@ use ratatui::layout::Rect;
 
 use crate::widgets::scrollbar::Scroller;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ScrollableNavigator {
     pub focused: Option<usize>,
     pub scroller: Scroller,
@@ -79,6 +79,20 @@ impl ScrollableNavigator {
             false
         } else {
             true
+        }
+    }
+
+    /// Focus and scroll to the item at the given index
+    pub fn focus(&mut self, idx: usize) {
+        if !self.ensure_focusable() || idx >= self.scroller.content_length() {
+            return;
+        }
+        self.focused = Some(idx);
+        while idx < self.scroller.pos() {
+            self.scroller.prev();
+        }
+        while idx >= self.scroller.end_pos() {
+            self.scroller.next();
         }
     }
 

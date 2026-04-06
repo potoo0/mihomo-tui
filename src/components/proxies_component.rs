@@ -159,29 +159,25 @@ impl ProxiesComponent {
                 api.test_proxy(name, test_url, test_timeout).await.map(|_| ())
             };
             match result {
-                Ok(_) => {
-                    let _ = Self::load_proxies_task(api, store, || {
-                        let _ =
-                            pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
-                                if x == 0 { None } else { Some(x - 1) }
-                            });
-                        if let Some(focused) = focused {
-                            let _ = action_tx.send(Action::ProxyDetailRefresh(focused));
-                        }
-                    })
-                    .await;
-                }
+                Ok(_) => (),
                 Err(e) => error!(error = ?e, "Failed to test proxy"),
             }
+            let _ = Self::load_proxies_task(api, store, || {
+                let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
+                    if x == 0 { None } else { Some(x - 1) }
+                });
+                if let Some(focused) = focused {
+                    let _ = action_tx.send(Action::ProxyDetailRefresh(focused));
+                }
+            })
+            .await;
         })?;
         Ok(())
     }
 
-    fn proxy_detail_action(&mut self) -> Option<Action> {
-        self.detail_focused = self.navigator.focused;
+    fn open_proxy_detail(&mut self) -> Option<Action> {
         let store = self.store.read().unwrap();
-        self.navigator
-            .focused
+        self.detail_focused
             .and_then(|idx| store.get(idx))
             .map(|v| Action::ProxyDetail(Arc::clone(&v.proxy), store.children(v.proxy.as_ref())))
     }
@@ -323,7 +319,6 @@ impl Component for ProxiesComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        self.detail_focused = None;
         if self.navigator.handle_key_event(true, key) {
             return Ok(None);
         }
@@ -342,7 +337,10 @@ impl Component for ProxiesComponent {
                 }
             }
             KeyCode::Char('s') => return Ok(Some(Action::ProxySetting)),
-            KeyCode::Enter => return Ok(self.proxy_detail_action()),
+            KeyCode::Enter => {
+                self.detail_focused = self.navigator.focused;
+                return Ok(self.open_proxy_detail());
+            }
             KeyCode::Char('t') => {
                 let store = self.store.read().unwrap();
                 if let Some(idx) = self.navigator.focused {
@@ -362,6 +360,14 @@ impl Component for ProxiesComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Unfocus => self.detail_focused = None,
+            Action::ProxyDetailRequest(selector_name) => {
+                let store = self.store.read().unwrap();
+                if let Some((idx, proxy)) = store.find_visible_by_name(&selector_name) {
+                    self.detail_focused = Some(idx);
+                    let children = store.children(proxy.proxy.as_ref());
+                    return Ok(Some(Action::ProxyDetail(Arc::clone(&proxy.proxy), children)));
+                }
+            }
             Action::ProxyUpdateRequest(selector_name, name) => {
                 self.update_proxies(selector_name, name)?;
             }
@@ -369,7 +375,7 @@ impl Component for ProxiesComponent {
                 if let Some(detail_focused) = self.detail_focused
                     && detail_focused == focused
                 {
-                    return Ok(self.proxy_detail_action());
+                    return Ok(self.open_proxy_detail());
                 }
             }
             Action::ProxiesRefresh => self.refresh_proxies()?,

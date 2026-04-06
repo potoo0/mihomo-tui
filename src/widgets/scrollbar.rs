@@ -6,7 +6,7 @@ use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
 
 use crate::utils::symbols::arrow;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Scroller {
     step: usize,
     content_length: usize,
