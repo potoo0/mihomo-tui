@@ -6,7 +6,7 @@ TODO List
 - [x] overlay 改名
 - [x] overlay 弹出后无法 `ctrl+c`, `ctrl+c` 终止的逻辑放到 root_component 的 handle_key_event 开头
 - [x] proxy provider 页面下方向键应该切换到下一行
-- [ ] api 异常时将 body 放在 Error 里返回
+- [x] api 异常时将 body 放在 Error 里返回
 - [ ] 还原 rule 原始配置
 - [ ] ~~crate/jsonschema 校验~~, 不做, 低频场景让 api 返回错误即可
 - [ ] ~~移除 mod.rs~~
