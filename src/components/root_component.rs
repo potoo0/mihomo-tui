@@ -257,6 +257,23 @@ impl RootComponent {
             self.stop_conn();
         }
     }
+
+    fn handle_global_shortcut(&mut self, key: KeyEvent) -> Option<Action> {
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            match key.code {
+                KeyCode::Char('c') => return Some(Action::Quit),
+                KeyCode::Char('l') => {
+                    info!("Clearing idle tabs by Ctrl+L shortcut");
+                    for id in self.idle_tabs.keys().cloned().collect::<Vec<_>>() {
+                        self.destroy_component(id);
+                    }
+                    return Some(Action::Tick);
+                }
+                _ => {}
+            }
+        }
+        None
+    }
 }
 
 impl Drop for RootComponent {
@@ -293,6 +310,11 @@ impl Component for RootComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        // handle global shortcuts
+        if let Some(action) = self.handle_global_shortcut(key) {
+            return Ok(Some(action));
+        }
+
         // The message box component
         if let Some(msg_box) = &self.msg_box {
             if msg_box.should_close_on_key(key) {
@@ -308,9 +330,6 @@ impl Component for RootComponent {
 
         match key.code {
             KeyCode::Char('q') => return Ok(Some(Action::Quit)),
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Char('h') => {
                 return Ok(Some(Action::Help));
             }

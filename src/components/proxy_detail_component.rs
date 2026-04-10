@@ -239,9 +239,6 @@ impl Component for ProxyDetailComponent {
                 self.focus_current();
                 return Ok(None);
             }
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Char('q') => {
                 self.hide();
                 return Ok(Some(Action::Unfocus));

@@ -240,9 +240,6 @@ impl Component for ProxySettingComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.hide();
                 return Ok(Some(Action::Unfocus));

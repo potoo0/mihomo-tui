@@ -2,7 +2,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, OnceLock, RwLock};
 
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::prelude::{Color, Style};
@@ -145,10 +145,6 @@ impl Component for ConnectionTerminateComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.hide();
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Char('q') | KeyCode::Char('n') | KeyCode::Esc => {
                 if self.phase.read().unwrap().ne(&Phase::Terminating) {
                     self.hide();

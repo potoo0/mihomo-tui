@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
@@ -58,6 +58,7 @@ impl HelpComponent {
             HelpRow::entry("PageUp, Space / PageDown", "page up, down"),
             HelpRow::entry("Esc", "cancel / back / live toggle"),
             HelpRow::entry("Enter", "confirm / open detail"),
+            HelpRow::entry("Ctrl+l", "clear idle tabs"),
             // search / proxy setting input keys
             HelpRow::Empty,
             HelpRow::key_title("input box"),
@@ -167,9 +168,6 @@ impl Component for HelpComponent {
             return Ok(None);
         }
         match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('h') => {
                 return Ok(Some(Action::Unfocus));
             }

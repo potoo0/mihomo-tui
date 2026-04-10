@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Margin, Rect};
 use ratatui::prelude::{Color, Line, Span};
@@ -126,9 +126,6 @@ impl Component for ProxyProviderDetailComponent {
             return Ok(None);
         }
         match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.hide();
                 return Ok(Some(Action::Unfocus));

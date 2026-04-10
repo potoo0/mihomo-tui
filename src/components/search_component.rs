@@ -95,9 +95,6 @@ impl Component for SearchComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Enter | KeyCode::Esc => {
                 self.is_active = false;
                 self.send()?;
