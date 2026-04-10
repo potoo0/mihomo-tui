@@ -8,7 +8,7 @@ mod header_component;
 mod help_component;
 mod logs;
 mod logs_component;
-mod overlay;
+mod msg_box_component;
 mod overview_component;
 pub mod proxies;
 mod proxies_component;

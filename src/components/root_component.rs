@@ -25,7 +25,7 @@ use crate::components::footer_component::FooterComponent;
 use crate::components::header_component::HeaderComponent;
 use crate::components::help_component::HelpComponent;
 use crate::components::logs_component::LogsComponent;
-use crate::components::overlay::OverlayComponent;
+use crate::components::msg_box_component::MsgBoxComponent;
 use crate::components::overview_component::OverviewComponent;
 use crate::components::proxies_component::ProxiesComponent;
 use crate::components::proxy_detail_component::ProxyDetailComponent;
@@ -54,9 +54,9 @@ pub struct RootComponent {
     idle_tabs: HashMap<ComponentId, u16>,
     components: HashMap<ComponentId, Box<dyn Component>>,
 
-    /// UI priority (input & render): `overlay` > `focused` > `popup` > `normal`.
-    /// Overlay lifecycle is owned and eagerly cleared by RootComponent
-    overlay: Option<OverlayComponent>,
+    /// UI priority (input & render): `msg_box` > `focused` > `popup` > `normal`.
+    /// Message box lifecycle is owned and eagerly cleared by RootComponent
+    msg_box: Option<MsgBoxComponent>,
     focused: Option<ComponentId>,
     popup: Option<ComponentId>,
 
@@ -82,7 +82,7 @@ impl RootComponent {
             popup: Default::default(),
             focused: Default::default(),
             idle_tabs: Default::default(),
-            overlay: Default::default(),
+            msg_box: Default::default(),
             components,
             action_tx: Default::default(),
 
@@ -293,10 +293,10 @@ impl Component for RootComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        // The overlay component
-        if let Some(overlay) = &self.overlay {
-            if overlay.should_close_on_key(key) {
-                self.overlay = None;
+        // The message box component
+        if let Some(msg_box) = &self.msg_box {
+            if msg_box.should_close_on_key(key) {
+                self.msg_box = None;
             }
             return Ok(None);
         }
@@ -333,7 +333,7 @@ impl Component for RootComponent {
             Action::Quit => self.stop_conn(),
             Action::Tick => self.on_tick(),
             Action::Error(err) => {
-                self.overlay = Some(OverlayComponent::error(err.title, err.message));
+                self.msg_box = Some(MsgBoxComponent::error(err.title, err.message));
                 return Ok(None);
             }
             Action::TabSwitch(to) => {
@@ -412,7 +412,7 @@ impl Component for RootComponent {
 
         // draw popup if any
         self.popup.map(|c| self.get_or_init(c).draw(frame, chunks[1])).transpose()?;
-        self.overlay.as_ref().map(|c| c.draw(frame, area)).transpose()?;
+        self.msg_box.as_ref().map(|c| c.draw(frame, area)).transpose()?;
 
         // draw footer
         // get last row of main area for footer, with margin left/right = 1
