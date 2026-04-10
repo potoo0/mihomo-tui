@@ -237,6 +237,7 @@ impl ProxyProvidersComponent {
         let col_chunks =
             Layout::horizontal((0..CARDS_PER_ROW).map(|_| Constraint::Fill(1))).split(area);
         self.navigator
+            .step(CARDS_PER_ROW)
             .length(providers.len(), ((area.height / CARD_HEIGHT) as usize) * col_chunks.len());
         self.navigator.iter_visible(&providers, CARD_HEIGHT, col_chunks).for_each(
             |(proxy, focused, rect)| {
