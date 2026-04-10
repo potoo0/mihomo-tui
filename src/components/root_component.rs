@@ -21,6 +21,7 @@ use crate::components::connection_detail_component::ConnectionDetailComponent;
 use crate::components::connection_terminate_component::ConnectionTerminateComponent;
 use crate::components::connections_component::ConnectionsComponent;
 use crate::components::core_config_component::CoreConfigComponent;
+use crate::components::filter_component::FilterComponent;
 use crate::components::footer_component::FooterComponent;
 use crate::components::header_component::HeaderComponent;
 use crate::components::help_component::HelpComponent;
@@ -34,7 +35,6 @@ use crate::components::proxy_providers_component::ProxyProvidersComponent;
 use crate::components::proxy_setting_component::ProxySettingComponent;
 use crate::components::rule_providers_component::RuleProvidersComponent;
 use crate::components::rules_component::RulesComponent;
-use crate::components::search_component::SearchComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::config::Config;
 use crate::models::{Connection, ConnectionStats};
@@ -117,7 +117,7 @@ impl RootComponent {
                 ComponentId::ConnectionTerminate => {
                     Box::new(ConnectionTerminateComponent::default())
                 }
-                ComponentId::Search => Box::new(SearchComponent::default()),
+                ComponentId::Filter => Box::new(FilterComponent::default()),
                 _ => panic!("unsupported component `{:?}`", id),
             };
             debug!("Initializing component `{:?}`", id);
@@ -420,10 +420,10 @@ impl Component for RootComponent {
         self.get_or_init(ComponentId::Header).draw(frame, chunks[0])?;
 
         // draw main area
-        if self.current_tab.supports_search() {
+        if self.current_tab.supports_filter() {
             let inner_chunks =
                 Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
-            self.get_or_init(ComponentId::Search).draw(frame, inner_chunks[0])?;
+            self.get_or_init(ComponentId::Filter).draw(frame, inner_chunks[0])?;
             self.get_or_init(self.current_tab).draw(frame, inner_chunks[1])?;
         } else {
             self.get_or_init(self.current_tab).draw(frame, chunks[1])?;

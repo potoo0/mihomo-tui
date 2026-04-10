@@ -27,11 +27,10 @@ pub enum Action {
     TabSwitch(ComponentId),
     Shortcuts(Vec<Shortcut>),
     ConnectionDetail(Arc<Connection>),
-    /// Search -> target components: search query changed by user input
-    SearchInputChanged(Option<String>),
-    /// Target components -> Search: programmatically set the search input
-    /// (does not emit `SearchInputChanged`).
-    SearchInputSet(Option<String>),
+    /// Sent when the filter pattern is changed via user input.
+    FilterChanged(Option<String>),
+    /// Programmatically sets the filter pattern without re-triggering `FilterChanged`.
+    FilterSet(Option<String>),
     ConnectionTerminateRequest(Arc<Connection>),
     ProxyDetailRequest(String),
     ProxyDetail(Arc<Proxy>, Vec<Arc<Proxy>>),

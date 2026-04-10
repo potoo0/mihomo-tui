@@ -258,7 +258,7 @@ impl Component for LogsComponent {
         }
         match key.code {
             KeyCode::Esc => self.live_mode(true),
-            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Filter))),
             KeyCode::Char('e') => self.set_level(LogLevel::Error),
             KeyCode::Char('w') => self.set_level(LogLevel::Warning),
             KeyCode::Char('i') => self.set_level(LogLevel::Info),
@@ -291,16 +291,16 @@ impl Component for LogsComponent {
                     self.level_changed = false;
                 }
             }
-            Action::SearchInputChanged(pattern) => {
-                debug!("handle Action::SearchInputChanged, got pattern={pattern:?}");
+            Action::FilterChanged(pattern) => {
+                debug!("handle Action::FilterChanged, got pattern={pattern:?}");
                 *self.filter_pattern.lock().unwrap() = pattern;
                 self.filter_pattern_changed = true;
             }
             Action::TabSwitch(to) => {
                 if to == self.id() {
                     let pattern = self.filter_pattern.lock().unwrap().clone();
-                    debug!("handle Action::TabSwitch, current search pattern={pattern:?}");
-                    return Ok(Some(Action::SearchInputSet(pattern)));
+                    debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                    return Ok(Some(Action::FilterSet(pattern)));
                 }
             }
             _ => {}

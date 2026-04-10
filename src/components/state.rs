@@ -1,14 +1,14 @@
 use crate::models::sort::{SortDir, SortSpec};
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct SearchState {
+pub struct QueryState {
     pub pattern: Option<String>,
     pub sort: Option<SortSpec>,
     /// Maximum number of sortable columns, for column navigation
     pub max_cols: usize,
 }
 
-impl SearchState {
+impl QueryState {
     pub fn new(max_cols: usize) -> Self {
         Self { pattern: None, sort: None, max_cols }
     }
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_sort_navigation() {
-        let mut state = SearchState::new(3);
+        let mut state = QueryState::new(3);
         assert_eq!(state.sort, None);
 
         // Test next

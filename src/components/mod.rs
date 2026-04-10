@@ -3,6 +3,7 @@ mod connection_terminate_component;
 mod connections;
 mod connections_component;
 mod core_config_component;
+mod filter_component;
 mod footer_component;
 mod header_component;
 mod help_component;
@@ -23,7 +24,6 @@ mod rule_providers;
 mod rule_providers_component;
 mod rules;
 mod rules_component;
-mod search_component;
 pub mod state;
 
 use std::sync::Arc;
@@ -78,11 +78,11 @@ pub enum ComponentId {
     Rules,
     RuleProviders,
     Config,
-    Search,
+    Filter,
 }
 
 impl ComponentId {
-    pub fn supports_search(self) -> bool {
+    pub fn supports_filter(self) -> bool {
         matches!(
             self,
             ComponentId::Connections

@@ -1,7 +1,8 @@
 TODO List
 
 - [ ] proxy 相关页面 action 相互交织, 考虑重构, 使用全局状态管理, 以减少组件之间不必要的状态、事件耦合
-- [ ] 代码可读性问题: 命名统一, 代码组件名与展示内容一致(search -> filter); popup 独立一种 trait
+- [x] 代码可读性问题: 命名统一, 代码组件名与展示内容一致(search -> filter)
+- [ ] ~~popup 独立一种 trait~~
 - [x] overlay 改名
 - [x] overlay 弹出后无法 `ctrl+c`, `ctrl+c` 终止的逻辑放到 root_component 的 handle_key_event 开头
 - [ ] proxy provider 页面下方向键应该切换到下一行

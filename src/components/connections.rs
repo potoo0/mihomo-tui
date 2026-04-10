@@ -10,7 +10,7 @@ use nucleo_matcher::Matcher;
 use serde_json::Value;
 
 use crate::components::CONNS_BUFFER_SIZE;
-use crate::components::state::SearchState;
+use crate::components::state::QueryState;
 use crate::models::Connection;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey};
@@ -56,14 +56,14 @@ impl Connections {
         });
     }
 
-    pub fn compute_view(&self, search_state: &SearchState) {
+    pub fn compute_view(&self, query_state: &QueryState) {
         let buffer = self.buffer.read().unwrap();
 
-        let pattern = search_state.pattern.as_deref();
+        let pattern = query_state.pattern.as_deref();
         let mut matcher = self.matcher.lock().unwrap();
         let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, CONNECTION_COLS);
 
-        if let Some(sort) = search_state.sort
+        if let Some(sort) = query_state.sort
             && let Some(col_def) = CONNECTION_COLS.get(sort.col)
             && col_def.sortable
         {

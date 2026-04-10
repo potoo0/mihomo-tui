@@ -17,7 +17,7 @@ use tracing::{debug, info};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::connections::{CONNECTION_COLS, Connections};
-use crate::components::state::SearchState;
+use crate::components::state::QueryState;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
@@ -34,7 +34,7 @@ pub struct ConnectionsComponent {
     action_tx: Option<UnboundedSender<Action>>,
 
     store: Arc<Connections>,
-    search_state: Arc<Mutex<SearchState>>,
+    query_state: Arc<Mutex<QueryState>>,
 
     navigator: ScrollableNavigator,
     table_state: TableState,
@@ -53,7 +53,7 @@ impl ConnectionsComponent {
             conns_rx,
             action_tx: None,
             store: Default::default(),
-            search_state: Arc::new(Mutex::new(SearchState::new(CONNECTION_COLS.len()))),
+            query_state: Arc::new(Mutex::new(QueryState::new(CONNECTION_COLS.len()))),
             navigator: Default::default(),
             table_state: Default::default(),
             live_mode: Arc::new(AtomicBool::new(true)),
@@ -65,7 +65,7 @@ impl ConnectionsComponent {
 
     fn loader_connections(&mut self) -> Result<()> {
         let store = Arc::clone(&self.store);
-        let search_state = Arc::clone(&self.search_state);
+        let query_state = Arc::clone(&self.query_state);
         let live_mode = Arc::clone(&self.live_mode);
         let capture_mode = Arc::clone(&self.capture_mode);
         let rx = Arc::clone(&self.conns_rx);
@@ -79,8 +79,8 @@ impl ConnectionsComponent {
                         Some(records) => {
                             store.push(capture_mode.load(Ordering::Relaxed), records);
                             if live_mode.load(Ordering::Relaxed) {
-                                let search_state = search_state.lock().unwrap().clone();
-                                store.compute_view(&search_state);
+                                let query_state = query_state.lock().unwrap().clone();
+                                store.compute_view(&query_state);
                             }
                         },
                         _ => break,
@@ -152,7 +152,7 @@ impl ConnectionsComponent {
             Span::raw(TOP_TITLE_RIGHT),
         ]);
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
-        let sort = self.search_state.lock().unwrap().sort;
+        let sort = self.query_state.lock().unwrap().sort;
         let header = CONNECTION_COLS
             .iter()
             .map(|def| def.title)
@@ -213,7 +213,7 @@ impl ConnectionsComponent {
         }
     }
 
-    fn handle_search_state_changed(&self, state: &SearchState) {
+    fn handle_query_state_changed(&self, state: &QueryState) {
         // recompute view only when not in live mode, and has sorting specified
         if !self.live_mode.load(Ordering::Relaxed)
             && let Some(_) = state.sort
@@ -280,19 +280,19 @@ impl Component for ConnectionsComponent {
         match key.code {
             KeyCode::Esc => self.live_mode(true),
             KeyCode::Left => {
-                let mut guard = self.search_state.lock().unwrap();
+                let mut guard = self.query_state.lock().unwrap();
                 guard.sort_prev();
-                self.handle_search_state_changed(&guard.clone());
+                self.handle_query_state_changed(&guard.clone());
             }
             KeyCode::Right => {
-                let mut guard = self.search_state.lock().unwrap();
+                let mut guard = self.query_state.lock().unwrap();
                 guard.sort_next();
-                self.handle_search_state_changed(&guard.clone());
+                self.handle_query_state_changed(&guard.clone());
             }
             KeyCode::Char('r') => {
-                let mut guard = self.search_state.lock().unwrap();
+                let mut guard = self.query_state.lock().unwrap();
                 guard.sort_rev();
-                self.handle_search_state_changed(&guard.clone());
+                self.handle_query_state_changed(&guard.clone());
             }
             KeyCode::Char('t') => {
                 let action = self
@@ -305,7 +305,7 @@ impl Component for ConnectionsComponent {
             KeyCode::Char('c') => self
                 .capture_mode
                 .store(!self.capture_mode.load(Ordering::Relaxed), Ordering::Relaxed),
-            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Filter))),
             KeyCode::Enter => {
                 let action = self
                     .navigator
@@ -328,15 +328,15 @@ impl Component for ConnectionsComponent {
                     self.live_throbber.calc_next();
                 }
             }
-            Action::SearchInputChanged(pattern) => {
-                debug!("handle Action::SearchInputChanged, got pattern={pattern:?}");
-                self.search_state.lock().unwrap().pattern = pattern;
+            Action::FilterChanged(pattern) => {
+                debug!("handle Action::FilterChanged, got pattern={pattern:?}");
+                self.query_state.lock().unwrap().pattern = pattern;
             }
             Action::TabSwitch(to) => {
                 if to == self.id() {
-                    let pattern = self.search_state.lock().unwrap().pattern.clone();
-                    debug!("handle Action::TabSwitch, current search pattern={pattern:?}");
-                    return Ok(Some(Action::SearchInputSet(pattern)));
+                    let pattern = self.query_state.lock().unwrap().pattern.clone();
+                    debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                    return Ok(Some(Action::FilterSet(pattern)));
                 }
             }
             _ => {}

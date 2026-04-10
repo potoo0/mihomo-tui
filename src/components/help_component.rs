@@ -59,7 +59,7 @@ impl HelpComponent {
             HelpRow::entry("Esc", "cancel / back / live toggle"),
             HelpRow::entry("Enter", "confirm / open detail"),
             HelpRow::entry("Ctrl+l", "clear idle tabs"),
-            // search / proxy setting input keys
+            // filter / proxy setting input keys
             HelpRow::Empty,
             HelpRow::key_title("input box"),
             HelpRow::entry("Shift+Tab, Tab", "navigate fields"),
