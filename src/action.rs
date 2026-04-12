@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::components::ComponentId;
 use crate::error::UserError;
 use crate::models::Connection;
-use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
 use crate::widgets::shortcut::Shortcut;
 
@@ -32,14 +31,9 @@ pub enum Action {
     /// Programmatically sets the filter pattern without re-triggering `FilterChanged`.
     FilterSet(Option<String>),
     ConnectionTerminateRequest(Arc<Connection>),
-    ProxyDetailRequest(String),
-    ProxyDetail(Arc<Proxy>, Vec<Arc<Proxy>>),
-    ProxyUpdateRequest(String, String),
-    ProxyDetailRefresh(usize),
-    ProxiesRefresh,
+    ProxyDetail(String),
     ProxySetting,
-    ProxyTestRequest(String),
-    ProxyGroupTestRequest(String),
+    ProxySettingChanged,
     ProxyProviderDetail(Arc<ProxyProvider>),
     ProxyProviderRefresh,
 }

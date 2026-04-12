@@ -18,9 +18,9 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::logs::Logs;
 use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::LogLevel;
+use crate::store::logs::Logs;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -296,12 +296,10 @@ impl Component for LogsComponent {
                 *self.filter_pattern.lock().unwrap() = pattern;
                 self.filter_pattern_changed = true;
             }
-            Action::TabSwitch(to) => {
-                if to == self.id() {
-                    let pattern = self.filter_pattern.lock().unwrap().clone();
-                    debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
-                    return Ok(Some(Action::FilterSet(pattern)));
-                }
+            Action::TabSwitch(to) if to == self.id() => {
+                let pattern = self.filter_pattern.lock().unwrap().clone();
+                debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                return Ok(Some(Action::FilterSet(pattern)));
             }
             _ => {}
         }

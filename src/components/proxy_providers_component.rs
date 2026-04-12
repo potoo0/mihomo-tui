@@ -15,8 +15,8 @@ use tracing::{error, info};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::proxy_providers::{ProviderView, ProxyProviders};
 use crate::components::{Component, ComponentId};
+use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::utils::byte_size::human_bytes;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, space_between_many};
@@ -239,7 +239,8 @@ impl ProxyProvidersComponent {
         self.navigator
             .step(CARDS_PER_ROW)
             .length(providers.len(), ((area.height / CARD_HEIGHT) as usize) * col_chunks.len());
-        self.navigator.iter_visible(&providers, CARD_HEIGHT, col_chunks).for_each(
+        let visible = &providers[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
+        self.navigator.iter_layout(visible, CARD_HEIGHT, col_chunks).for_each(
             |(proxy, focused, rect)| {
                 Self::render_provider(proxy, focused, frame, rect);
             },
@@ -336,7 +337,7 @@ impl Component for ProxyProvidersComponent {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::ProxyProviderRefresh => self.load_providers()?,
+            Action::ProxyProviderRefresh | Action::ProxySettingChanged => self.load_providers()?,
             Action::Tick => {
                 if self.loading.load(Ordering::Relaxed) {
                     self.throbber.calc_next();

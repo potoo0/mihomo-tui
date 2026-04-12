@@ -14,9 +14,9 @@ use tracing::{debug, error, info};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::connections::CONNECTION_COLS;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
+use crate::store::connections::CONNECTION_COLS;
 use crate::utils::columns::ColDef;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};

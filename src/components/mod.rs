@@ -1,30 +1,22 @@
 mod connection_detail_component;
 mod connection_terminate_component;
-mod connections;
 mod connections_component;
 mod core_config_component;
 mod filter_component;
 mod footer_component;
 mod header_component;
 mod help_component;
-mod logs;
 mod logs_component;
 mod msg_box_component;
 mod overview_component;
-pub mod proxies;
 mod proxies_component;
 mod proxy_detail_component;
 mod proxy_provider_detail_component;
-mod proxy_providers;
 mod proxy_providers_component;
-mod proxy_setting;
 mod proxy_setting_component;
 pub mod root_component;
-mod rule_providers;
 mod rule_providers_component;
-mod rules;
 mod rules_component;
-pub mod state;
 
 use std::sync::Arc;
 
@@ -41,9 +33,6 @@ use crate::config::Config;
 use crate::tui::Event;
 use crate::widgets::shortcut::Shortcut;
 
-const BUFFER_SIZE: usize = 100;
-const CONNS_BUFFER_SIZE: usize = 500;
-const LOGS_BUFFER_SIZE: usize = 500;
 const HORIZ_STEP: usize = 4;
 
 /// Header tabs in display order; index is used for tab navigation and shortcuts

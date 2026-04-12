@@ -330,9 +330,7 @@ impl Component for RootComponent {
 
         match key.code {
             KeyCode::Char('q') => return Ok(Some(Action::Quit)),
-            KeyCode::Char('h') => {
-                return Ok(Some(Action::Help));
-            }
+            KeyCode::Char('h') => return Ok(Some(Action::Help)),
             KeyCode::Char(c) if c.is_ascii_digit() => {
                 let index = (c as u8 - b'0') as usize;
                 if let Some(component_id) = TABS.get(index.saturating_sub(1)) {
@@ -365,7 +363,7 @@ impl Component for RootComponent {
             }
             Action::Help => self.open_popup(ComponentId::Help)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
-            Action::ProxyDetail(_, _) => self.open_popup(ComponentId::ProxyDetail)?,
+            Action::ProxyDetail(_) => self.open_popup(ComponentId::ProxyDetail)?,
             Action::ProxySetting => self.open_popup(ComponentId::ProxySetting)?,
             Action::ProxyProviderDetail(_) => self.open_popup(ComponentId::ProxyProviderDetail)?,
             Action::ConnectionTerminateRequest(_) => {

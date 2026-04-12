@@ -18,9 +18,10 @@ use tracing::{error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::{BUFFER_SIZE, Component, ComponentId};
+use crate::components::{Component, ComponentId};
 use crate::models::{ConnectionStats, Memory, Traffic};
 use crate::palette;
+use crate::store::BUFFER_SIZE;
 use crate::utils::axis::{axis_bounds, axis_labels};
 use crate::utils::byte_size::{ByteSizeOptExt, human_bytes};
 use crate::utils::symbols::arrow;

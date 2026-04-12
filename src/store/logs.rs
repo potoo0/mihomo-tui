@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex, RwLock};
 use circular_buffer::CircularBuffer;
 use nucleo_matcher::Matcher;
 
-use crate::components::LOGS_BUFFER_SIZE;
 use crate::models::Log;
+use crate::store::LOGS_BUFFER_SIZE;
 use crate::utils::columns::ColDef;
 use crate::utils::row_filter::RowFilter;
 

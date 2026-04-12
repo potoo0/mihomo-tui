@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, RwLock};
 
 use circular_buffer::CircularBuffer;
 use const_format::concatcp;
@@ -9,9 +9,9 @@ use indexmap::IndexMap;
 use nucleo_matcher::Matcher;
 use serde_json::Value;
 
-use crate::components::CONNS_BUFFER_SIZE;
-use crate::components::state::QueryState;
 use crate::models::Connection;
+use crate::store::CONNS_BUFFER_SIZE;
+use crate::store::query::QueryState;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey};
 use crate::utils::row_filter::RowFilter;
@@ -81,7 +81,7 @@ impl Connections {
 
     pub fn with_view<R, F>(&self, f: F) -> R
     where
-        F: FnOnce(&RwLockReadGuard<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>) -> R,
+        F: FnOnce(&CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>) -> R,
     {
         let guard = self.view.read().unwrap();
         f(&guard)

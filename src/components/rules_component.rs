@@ -15,9 +15,9 @@ use tracing::{debug, error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::rules::{RULE_COLS, Rules};
 use crate::components::{Component, ComponentId};
 use crate::models::Rule;
+use crate::store::rules::{RULE_COLS, Rules};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -324,12 +324,10 @@ impl Component for RulesComponent {
                 *self.filter_pattern.lock().unwrap() = pattern;
                 self.filter_pattern_changed = true;
             }
-            Action::TabSwitch(to) => {
-                if to == self.id() {
-                    let pattern = self.filter_pattern.lock().unwrap().clone();
-                    debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
-                    return Ok(Some(Action::FilterSet(pattern)));
-                }
+            Action::TabSwitch(to) if to == self.id() => {
+                let pattern = self.filter_pattern.lock().unwrap().clone();
+                debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                return Ok(Some(Action::FilterSet(pattern)));
             }
             _ => {}
         }

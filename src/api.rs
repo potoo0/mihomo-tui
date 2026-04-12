@@ -197,12 +197,12 @@ impl Api {
         Ok(body.proxies)
     }
 
-    pub async fn update_proxy(&self, selector_name: String, name: String) -> Result<()> {
-        let body = serde_json::to_string(&json!({ "name": &name }))
-            .with_context(|| format!("Fail to create body with name `{}`", name))?;
+    pub async fn update_proxy<S: AsRef<str>>(&self, selector_name: S, name: S) -> Result<()> {
+        let body = serde_json::to_string(&json!({ "name": name.as_ref() }))
+            .with_context(|| format!("Fail to create body with name `{}`", name.as_ref()))?;
         let resp = self
             .client
-            .put(self.api.join(&format!("/proxies/{}", selector_name))?)
+            .put(self.api.join(&format!("/proxies/{}", selector_name.as_ref()))?)
             .body(body)
             .send()
             .await
@@ -218,7 +218,7 @@ impl Api {
         Ok(())
     }
 
-    pub async fn test_proxy(&self, name: String, url: String, timeout: u64) -> Result<u16> {
+    pub async fn test_proxy<S: AsRef<str>>(&self, name: S, url: S, timeout: u64) -> Result<u16> {
         #[derive(Deserialize)]
         struct DelayResp {
             delay: u16,
@@ -226,8 +226,8 @@ impl Api {
 
         let resp = self
             .client
-            .get(self.api.join(&format!("/proxies/{}/delay", name))?)
-            .query(&[("url", url), ("timeout", timeout.to_string())])
+            .get(self.api.join(&format!("/proxies/{}/delay", name.as_ref()))?)
+            .query(&[("url", url.as_ref()), ("timeout", timeout.to_string().as_ref())])
             .send()
             .await
             .context("Fail to send `GET /proxies/<name>/delay`")?;
@@ -242,16 +242,16 @@ impl Api {
         Ok(body.delay)
     }
 
-    pub async fn test_proxy_group(
+    pub async fn test_proxy_group<S: AsRef<str>>(
         &self,
-        name: String,
-        url: String,
+        name: S,
+        url: S,
         timeout: u64,
     ) -> Result<HashMap<String, u16>> {
         let resp = self
             .client
-            .get(self.api.join(&format!("/group/{}/delay", name))?)
-            .query(&[("url", url), ("timeout", timeout.to_string())])
+            .get(self.api.join(&format!("/group/{}/delay", name.as_ref()))?)
+            .query(&[("url", url.as_ref()), ("timeout", timeout.to_string().as_ref())])
             .send()
             .await
             .context("Fail to send `GET /group/<name>/delay`")?;
@@ -629,7 +629,7 @@ mod tests {
         init_logger();
         let api = init_api();
         let delay = api
-            .test_proxy("新加坡①一优化".into(), "https://www.gstatic.com/generate_204".into(), 5000)
+            .test_proxy("新加坡①一优化", "https://www.gstatic.com/generate_204", 5000)
             .await
             .unwrap();
         debug!("delay: {delay}");
@@ -640,7 +640,7 @@ mod tests {
         init_logger();
         let api = init_api();
         let delay = api
-            .test_proxy_group("新加坡".into(), "https://www.gstatic.com/generate_204".into(), 5000)
+            .test_proxy_group("新加坡", "https://www.gstatic.com/generate_204", 5000)
             .await
             .unwrap();
         debug!("delay: {delay:?}");

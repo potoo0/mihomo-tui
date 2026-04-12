@@ -14,8 +14,8 @@ use tracing::{debug, error, info};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
 use crate::components::{Component, ComponentId};
+use crate::store::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -293,12 +293,10 @@ impl Component for RuleProvidersComponent {
                 *self.filter_pattern.lock().unwrap() = pattern;
                 self.filter_pattern_changed = true;
             }
-            Action::TabSwitch(to) => {
-                if to == self.id() {
-                    let pattern = self.filter_pattern.lock().unwrap().clone();
-                    debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
-                    return Ok(Some(Action::FilterSet(pattern)));
-                }
+            Action::TabSwitch(to) if to == self.id() => {
+                let pattern = self.filter_pattern.lock().unwrap().clone();
+                debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                return Ok(Some(Action::FilterSet(pattern)));
             }
             _ => {}
         }

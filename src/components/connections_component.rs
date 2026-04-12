@@ -16,11 +16,11 @@ use tracing::{debug, info};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::connections::{CONNECTION_COLS, Connections};
-use crate::components::state::QueryState;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
+use crate::store::connections::{CONNECTION_COLS, Connections};
+use crate::store::query::QueryState;
 use crate::utils::symbols::{arrow, triangle};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -63,7 +63,7 @@ impl ConnectionsComponent {
         }
     }
 
-    fn loader_connections(&mut self) -> Result<()> {
+    fn load_connections(&mut self) -> Result<()> {
         let store = Arc::clone(&self.store);
         let query_state = Arc::clone(&self.query_state);
         let live_mode = Arc::clone(&self.live_mode);
@@ -263,7 +263,7 @@ impl Component for ConnectionsComponent {
 
     fn init(&mut self, _api: Arc<Api>) -> Result<()> {
         self.token = CancellationToken::new();
-        self.loader_connections()?;
+        self.load_connections()?;
         Ok(())
     }
 
@@ -332,12 +332,10 @@ impl Component for ConnectionsComponent {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
                 self.query_state.lock().unwrap().pattern = pattern;
             }
-            Action::TabSwitch(to) => {
-                if to == self.id() {
-                    let pattern = self.query_state.lock().unwrap().pattern.clone();
-                    debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
-                    return Ok(Some(Action::FilterSet(pattern)));
-                }
+            Action::TabSwitch(to) if to == self.id() => {
+                let pattern = self.query_state.lock().unwrap().pattern.clone();
+                debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                return Ok(Some(Action::FilterSet(pattern)));
             }
             _ => {}
         }

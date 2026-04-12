@@ -36,22 +36,21 @@ impl ScrollableNavigator {
     ///
     /// # Arguments
     ///
-    /// - `records`: all items
+    /// - `records`: items to iterate (typically already sliced if needed)
     /// - `height`: height of each item
     /// - `col_areas`: pre-calculated column areas
     ///
     /// # Returns
     ///
     /// - Iterator over (item, is_focused, area)
-    pub fn iter_visible<'a, T>(
+    pub fn iter_layout<'a, T>(
         &self,
         records: &'a [T],
         height: u16,
         col_areas: Rc<[Rect]>,
     ) -> impl Iterator<Item = (&'a T, bool, Rect)> {
         let cols = col_areas.len();
-        let visible = &records[self.scroller.pos()..self.scroller.end_pos()];
-        visible.iter().enumerate().map(move |(idx, child)| {
+        records.iter().enumerate().map(move |(idx, child)| {
             let row = (idx / cols) as u16;
             let col = idx % cols;
 

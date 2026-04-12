@@ -15,8 +15,8 @@ use tui_input::{Input, InputRequest};
 use url::Url;
 
 use crate::action::Action;
-use crate::components::proxy_setting::get_proxy_setting;
 use crate::components::{Component, ComponentId};
+use crate::store::proxy_setting::ProxySetting;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
@@ -51,7 +51,7 @@ impl ProxySettingField {
     }
 
     pub fn value(&self) -> String {
-        let lock = get_proxy_setting();
+        let lock = ProxySetting::global();
         let setting = lock.read().unwrap();
 
         match self {
@@ -89,7 +89,7 @@ impl ProxySettingComponent {
     }
 
     fn submit(&self) -> Result<(), String> {
-        let lock = get_proxy_setting();
+        let lock = ProxySetting::global();
         let mut setting = lock.write().unwrap();
 
         match self.focused {
@@ -250,7 +250,7 @@ impl Component for ProxySettingComponent {
                 self.error = self.submit().err();
                 if self.error.is_none() {
                     self.hide();
-                    self.action_tx.as_ref().unwrap().send(Action::ProxiesRefresh)?;
+                    self.action_tx.as_ref().unwrap().send(Action::ProxySettingChanged)?;
                     return Ok(Some(Action::Unfocus));
                 }
             }

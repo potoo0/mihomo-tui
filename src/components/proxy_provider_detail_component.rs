@@ -7,10 +7,10 @@ use ratatui::prelude::{Color, Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 
 use crate::action::Action;
-use crate::components::proxy_setting::get_proxy_setting;
 use crate::components::{Component, ComponentId};
 use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
+use crate::store::proxy_setting::ProxySetting;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, popup_area, space_between};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -55,7 +55,13 @@ impl ProxyProviderDetailComponent {
         ])
     }
 
-    fn render_card(proxy: &Proxy, focused: bool, frame: &mut Frame, area: Rect) {
+    fn render_card(
+        threshold: (u64, u64),
+        proxy: &Proxy,
+        focused: bool,
+        frame: &mut Frame,
+        area: Rect,
+    ) {
         let (border_type, border_color) = if focused {
             (BorderType::Thick, Color::Cyan)
         } else {
@@ -66,7 +72,6 @@ impl ProxyProviderDetailComponent {
             .border_style(border_color)
             .title_top(Span::raw(proxy.name.as_str()));
 
-        let threshold = get_proxy_setting().read().unwrap().threshold;
         let para = Paragraph::new(space_between(
             area.width - 2, // minus border
             Span::raw(proxy.r#type.as_str()),
@@ -87,10 +92,11 @@ impl ProxyProviderDetailComponent {
         self.navigator
             .step(cols)
             .length(provider.proxies.len(), ((area.height / CARD_HEIGHT) as usize) * cols);
-        self.navigator.iter_visible(&provider.proxies, CARD_HEIGHT, col_chunks).for_each(
-            |(proxy, focused, rect)| {
-                Self::render_card(proxy, focused, frame, rect);
-            },
+        let visible =
+            &provider.proxies[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
+        let threshold = ProxySetting::global().read().unwrap().threshold;
+        self.navigator.iter_layout(visible, CARD_HEIGHT, col_chunks).for_each(
+            |(proxy, focused, rect)| Self::render_card(threshold, proxy, focused, frame, rect),
         );
     }
 }
