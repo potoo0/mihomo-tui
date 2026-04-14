@@ -46,5 +46,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - uses: Swatinem/rust-cache@v2
       - name: Run clippy
         run: cargo clippy-strict
