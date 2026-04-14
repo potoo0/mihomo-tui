@@ -7,7 +7,7 @@
   - Add `Ctrl+l` to immediately clear all idle components.
   - **Proxy Detail**:
     - Add `[` / `]` for hierarchical proxy group navigation.
-    - Add `ctrl + c` to focus the currently selected proxy.
+    - Add `c` to focus the currently selected proxy.
 - **API**: Improved error reporting by including the response body in API error messages.
 
 ### Bug Fixes
