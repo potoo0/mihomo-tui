@@ -1,4 +1,33 @@
 
+## 0.3.4 - 2026-04-14
+
+### Features
+
+- **Shortcuts**:
+  - Add `Ctrl+l` to immediately clear all idle components.
+  - **Proxy Detail**:
+    - Add `[` / `]` for hierarchical proxy group navigation.
+    - Add `ctrl + c` to focus the currently selected proxy.
+- **API**: Improved error reporting by including the response body in API error messages.
+
+### Bug Fixes
+
+- **Proxies**: Fixed a bug where failing latency tests could cause an infinite "testing" status.
+- **Proxy Provider**: Fixed vertical navigation issues.
+
+### Refactors
+
+- Renamed `OverlayComponent` to `MsgBoxComponent`.
+- Renamed `SearchComponent` to `FilterComponent`.
+- Introduced `store` modules for component state management.
+- Switched to explicit `tokio-console` feature flag for console-subscriber logic.
+
+### Chores
+
+- Integrated `rust-cache` into the Clippy lint workflow.
+- Refined `tokio` features to reduce compile times.
+- Bump dependency versions.
+
 ## 0.3.3 - 2026-03-28
 
 ### Features
