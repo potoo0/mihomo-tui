@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, RwLock};
 
 use circular_buffer::CircularBuffer;
 use const_format::concatcp;
@@ -9,9 +9,9 @@ use indexmap::IndexMap;
 use nucleo_matcher::Matcher;
 use serde_json::Value;
 
-use crate::components::CONNS_BUFFER_SIZE;
-use crate::components::state::SearchState;
 use crate::models::Connection;
+use crate::store::CONNS_BUFFER_SIZE;
+use crate::store::query::QueryState;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey};
 use crate::utils::row_filter::RowFilter;
@@ -56,14 +56,14 @@ impl Connections {
         });
     }
 
-    pub fn compute_view(&self, search_state: &SearchState) {
+    pub fn compute_view(&self, query_state: &QueryState) {
         let buffer = self.buffer.read().unwrap();
 
-        let pattern = search_state.pattern.as_deref();
+        let pattern = query_state.pattern.as_deref();
         let mut matcher = self.matcher.lock().unwrap();
         let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, CONNECTION_COLS);
 
-        if let Some(sort) = search_state.sort
+        if let Some(sort) = query_state.sort
             && let Some(col_def) = CONNECTION_COLS.get(sort.col)
             && col_def.sortable
         {
@@ -81,7 +81,7 @@ impl Connections {
 
     pub fn with_view<R, F>(&self, f: F) -> R
     where
-        F: FnOnce(&RwLockReadGuard<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>) -> R,
+        F: FnOnce(&CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>) -> R,
     {
         let guard = self.view.read().unwrap();
         f(&guard)

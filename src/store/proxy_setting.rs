@@ -19,6 +19,8 @@ impl Default for ProxySetting {
     }
 }
 
-pub fn get_proxy_setting() -> &'static RwLock<ProxySetting> {
-    GLOBAL_PROXY_SETTING.get_or_init(Default::default)
+impl ProxySetting {
+    pub fn global() -> &'static RwLock<Self> {
+        GLOBAL_PROXY_SETTING.get_or_init(Default::default)
+    }
 }

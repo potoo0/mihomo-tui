@@ -8,14 +8,14 @@ use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap};
 use crate::utils::symbols::dot;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, popup_area};
 
-pub struct OverlayComponent {
+pub struct MsgBoxComponent {
     pub icon: &'static str,
     pub icon_style: Style,
     pub title: &'static str,
     pub content: Box<str>,
 }
 
-impl OverlayComponent {
+impl MsgBoxComponent {
     pub fn error(title: &'static str, content: impl Into<Box<str>>) -> Self {
         Self {
             icon: dot::RED_LARGE,
@@ -25,7 +25,7 @@ impl OverlayComponent {
         }
     }
 
-    /// Determine whether the overlay should be closed for the given key event.
+    /// Determine whether the message box should be closed for the given key event.
     pub fn should_close_on_key(&self, key: KeyEvent) -> bool {
         matches!(key.code, KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q'))
     }

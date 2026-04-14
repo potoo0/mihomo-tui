@@ -16,14 +16,14 @@ use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
 #[derive(Debug, Clone, Default)]
-pub struct SearchComponent {
+pub struct FilterComponent {
     is_active: bool,
     should_send: bool,
     input: Input,
     action_tx: Option<UnboundedSender<Action>>,
 }
 
-impl SearchComponent {
+impl FilterComponent {
     fn input_request(&mut self, key: KeyEvent) -> Option<InputRequest> {
         use KeyCode::*;
         use tui_input::InputRequest::*;
@@ -52,7 +52,7 @@ impl SearchComponent {
         if self.is_active && self.should_send {
             let pattern =
                 Some(str::trim(self.input.value())).filter(|s| !s.is_empty()).map(str::to_owned);
-            self.action_tx.as_ref().unwrap().send(Action::SearchInputChanged(pattern))?;
+            self.action_tx.as_ref().unwrap().send(Action::FilterChanged(pattern))?;
             self.should_send = false;
         }
 
@@ -60,9 +60,9 @@ impl SearchComponent {
     }
 }
 
-impl Component for SearchComponent {
+impl Component for FilterComponent {
     fn id(&self) -> ComponentId {
-        ComponentId::Search
+        ComponentId::Filter
     }
 
     fn shortcuts(&self) -> Vec<Shortcut> {
@@ -95,9 +95,6 @@ impl Component for SearchComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Enter | KeyCode::Esc => {
                 self.is_active = false;
                 self.send()?;
@@ -115,10 +112,10 @@ impl Component for SearchComponent {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::Focus(ComponentId::Search) => self.is_active = true,
+            Action::Focus(ComponentId::Filter) => self.is_active = true,
             Action::Tick => self.send()?,
-            Action::SearchInputSet(pattern) => {
-                debug!("handle Action::SearchInputSet, pattern={pattern:?}");
+            Action::FilterSet(pattern) => {
+                debug!("handle Action::FilterSet, pattern={pattern:?}");
                 self.input = pattern.unwrap_or_default().into();
             }
             _ => (),

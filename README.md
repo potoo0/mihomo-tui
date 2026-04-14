@@ -21,7 +21,7 @@
 ## Limitations
 
 - The tool is designed only to interact with the [API](https://wiki.metacubex.one/api/). It does not manage any actual configuration files.
-- The tool uses a ring buffer to store the [last 500 connections](/src/components/mod.rs#L45).
+- The tool uses a ring buffer to store the [last 500 connections](/src/store/mod.rs#L11).
 
 ## Installation
 

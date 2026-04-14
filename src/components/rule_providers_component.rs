@@ -14,8 +14,8 @@ use tracing::{debug, error, info};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
 use crate::components::{Component, ComponentId};
+use crate::store::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -265,7 +265,7 @@ impl Component for RuleProvidersComponent {
         }
         match key.code {
             KeyCode::Esc => self.navigator.focused = None,
-            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Filter))),
             KeyCode::Char('r') => self.load_rule_providers()?,
             KeyCode::Char('u') => self.update_rule_providers(),
             _ => (),
@@ -288,18 +288,15 @@ impl Component for RuleProvidersComponent {
                     self.throbber.calc_next();
                 }
             }
-            Action::SearchInputChanged(pattern) => {
-                debug!("handle Action::SearchInputChanged, got pattern={pattern:?}");
+            Action::FilterChanged(pattern) => {
+                debug!("handle Action::FilterChanged, got pattern={pattern:?}");
                 *self.filter_pattern.lock().unwrap() = pattern;
                 self.filter_pattern_changed = true;
             }
-            Action::TabSwitch(to) => {
-                if to == self.id() {
-                    // send search pattern to search component
-                    let pattern = self.filter_pattern.lock().unwrap().clone();
-                    debug!("handle Action::TabSwitch, current search pattern={pattern:?}");
-                    return Ok(Some(Action::SearchInputSet(pattern)));
-                }
+            Action::TabSwitch(to) if to == self.id() => {
+                let pattern = self.filter_pattern.lock().unwrap().clone();
+                debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                return Ok(Some(Action::FilterSet(pattern)));
             }
             _ => {}
         }

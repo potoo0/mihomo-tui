@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use indexmap::IndexMap;
 
-use crate::components::proxy_setting::get_proxy_setting;
 use crate::models::proxy_provider::ProxyProvider;
+use crate::store::proxy_setting::ProxySetting;
 use crate::utils::time::format_datetime;
 use crate::widgets::latency::{LatencyQuality, QualityStats};
 
@@ -21,7 +21,7 @@ pub struct ProxyProviders {
 
 impl ProxyProviders {
     pub fn push(&mut self, providers: IndexMap<String, ProxyProvider>) {
-        let threshold = get_proxy_setting().read().unwrap().threshold;
+        let threshold = ProxySetting::global().read().unwrap().threshold;
         self.providers = providers
             .into_values()
             .filter(|v| v.name != "default" && v.vehicle_type != "Compatible")

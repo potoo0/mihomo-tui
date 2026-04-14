@@ -1,5 +1,5 @@
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
-use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -11,13 +11,13 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::proxies::{Proxies, ProxyView};
-use crate::components::proxy_setting::get_proxy_setting;
 use crate::components::{Component, ComponentId};
+use crate::store::proxies::{Proxies, ProxyView};
+use crate::store::proxy_setting::ProxySetting;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -25,15 +25,12 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const CARD_HEIGHT: u16 = 4;
 const CARDS_PER_ROW: usize = 2;
-const NOP: fn() = || {};
 
 #[derive(Debug)]
 pub struct ProxiesComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
-    store: Arc<RwLock<Proxies>>,
     navigator: ScrollableNavigator,
-    detail_focused: Option<usize>,
 
     loading: Arc<AtomicBool>,
     throbber: ThrobberState,
@@ -47,9 +44,7 @@ impl Default for ProxiesComponent {
         Self {
             api: None,
             action_tx: None,
-            store: Default::default(),
             navigator: ScrollableNavigator::new(CARDS_PER_ROW),
-            detail_focused: None,
             loading: Default::default(),
             throbber: Default::default(),
             pending_test: Default::default(),
@@ -60,126 +55,37 @@ impl Default for ProxiesComponent {
 
 impl ProxiesComponent {
     fn load_proxies(&mut self) -> Result<()> {
+        self.loading.store(true, Ordering::Relaxed);
         info!("Loading proxies");
         let api = Arc::clone(self.api.as_ref().unwrap());
-        let store = Arc::clone(&self.store);
-
-        tokio::task::Builder::new()
-            .name("proxies-loader")
-            .spawn(Self::load_proxies_task(api, store, NOP))?;
-
-        Ok(())
-    }
-
-    async fn load_proxies_task<F>(api: Arc<Api>, store: Arc<RwLock<Proxies>>, cb: F) -> Result<()>
-    where
-        F: FnOnce(),
-    {
-        // match tokio::try_join!(api.get_proxies(), api.get_providers()) {
-        match api.get_proxies().await {
-            Ok(proxies) => {
-                store.write().unwrap().push(proxies);
-                cb();
-                Ok(())
-            }
-            Err(e) => {
-                error!(error = ?e, "Failed to get proxies");
-                Err(e)
-            }
-        }
-    }
-
-    fn refresh_proxies(&self) -> Result<()> {
-        info!("Refresh proxies");
-        let api = Arc::clone(self.api.as_ref().unwrap());
-        let store = Arc::clone(&self.store);
-        let action_tx = self.action_tx.as_ref().unwrap().clone();
-        let focused = self.detail_focused;
         let loading = Arc::clone(&self.loading);
 
-        tokio::task::Builder::new().name("proxies-refresher").spawn(Self::load_proxies_task(
-            api,
-            store,
-            move || {
-                if let Some(focused) = focused {
-                    let _ = action_tx.send(Action::ProxyDetailRefresh(focused));
-                }
-                loading.store(false, Ordering::Relaxed);
-            },
-        ))?;
-
-        Ok(())
-    }
-
-    fn update_proxies(&mut self, selector_name: String, name: String) -> Result<()> {
-        info!("Updating proxies");
-        let api = Arc::clone(self.api.as_ref().unwrap());
-        let store = Arc::clone(&self.store);
-        let action_tx = self.action_tx.as_ref().unwrap().clone();
-        let focused = self.detail_focused;
-
-        tokio::task::Builder::new().name("proxy-updater").spawn(async move {
-            match api.update_proxy(selector_name, name).await {
-                Ok(_) => {
-                    let _ = Self::load_proxies_task(api, store, || {
-                        if let Some(focused) = focused {
-                            let _ = action_tx.send(Action::ProxyDetailRefresh(focused));
-                        }
-                    })
-                    .await;
-                }
-                Err(e) => {
-                    error!(error = ?e, "Failed to update proxy");
-                    let _ = action_tx.send(Action::Error(("Select proxy", e).into()));
-                }
+        tokio::task::Builder::new().name("proxies-loader").spawn(async move {
+            if let Err(e) = Proxies::load(api).await {
+                error!(error = ?e, "Failed to load proxies");
             }
+            loading.store(false, Ordering::Relaxed);
         })?;
+
         Ok(())
     }
 
-    fn test_proxy(&self, name: String, is_group: bool) -> Result<()> {
-        info!("Testing proxy {}", name);
+    fn test_proxy_group(&self, name: String) -> Result<()> {
+        info!("Testing proxy group {}", name);
         let api = Arc::clone(self.api.as_ref().unwrap());
-        let store = Arc::clone(&self.store);
-        let action_tx = self.action_tx.as_ref().unwrap().clone();
-        let focused = self.detail_focused;
-        let (test_url, test_timeout) = {
-            let setting = get_proxy_setting().read().unwrap();
-            (setting.test_url.clone(), setting.test_timeout)
-        };
         let pending_test = Arc::clone(&self.pending_test);
-        if focused.is_none() {
-            pending_test.fetch_add(1, Ordering::Relaxed);
-        }
+        pending_test.fetch_add(1, Ordering::Relaxed);
 
-        tokio::task::Builder::new().name("proxy-tester").spawn(async move {
-            let result = if is_group {
-                api.test_proxy_group(name, test_url, test_timeout).await.map(|_| ())
-            } else {
-                api.test_proxy(name, test_url, test_timeout).await.map(|_| ())
-            };
-            match result {
-                Ok(_) => (),
-                Err(e) => error!(error = ?e, "Failed to test proxy"),
+        tokio::task::Builder::new().name("proxy-group-tester").spawn(async move {
+            if let Err(e) = Proxies::test_group_and_reload(api, &name).await {
+                error!(error = ?e, "Failed to test and load proxy: {}", name);
             }
-            let _ = Self::load_proxies_task(api, store, || {
-                let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
-                    if x == 0 { None } else { Some(x - 1) }
-                });
-                if let Some(focused) = focused {
-                    let _ = action_tx.send(Action::ProxyDetailRefresh(focused));
-                }
-            })
-            .await;
+            let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
+                if x == 0 { None } else { Some(x - 1) }
+            });
         })?;
-        Ok(())
-    }
 
-    fn open_proxy_detail(&mut self) -> Option<Action> {
-        let store = self.store.read().unwrap();
-        self.detail_focused
-            .and_then(|idx| store.get(idx))
-            .map(|v| Action::ProxyDetail(Arc::clone(&v.proxy), store.children(v.proxy.as_ref())))
+        Ok(())
     }
 
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
@@ -211,7 +117,13 @@ impl ProxiesComponent {
         }
     }
 
-    fn render_proxy(view: &ProxyView, focused: bool, frame: &mut Frame, area: Rect) {
+    fn render_proxy(
+        threshold: (u64, u64),
+        view: &ProxyView,
+        focused: bool,
+        frame: &mut Frame,
+        area: Rect,
+    ) {
         let title_line = Line::from(vec![
             Span::styled(view.proxy.name.as_str(), Color::White),
             Span::raw(" ("),
@@ -239,7 +151,6 @@ impl ProxiesComponent {
 
         let children = view.proxy.children.as_ref().map(|v| v.len()).unwrap_or(0);
         if children > 0 {
-            let threshold = get_proxy_setting().read().unwrap().threshold;
             let latency_span: Span = view.proxy.latency.as_span(threshold);
             let width = area.width - 10;
             let padding_width = (10usize - 2).saturating_sub(latency_span.width());
@@ -253,12 +164,11 @@ impl ProxiesComponent {
     }
 
     fn render_proxies(&mut self, frame: &mut Frame, outer: Rect) {
-        let proxies = self.store.read().unwrap().view();
-
+        let proxies_len = Proxies::with_view(|p| p.len());
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
             Span::raw("proxies ("),
-            Span::styled(format!("{}", proxies.len()), Color::LightCyan),
+            Span::styled(format!("{}", proxies_len), Color::LightCyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),
         ]);
@@ -269,12 +179,29 @@ impl ProxiesComponent {
         let col_chunks =
             Layout::horizontal((0..CARDS_PER_ROW).map(|_| Constraint::Fill(1))).split(area);
         self.navigator
-            .length(proxies.len(), ((area.height / CARD_HEIGHT) as usize) * col_chunks.len());
-        self.navigator.iter_visible(&proxies, CARD_HEIGHT, col_chunks).for_each(
+            .length(proxies_len, ((area.height / CARD_HEIGHT) as usize) * col_chunks.len());
+        let proxies = Proxies::with_view(|records| {
+            records
+                .get(self.navigator.scroller.pos()..self.navigator.scroller.end_pos())
+                .map(|slice| slice.to_vec())
+                .unwrap_or_default()
+        });
+        let threshold = ProxySetting::global().read().unwrap().threshold;
+        self.navigator.iter_layout(&proxies, CARD_HEIGHT, col_chunks).for_each(
             |(proxy, focused, rect)| {
-                Self::render_proxy(proxy, focused, frame, rect);
+                Self::render_proxy(threshold, proxy, focused, frame, rect);
             },
         );
+    }
+}
+
+impl Drop for ProxiesComponent {
+    fn drop(&mut self) {
+        info!("`ProxiesComponent` dropped");
+        match Proxies::global().write() {
+            Ok(mut p) => p.clear(),
+            Err(_) => warn!("Failed to acquire write lock to clear proxies store"),
+        }
     }
 }
 
@@ -323,32 +250,22 @@ impl Component for ProxiesComponent {
             return Ok(None);
         }
         match key.code {
-            KeyCode::Esc => {
-                self.navigator.focused = None;
-                self.detail_focused = None;
-            }
-            KeyCode::Char('r') => {
-                if self
-                    .loading
-                    .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-                    .is_ok()
-                {
-                    return Ok(Some(Action::ProxiesRefresh));
-                }
-            }
+            KeyCode::Esc => self.navigator.focused = None,
+            KeyCode::Char('r') => self.load_proxies()?,
             KeyCode::Char('s') => return Ok(Some(Action::ProxySetting)),
             KeyCode::Enter => {
-                self.detail_focused = self.navigator.focused;
-                return Ok(self.open_proxy_detail());
+                let action = self
+                    .navigator
+                    .focused
+                    .and_then(Proxies::get)
+                    .map(|v| Action::ProxyDetail(v.proxy.name.clone()));
+                return Ok(action);
             }
             KeyCode::Char('t') => {
-                let store = self.store.read().unwrap();
-                if let Some(idx) = self.navigator.focused {
-                    let action = store
-                        .get(idx)
-                        .map(|v| v.proxy.name.clone())
-                        .map(Action::ProxyGroupTestRequest);
-                    return Ok(action);
+                if let Some(name) =
+                    self.navigator.focused.and_then(Proxies::get).map(|v| v.proxy.name.clone())
+                {
+                    self.test_proxy_group(name)?;
                 }
             }
             _ => (),
@@ -359,26 +276,7 @@ impl Component for ProxiesComponent {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::Unfocus => self.detail_focused = None,
-            Action::ProxyDetailRequest(selector_name) => {
-                let store = self.store.read().unwrap();
-                if let Some((idx, proxy)) = store.find_visible_by_name(&selector_name) {
-                    self.detail_focused = Some(idx);
-                    let children = store.children(proxy.proxy.as_ref());
-                    return Ok(Some(Action::ProxyDetail(Arc::clone(&proxy.proxy), children)));
-                }
-            }
-            Action::ProxyUpdateRequest(selector_name, name) => {
-                self.update_proxies(selector_name, name)?;
-            }
-            Action::ProxyDetailRefresh(focused) => {
-                if let Some(detail_focused) = self.detail_focused
-                    && detail_focused == focused
-                {
-                    return Ok(self.open_proxy_detail());
-                }
-            }
-            Action::ProxiesRefresh => self.refresh_proxies()?,
+            Action::ProxySettingChanged => self.load_proxies()?,
             Action::Tick => {
                 if self.loading.load(Ordering::Relaxed) {
                     self.throbber.calc_next();
@@ -387,8 +285,6 @@ impl Component for ProxiesComponent {
                     self.pending_test_throbber.calc_next();
                 }
             }
-            Action::ProxyTestRequest(name) => self.test_proxy(name, false)?,
-            Action::ProxyGroupTestRequest(name) => self.test_proxy(name, true)?,
             _ => (),
         }
 

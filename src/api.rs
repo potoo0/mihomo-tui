@@ -62,14 +62,36 @@ impl Api {
         Ok(client)
     }
 
+    async fn check_status(resp: reqwest::Response) -> Result<reqwest::Response> {
+        let status = resp.status();
+        if status.is_success() {
+            return Ok(resp);
+        }
+
+        let url = resp.url().clone();
+        let body = resp.text().await.unwrap_or_default();
+        let mut msg = format!("HTTP status error ({}) for url ({})", status, url);
+
+        if !body.is_empty() {
+            msg.push_str("\nBody:");
+            for line in body.lines() {
+                msg.push_str(&format!("\n  {}", line));
+            }
+        }
+
+        Err(anyhow!(msg))
+    }
+
     pub async fn get_version(&self) -> Result<Version> {
-        let body = self
+        let resp = self
             .client
             .get(self.api.join("/version")?)
             .send()
             .await
-            .context("Fail to send `GET /version`")?
-            .error_for_status()
+            .context("Fail to send `GET /version`")?;
+
+        let body = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /version`")?
             .json::<Version>()
             .await
@@ -127,17 +149,19 @@ impl Api {
 
     pub async fn delete_connection(&self, id: &str) -> Result<()> {
         // NOTE `DELETE /connections/{id}` always returns empty body
-        let _ = self
+        let resp = self
             .client
             .delete(self.api.join(&format!("/connections/{}", id))?)
             .send()
             .await
-            .context("Fail to send `DELETE /connections/<id>` request")?
-            .error_for_status()
+            .context("Fail to send `DELETE /connections/<id>` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `DELETE /connections/<id>`")?
             .bytes()
             .await
-            .context("Fail to read response of `DELETE /connections/<id>`");
+            .context("Fail to read response of `DELETE /connections/<id>`")?;
 
         Ok(())
     }
@@ -156,13 +180,15 @@ impl Api {
             proxies: IndexMap<String, Proxy>,
         }
 
-        let body = self
+        let resp = self
             .client
             .get(self.api.join("/proxies")?)
             .send()
             .await
-            .context("Fail to send `GET /proxies`")?
-            .error_for_status()
+            .context("Fail to send `GET /proxies`")?;
+
+        let body = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /proxies`")?
             .json::<Wrapper>()
             .await
@@ -171,39 +197,43 @@ impl Api {
         Ok(body.proxies)
     }
 
-    pub async fn update_proxy(&self, selector_name: String, name: String) -> Result<()> {
-        let body = serde_json::to_string(&json!({ "name": &name }))
-            .with_context(|| format!("Fail to create body with name `{}`", name))?;
-        let _ = self
+    pub async fn update_proxy<S: AsRef<str>>(&self, selector_name: S, name: S) -> Result<()> {
+        let body = serde_json::to_string(&json!({ "name": name.as_ref() }))
+            .with_context(|| format!("Fail to create body with name `{}`", name.as_ref()))?;
+        let resp = self
             .client
-            .put(self.api.join(&format!("/proxies/{}", selector_name))?)
+            .put(self.api.join(&format!("/proxies/{}", selector_name.as_ref()))?)
             .body(body)
             .send()
             .await
-            .context("Fail to send `PUT /proxies/<selector_name>` request")?
-            .error_for_status()
-            .context("Fail to request `PUT /connections/<selector_name>`")?
+            .context("Fail to send `PUT /proxies/<selector_name>` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
+            .context("Fail to request `PUT /proxies/<selector_name>`")?
             .bytes()
             .await
-            .context("Fail to read response of `PUT /connections/<selector_name>`");
+            .context("Fail to read response of `PUT /proxies/<selector_name>`")?;
 
         Ok(())
     }
 
-    pub async fn test_proxy(&self, name: String, url: String, timeout: u64) -> Result<u16> {
+    pub async fn test_proxy<S: AsRef<str>>(&self, name: S, url: S, timeout: u64) -> Result<u16> {
         #[derive(Deserialize)]
         struct DelayResp {
             delay: u16,
         }
 
-        let body = self
+        let resp = self
             .client
-            .get(self.api.join(&format!("/proxies/{}/delay", name))?)
-            .query(&[("url", url), ("timeout", timeout.to_string())])
+            .get(self.api.join(&format!("/proxies/{}/delay", name.as_ref()))?)
+            .query(&[("url", url.as_ref()), ("timeout", timeout.to_string().as_ref())])
             .send()
             .await
-            .context("Fail to send `GET /proxies/<name>/delay`")?
-            .error_for_status()
+            .context("Fail to send `GET /proxies/<name>/delay`")?;
+
+        let body = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /proxies/<name>/delay`")?
             .json::<DelayResp>()
             .await
@@ -212,20 +242,22 @@ impl Api {
         Ok(body.delay)
     }
 
-    pub async fn test_proxy_group(
+    pub async fn test_proxy_group<S: AsRef<str>>(
         &self,
-        name: String,
-        url: String,
+        name: S,
+        url: S,
         timeout: u64,
     ) -> Result<HashMap<String, u16>> {
-        let body = self
+        let resp = self
             .client
-            .get(self.api.join(&format!("/group/{}/delay", name))?)
-            .query(&[("url", url), ("timeout", timeout.to_string())])
+            .get(self.api.join(&format!("/group/{}/delay", name.as_ref()))?)
+            .query(&[("url", url.as_ref()), ("timeout", timeout.to_string().as_ref())])
             .send()
             .await
-            .context("Fail to send `GET /group/<name>/delay`")?
-            .error_for_status()
+            .context("Fail to send `GET /group/<name>/delay`")?;
+
+        let body = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /group/<name>/delay`")?
             .json()
             .await
@@ -240,13 +272,15 @@ impl Api {
             providers: IndexMap<String, ProxyProvider>,
         }
 
-        let body = self
+        let resp = self
             .client
             .get(self.api.join("/providers/proxies")?)
             .send()
             .await
-            .context("Fail to send `GET /providers/proxies`")?
-            .error_for_status()
+            .context("Fail to send `GET /providers/proxies`")?;
+
+        let body = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /providers/proxies`")?
             .json::<Wrapper>()
             .await
@@ -256,29 +290,33 @@ impl Api {
     }
 
     pub async fn health_check_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .get(self.api.join(&format!("/providers/proxies/{}/healthcheck", name.as_ref()))?)
             .send()
             .await
-            .context("Fail to send `GET /providers/proxies/<name>/healthcheck` request")?
-            .error_for_status()
+            .context("Fail to send `GET /providers/proxies/<name>/healthcheck` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /providers/proxies/<name>/healthcheck`")?
             .bytes()
             .await
-            .context("Fail to read response of `GET /providers/proxies/<name>/healthcheck`");
+            .context("Fail to read response of `GET /providers/proxies/<name>/healthcheck`")?;
 
         Ok(())
     }
 
     pub async fn update_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .put(self.api.join(&format!("/providers/proxies/{}", name.as_ref()))?)
             .send()
             .await
-            .context("Fail to send `PUT /providers/proxies/<name>`")?
-            .error_for_status()
+            .context("Fail to send `PUT /providers/proxies/<name>`")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `PUT /providers/proxies/<name>`")?
             .bytes()
             .await
@@ -293,13 +331,15 @@ impl Api {
             rules: Vec<Rule>,
         }
 
-        let body = self
+        let resp = self
             .client
             .get(self.api.join("/rules")?)
             .send()
             .await
-            .context("Fail to send `GET /rules`")?
-            .error_for_status()
+            .context("Fail to send `GET /rules`")?;
+
+        let body = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /rules`")?
             .json::<Wrapper>()
             .await
@@ -309,18 +349,20 @@ impl Api {
     }
 
     pub async fn update_rules_disabled_state(&self, body: IndexMap<usize, bool>) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .patch(self.api.join("/rules/disable")?)
             .json(&body)
             .send()
             .await
-            .context("Fail to send `PATCH /rules/disable` request")?
-            .error_for_status()
+            .context("Fail to send `PATCH /rules/disable` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `PATCH /rules/disable`")?
             .bytes()
             .await
-            .context("Fail to read response of `PATCH /rules/disable`");
+            .context("Fail to read response of `PATCH /rules/disable`")?;
 
         Ok(())
     }
@@ -331,13 +373,15 @@ impl Api {
             providers: IndexMap<String, RuleProvider>,
         }
 
-        let body = self
+        let resp = self
             .client
             .get(self.api.join("/providers/rules")?)
             .send()
             .await
-            .context("Fail to send `GET /providers/rules`")?
-            .error_for_status()
+            .context("Fail to send `GET /providers/rules`")?;
+
+        let body = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /providers/rules`")?
             .json::<Wrapper>()
             .await
@@ -347,29 +391,33 @@ impl Api {
     }
 
     pub async fn update_rule_provider<S: AsRef<str>>(&self, name: S) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .put(self.api.join(&format!("/providers/rules/{}", name.as_ref()))?)
             .send()
             .await
-            .context("Fail to send `PUT /providers/rules/<name>` request")?
-            .error_for_status()
+            .context("Fail to send `PUT /providers/rules/<name>` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `PUT /providers/rules/<name>`")?
             .bytes()
             .await
-            .context("Fail to read response of `PUT /providers/rules/<name>`");
+            .context("Fail to read response of `PUT /providers/rules/<name>`")?;
 
         Ok(())
     }
 
     pub async fn get_core_config(&self) -> Result<CoreConfig> {
-        let body = self
+        let resp = self
             .client
             .get(self.api.join("/configs")?)
             .send()
             .await
-            .context("Fail to send `GET /configs`")?
-            .error_for_status()
+            .context("Fail to send `GET /configs`")?;
+
+        let body = Self::check_status(resp)
+            .await
             .context("Fail to request `GET /configs`")?
             .json::<CoreConfig>()
             .await
@@ -379,26 +427,28 @@ impl Api {
     }
 
     pub async fn update_core_config(&self, body: Vec<u8>) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .patch(self.api.join("/configs")?)
             .body(body)
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
             .send()
             .await
-            .context("Fail to send `PATCH /configs` request")?
-            .error_for_status()
+            .context("Fail to send `PATCH /configs` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `PATCH /configs`")?
             .bytes()
             .await
-            .context("Fail to read response of `PATCH /configs`");
+            .context("Fail to read response of `PATCH /configs`")?;
 
         Ok(())
     }
 
     pub async fn reload_config(&self) -> Result<()> {
         let body = r#"{"path":"","payload":""}"#;
-        let _ = self
+        let resp = self
             .client
             .put(self.api.join("/configs")?)
             .body(body)
@@ -406,76 +456,86 @@ impl Api {
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
             .send()
             .await
-            .context("Fail to send `PUT /configs` request")?
-            .error_for_status()
+            .context("Fail to send `PUT /configs` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `PUT /configs`")?
             .bytes()
             .await
-            .context("Fail to read response of `PUT /configs`");
+            .context("Fail to read response of `PUT /configs`")?;
 
         Ok(())
     }
 
     pub async fn restart(&self) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .post(self.api.join("/restart")?)
             .send()
             .await
-            .context("Fail to send `POST /restart` request")?
-            .error_for_status()
+            .context("Fail to send `POST /restart` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `POST /restart`")?
             .bytes()
             .await
-            .context("Fail to read response of `POST /restart`");
+            .context("Fail to read response of `POST /restart`")?;
 
         Ok(())
     }
 
     pub async fn flush_fake_ip_cache(&self) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .post(self.api.join("/cache/fakeip/flush")?)
             .send()
             .await
-            .context("Fail to send `POST /cache/fakeip/flush` request")?
-            .error_for_status()
+            .context("Fail to send `POST /cache/fakeip/flush` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `POST /cache/fakeip/flush`")?
             .bytes()
             .await
-            .context("Fail to read response of `POST /cache/fakeip/flush`");
+            .context("Fail to read response of `POST /cache/fakeip/flush`")?;
 
         Ok(())
     }
 
     pub async fn flush_dns_cache(&self) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .post(self.api.join("/cache/dns/flush")?)
             .send()
             .await
-            .context("Fail to send `POST /cache/dns/flush` request")?
-            .error_for_status()
+            .context("Fail to send `POST /cache/dns/flush` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `POST /cache/dns/flush`")?
             .bytes()
             .await
-            .context("Fail to read response of `POST /cache/dns/flush`");
+            .context("Fail to read response of `POST /cache/dns/flush`")?;
 
         Ok(())
     }
 
     pub async fn update_geo(&self) -> Result<()> {
-        let _ = self
+        let resp = self
             .client
             .post(self.api.join("/configs/geo")?)
             .send()
             .await
-            .context("Fail to send `POST /configs/geo` request")?
-            .error_for_status()
+            .context("Fail to send `POST /configs/geo` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
             .context("Fail to request `POST /configs/geo`")?
             .bytes()
             .await
-            .context("Fail to read response of `POST /configs/geo`");
+            .context("Fail to read response of `POST /configs/geo`")?;
 
         Ok(())
     }
@@ -569,7 +629,7 @@ mod tests {
         init_logger();
         let api = init_api();
         let delay = api
-            .test_proxy("新加坡①一优化".into(), "https://www.gstatic.com/generate_204".into(), 5000)
+            .test_proxy("新加坡①一优化", "https://www.gstatic.com/generate_204", 5000)
             .await
             .unwrap();
         debug!("delay: {delay}");
@@ -580,7 +640,7 @@ mod tests {
         init_logger();
         let api = init_api();
         let delay = api
-            .test_proxy_group("新加坡".into(), "https://www.gstatic.com/generate_204".into(), 5000)
+            .test_proxy_group("新加坡", "https://www.gstatic.com/generate_204", 5000)
             .await
             .unwrap();
         debug!("delay: {delay:?}");

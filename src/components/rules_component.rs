@@ -15,9 +15,9 @@ use tracing::{debug, error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::rules::{RULE_COLS, Rules};
 use crate::components::{Component, ComponentId};
 use crate::models::Rule;
+use crate::store::rules::{RULE_COLS, Rules};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -295,7 +295,7 @@ impl Component for RulesComponent {
         }
         match key.code {
             KeyCode::Esc => self.navigator.focused = None,
-            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Search))),
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Filter))),
             KeyCode::Char('r') => self.load_rules()?,
             KeyCode::Char('t') => self.toggle_disabled(),
             KeyCode::Char('s') => self.submit_disabled_changes()?,
@@ -319,17 +319,15 @@ impl Component for RulesComponent {
                     self.throbber.calc_next();
                 }
             }
-            Action::SearchInputChanged(pattern) => {
-                debug!("handle Action::SearchInputChanged, got pattern={pattern:?}");
+            Action::FilterChanged(pattern) => {
+                debug!("handle Action::FilterChanged, got pattern={pattern:?}");
                 *self.filter_pattern.lock().unwrap() = pattern;
                 self.filter_pattern_changed = true;
             }
-            Action::TabSwitch(to) => {
-                if to == self.id() {
-                    let pattern = self.filter_pattern.lock().unwrap().clone();
-                    debug!("handle Action::TabSwitch, current search pattern={pattern:?}");
-                    return Ok(Some(Action::SearchInputSet(pattern)));
-                }
+            Action::TabSwitch(to) if to == self.id() => {
+                let pattern = self.filter_pattern.lock().unwrap().clone();
+                debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                return Ok(Some(Action::FilterSet(pattern)));
             }
             _ => {}
         }

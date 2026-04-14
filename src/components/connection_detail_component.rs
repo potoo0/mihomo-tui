@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::prelude::Style;
@@ -86,9 +86,6 @@ impl Component for ConnectionDetailComponent {
             return Ok(None);
         }
         match key.code {
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(Action::Quit));
-            }
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter => {
                 self.hide();
                 return Ok(Some(Action::Unfocus));

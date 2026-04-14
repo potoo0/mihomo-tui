@@ -39,7 +39,7 @@ pub fn init(config: &Config) -> Result<()> {
 
     let registry = tracing_subscriber::registry().with(file_subscriber).with(ErrorLayer::default());
 
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "tokio-console")]
     let registry = registry.with(console_subscriber::spawn());
 
     registry.try_init()?;

@@ -13,6 +13,7 @@ mod logging;
 mod models;
 mod palette;
 mod panic;
+mod store;
 mod tui;
 mod utils;
 mod widgets;
