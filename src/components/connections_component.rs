@@ -323,10 +323,8 @@ impl Component for ConnectionsComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Quit => self.token.cancel(),
-            Action::Tick => {
-                if self.live_mode.load(Ordering::Relaxed) {
-                    self.live_throbber.calc_next();
-                }
+            Action::Tick if self.live_mode.load(Ordering::Relaxed) => {
+                self.live_throbber.calc_next();
             }
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");

@@ -295,14 +295,13 @@ impl Component for ProxyProvidersComponent {
         }
         match key.code {
             KeyCode::Esc => self.navigator.focused = None,
-            KeyCode::Char('r') => {
+            KeyCode::Char('r')
                 if self
                     .loading
                     .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-                    .is_ok()
-                {
-                    return Ok(Some(Action::ProxyProviderRefresh));
-                }
+                    .is_ok() =>
+            {
+                return Ok(Some(Action::ProxyProviderRefresh));
             }
             KeyCode::Char('s') => return Ok(Some(Action::ProxySetting)),
             KeyCode::Enter => {

@@ -145,11 +145,11 @@ impl Component for ConnectionTerminateComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
-            KeyCode::Char('q') | KeyCode::Char('n') | KeyCode::Esc => {
-                if self.phase.read().unwrap().ne(&Phase::Terminating) {
-                    self.hide();
-                    return Ok(Some(Action::Unfocus));
-                }
+            KeyCode::Char('q') | KeyCode::Char('n') | KeyCode::Esc
+                if self.phase.read().unwrap().ne(&Phase::Terminating) =>
+            {
+                self.hide();
+                return Ok(Some(Action::Unfocus));
             }
             KeyCode::Char('y') | KeyCode::Enter => {
                 let should_term =
