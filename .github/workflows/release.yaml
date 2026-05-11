@@ -54,6 +54,7 @@ jobs:
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
         with:
+          cross-version: 65fe72b0cdb1e7e0cc0652517498d4389cc8f5cf
           target: ${{ matrix.platform.target }}
           args: "--locked --release ${{ matrix.platform.features }}"
           strip: true
