@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use url::Url;
@@ -61,26 +63,33 @@ pub struct ProxyDetailSortConfig {
 #[serde(rename_all = "kebab-case", default)]
 pub struct BufferConfig {
     pub overview: OverviewBufferConfig,
-    pub connections: usize,
-    pub logs: usize,
+    pub connections: NonZeroUsize,
+    pub logs: NonZeroUsize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case", default)]
 pub struct OverviewBufferConfig {
-    pub memory: usize,
-    pub traffic: usize,
+    pub memory: NonZeroUsize,
+    pub traffic: NonZeroUsize,
 }
 
 impl Default for BufferConfig {
     fn default() -> Self {
-        BufferConfig { overview: Default::default(), connections: 500, logs: 500 }
+        BufferConfig {
+            overview: Default::default(),
+            connections: NonZeroUsize::new(500).unwrap(),
+            logs: NonZeroUsize::new(500).unwrap(),
+        }
     }
 }
 
 impl Default for OverviewBufferConfig {
     fn default() -> Self {
-        OverviewBufferConfig { memory: 100, traffic: 100 }
+        OverviewBufferConfig {
+            memory: NonZeroUsize::new(100).unwrap(),
+            traffic: NonZeroUsize::new(100).unwrap(),
+        }
     }
 }
 

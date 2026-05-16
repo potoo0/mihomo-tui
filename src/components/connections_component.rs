@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -8,6 +9,7 @@ use ratatui::layout::{Constraint, Margin, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Cell, Row, Table, TableState};
+use ringbuffer::RingBuffer;
 use throbber_widgets_tui::{BRAILLE_SIX, CANADIAN, Throbber, ThrobberState, WhichUse};
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::mpsc::{Receiver, UnboundedSender};
@@ -48,12 +50,15 @@ pub struct ConnectionsComponent {
 }
 
 impl ConnectionsComponent {
-    pub fn new(conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>) -> Self {
+    pub fn new(
+        conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>,
+        store_capacity: Option<NonZeroUsize>,
+    ) -> Self {
         Self {
             token: CancellationToken::new(),
             conns_rx,
             action_tx: None,
-            store: Default::default(),
+            store: Arc::new(Connections::new(store_capacity)),
             query_state: Arc::new(Mutex::new(QueryState::new(CONNECTION_COLS.len()))),
             navigator: Default::default(),
             table_state: Default::default(),
@@ -130,10 +135,9 @@ impl ConnectionsComponent {
             // update scroller, viewport = area.height - 2 (border) - 2 (table header)
             self.navigator.length(records.len(), (area.height - 2 - 2) as usize);
             // NOTE: end_pos() depends on length()
-            records
-                .range(self.navigator.scroller.pos()..self.navigator.scroller.end_pos())
-                .cloned()
-                .collect::<Vec<_>>()
+            let start = self.navigator.scroller.pos();
+            let end = self.navigator.scroller.end_pos();
+            records.iter().skip(start).take(end - start).cloned().collect::<Vec<_>>()
         });
 
         // update table selected, which is relative position in current viewport

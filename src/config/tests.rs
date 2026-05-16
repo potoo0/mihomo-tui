@@ -201,10 +201,10 @@ mihomo-api: "http://localhost"
 
     let config = load(Some(cfg_path.0.clone())).unwrap();
 
-    assert_eq!(config.buffer.connections, 500);
-    assert_eq!(config.buffer.logs, 500);
-    assert_eq!(config.buffer.overview.memory, 100);
-    assert_eq!(config.buffer.overview.traffic, 100);
+    assert_eq!(config.buffer.connections.get(), 500);
+    assert_eq!(config.buffer.logs.get(), 500);
+    assert_eq!(config.buffer.overview.memory.get(), 100);
+    assert_eq!(config.buffer.overview.traffic.get(), 100);
 
     drop(cfg_path);
 }
@@ -224,7 +224,7 @@ buffer:
 
     let config = load(Some(cfg_path.0.clone())).unwrap();
 
-    assert_eq!(config.buffer.overview.memory, 200);
+    assert_eq!(config.buffer.overview.memory.get(), 200);
     assert_eq!(config.buffer.overview.traffic, buffer_default.overview.traffic);
     assert_eq!(config.buffer.connections, buffer_default.connections);
     assert_eq!(config.buffer.logs, buffer_default.logs);
