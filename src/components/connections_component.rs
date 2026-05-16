@@ -17,6 +17,7 @@ use tracing::{debug, info};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::config::Config;
 use crate::models::Connection;
 use crate::models::sort::SortDir;
 use crate::store::connections::{CONNECTION_COLS, Connections};
@@ -269,6 +270,16 @@ impl Component for ConnectionsComponent {
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
+        let sort = config
+            .ui
+            .as_ref()
+            .and_then(|ui| ui.connections.as_ref())
+            .and_then(|connections| connections.sort);
+        self.query_state.lock().unwrap().sort = sort;
         Ok(())
     }
 
