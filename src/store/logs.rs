@@ -1,27 +1,36 @@
 use std::borrow::Cow;
+use std::num::NonZeroUsize;
 use std::string::ToString;
 use std::sync::{Arc, Mutex, RwLock};
 
-use circular_buffer::CircularBuffer;
 use nucleo_matcher::Matcher;
+use ringbuffer::{AllocRingBuffer, RingBuffer};
 
 use crate::models::Log;
 use crate::store::LOGS_BUFFER_SIZE;
 use crate::utils::columns::ColDef;
 use crate::utils::row_filter::RowFilter;
 
-#[derive(Default)]
 pub struct Logs {
     matcher: Mutex<Matcher>,
 
-    buffer: RwLock<CircularBuffer<LOGS_BUFFER_SIZE, Arc<Log>>>,
-    view: RwLock<CircularBuffer<LOGS_BUFFER_SIZE, Arc<Log>>>,
+    buffer: RwLock<AllocRingBuffer<Arc<Log>>>,
+    view: RwLock<AllocRingBuffer<Arc<Log>>>,
 }
 
 impl Logs {
+    pub fn new(capacity: Option<NonZeroUsize>) -> Self {
+        let capacity = capacity.map(NonZeroUsize::get).unwrap_or(LOGS_BUFFER_SIZE);
+        Self {
+            matcher: Default::default(),
+            buffer: RwLock::new(AllocRingBuffer::new(capacity)),
+            view: RwLock::new(AllocRingBuffer::new(capacity)),
+        }
+    }
+
     pub fn push(&self, record: Log) {
         let mut guard = self.buffer.write().unwrap();
-        guard.push_back(Arc::new(record));
+        guard.enqueue(Arc::new(record));
     }
 
     pub fn compute_view(&self, pattern: Option<&str>) {
@@ -31,14 +40,12 @@ impl Logs {
         let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, LOG_COLS);
         let mut guard = self.view.write().unwrap();
         guard.clear();
-        filtered.for_each(|v| {
-            guard.push_back(v);
-        });
+        guard.extend(filtered)
     }
 
     pub fn with_view<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&CircularBuffer<LOGS_BUFFER_SIZE, Arc<Log>>) -> R,
+        F: FnOnce(&AllocRingBuffer<Arc<Log>>) -> R,
     {
         let guard = self.view.read().unwrap();
         f(&guard)

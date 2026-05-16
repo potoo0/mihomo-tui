@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -9,6 +10,7 @@ use ratatui::layout::{Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, List, ListItem, ListState};
+use ringbuffer::RingBuffer;
 use strum::IntoEnumIterator;
 use throbber_widgets_tui::{Throbber, ThrobberState};
 use tokio::sync::mpsc::UnboundedSender;
@@ -26,7 +28,6 @@ use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
-#[derive(Default)]
 pub struct LogsComponent {
     api: Option<Arc<Api>>,
     token: CancellationToken,
@@ -46,10 +47,24 @@ pub struct LogsComponent {
 }
 
 impl LogsComponent {
-    pub fn new() -> Self {
-        let mut s = Self::default();
-        s.live_mode = Arc::new(AtomicBool::new(true));
-        s
+    pub fn new(store_capacity: Option<NonZeroUsize>) -> Self {
+        Self {
+            api: None,
+            token: CancellationToken::new(),
+            store: Arc::new(Logs::new(store_capacity)),
+            level: None,
+            live_mode: Arc::new(AtomicBool::new(true)),
+            filter_pattern: Default::default(),
+
+            level_changed: false,
+            filter_pattern_changed: false,
+
+            list_state: Default::default(),
+            horiz_offset: 0,
+            navigator: Default::default(),
+            throbber_state: Default::default(),
+            action_tx: None,
+        }
     }
 
     fn load_log(&mut self) -> Result<()> {
@@ -123,10 +138,9 @@ impl LogsComponent {
             // update scroller, viewport = area.height - 2 (border)
             self.navigator.length(len, (area.height - 2) as usize);
             // NOTE: end_pos() depends on length()
-            records
-                .range(len - self.navigator.scroller.end_pos()..len - self.navigator.scroller.pos())
-                .cloned()
-                .collect::<Vec<_>>()
+            let start = len - self.navigator.scroller.end_pos();
+            let end = len - self.navigator.scroller.pos();
+            records.iter().skip(start).take(end - start).cloned().collect::<Vec<_>>()
         });
 
         let items: Vec<ListItem> = records

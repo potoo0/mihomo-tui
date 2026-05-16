@@ -349,12 +349,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "circular-buffer"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14c638459986b83c2b885179bd4ea6a2cbb05697b001501a56adb3a3d230803b"
-
-[[package]]
 name = "clap"
 version = "4.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1714,7 +1708,6 @@ version = "0.3.4"
 dependencies = [
  "anyhow",
  "better-panic",
- "circular-buffer",
  "clap",
  "console-subscriber",
  "const_format",
@@ -1729,6 +1722,7 @@ dependencies = [
  "nucleo-matcher",
  "ratatui",
  "reqwest",
+ "ringbuffer",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -2471,6 +2465,12 @@ dependencies = [
  "untrusted",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "ringbuffer"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57b0b88a509053cbfd535726dcaaceee631313cef981266119527a1d110f6d2b"
 
 [[package]]
 name = "rustc-demangle"

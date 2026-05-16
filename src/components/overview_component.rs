@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use circular_buffer::CircularBuffer;
 use const_format::concatcp;
 use futures_util::{StreamExt, TryStreamExt, future};
 use ratatui::Frame;
@@ -12,6 +11,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Axis, Block, BorderType, Cell, Chart, Dataset, GraphType, Padding, Row, Table,
 };
+use ringbuffer::{AllocRingBuffer, RingBuffer};
 use tokio::sync::watch::Receiver;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -19,6 +19,7 @@ use tracing::{error, info, warn};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::config::OverviewBufferConfig;
 use crate::models::{ConnectionStats, Memory, Traffic};
 use crate::palette;
 use crate::store::BUFFER_SIZE;
@@ -37,19 +38,28 @@ pub struct OverviewComponent {
     token: CancellationToken,
 
     stats_rx: Receiver<Option<ConnectionStats>>,
-    memory: Arc<Mutex<CircularBuffer<BUFFER_SIZE, Memory>>>,
-    traffic: Arc<Mutex<CircularBuffer<BUFFER_SIZE, Traffic>>>,
+    memory: Arc<Mutex<AllocRingBuffer<Memory>>>,
+    traffic: Arc<Mutex<AllocRingBuffer<Traffic>>>,
 }
 
 impl OverviewComponent {
-    pub fn new(stats_rx: Receiver<Option<ConnectionStats>>) -> Self {
+    pub fn new(
+        stats_rx: Receiver<Option<ConnectionStats>>,
+        store_capacity: Option<OverviewBufferConfig>,
+    ) -> Self {
+        let memory = AllocRingBuffer::new(
+            store_capacity.as_ref().map(|c| c.memory.get()).unwrap_or(BUFFER_SIZE),
+        );
+        let traffic = AllocRingBuffer::new(
+            store_capacity.as_ref().map(|c| c.traffic.get()).unwrap_or(BUFFER_SIZE),
+        );
         Self {
             api: Default::default(),
             token: Default::default(),
 
             stats_rx,
-            memory: Default::default(),
-            traffic: Default::default(),
+            memory: Arc::new(Mutex::new(memory)),
+            traffic: Arc::new(Mutex::new(traffic)),
         }
     }
 
@@ -73,7 +83,7 @@ impl OverviewComponent {
                 .filter_map(|res| future::ready(res.ok()))
                 .for_each(|record| {
                     if record.used > 0 {
-                        store.lock().unwrap().push_back(record);
+                        store.lock().unwrap().enqueue(record);
                     }
                     future::ready(())
                 })
@@ -101,7 +111,7 @@ impl OverviewComponent {
                 .inspect_err(|e| warn!("Failed to parse traffic: {e}"))
                 .filter_map(|res| future::ready(res.ok()))
                 .for_each(|record| {
-                    store.lock().unwrap().push_back(record);
+                    store.lock().unwrap().enqueue(record);
                     future::ready(())
                 })
                 .await;

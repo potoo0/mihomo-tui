@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, RwLock};
 
-use circular_buffer::CircularBuffer;
 use const_format::concatcp;
 use indexmap::IndexMap;
 use nucleo_matcher::Matcher;
+use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde_json::Value;
 
 use crate::models::Connection;
@@ -17,16 +18,25 @@ use crate::utils::columns::{ColDef, SortKey};
 use crate::utils::row_filter::RowFilter;
 use crate::utils::symbols::dot;
 
-#[derive(Default)]
 pub struct Connections {
     matcher: Mutex<Matcher>,
 
-    buffer: RwLock<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>,
-    view: RwLock<CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>>,
+    buffer: RwLock<AllocRingBuffer<Arc<Connection>>>,
+    view: RwLock<AllocRingBuffer<Arc<Connection>>>,
     last_bytes: Mutex<HashMap<Arc<str>, (u64, u64)>>, // id -> (upload, download)
 }
 
 impl Connections {
+    pub fn new(capacity: Option<NonZeroUsize>) -> Self {
+        let capacity = capacity.map(NonZeroUsize::get).unwrap_or(CONNS_BUFFER_SIZE);
+        Self {
+            matcher: Default::default(),
+            buffer: RwLock::new(AllocRingBuffer::new(capacity)),
+            view: RwLock::new(AllocRingBuffer::new(capacity)),
+            last_bytes: Default::default(),
+        }
+    }
+
     pub fn push(&self, capture_mode: bool, records: Vec<Connection>) {
         let mut guard = self.buffer.write().unwrap();
         let mut history: IndexMap<Arc<str>, Arc<Connection>> = if capture_mode {
@@ -46,13 +56,13 @@ impl Connections {
                     item.upload_rate = item.upload.saturating_sub(*up);
                     item.download_rate = item.download.saturating_sub(*down);
                 }
-                guard.push_back(Arc::new(item));
+                guard.enqueue(Arc::new(item));
             });
             *map_guard = map;
         }
         history.into_values().for_each(|v| {
             v.inactive.store(true, Ordering::Relaxed);
-            _ = guard.push_back(v);
+            _ = guard.enqueue(v);
         });
     }
 
@@ -71,17 +81,18 @@ impl Connections {
             v.sort_by(|a, b| col_def.ordering(a, b, sort.dir));
             let mut guard = self.view.write().unwrap();
             guard.clear();
-            guard.extend_from_slice(&v)
+            guard.extend(v)
+            // guard.extend_from_slice(&v)
         } else {
             let mut guard = self.view.write().unwrap();
             guard.clear();
-            filtered.for_each(|v| _ = guard.push_back(v));
+            filtered.for_each(|v| _ = guard.enqueue(v));
         }
     }
 
     pub fn with_view<R, F>(&self, f: F) -> R
     where
-        F: FnOnce(&CircularBuffer<CONNS_BUFFER_SIZE, Arc<Connection>>) -> R,
+        F: FnOnce(&AllocRingBuffer<Arc<Connection>>) -> R,
     {
         let guard = self.view.read().unwrap();
         f(&guard)
@@ -209,3 +220,25 @@ pub static CONNECTION_COLS: &[ColDef<Connection>] = &[
         sort_key: None,
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use ringbuffer::{AllocRingBuffer, RingBuffer};
+
+    #[test]
+    fn test_ring_buffer() {
+        let mut buffer = AllocRingBuffer::new(2);
+        buffer.enqueue(1);
+        assert_eq!(buffer.len(), 1);
+        assert_eq!(buffer.to_vec(), vec![1]);
+        buffer.enqueue(2);
+        assert_eq!(buffer.len(), 2);
+        assert_eq!(buffer.to_vec(), vec![1, 2]);
+        buffer.enqueue(3);
+        assert_eq!(buffer.len(), 2);
+        assert_eq!(buffer.to_vec(), vec![2, 3]);
+        buffer.enqueue(4);
+        assert_eq!(buffer.len(), 2);
+        assert_eq!(buffer.to_vec(), vec![3, 4]);
+    }
+}

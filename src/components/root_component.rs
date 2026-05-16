@@ -97,9 +97,13 @@ impl RootComponent {
     fn get_or_init(&mut self, id: ComponentId) -> &mut Box<dyn Component> {
         self.components.entry(id).or_insert_with(|| {
             let mut c: Box<dyn Component> = match id {
-                ComponentId::Overview => Box::new(OverviewComponent::new(self.stats_rx.clone())),
+                ComponentId::Overview => {
+                    let store_capacity = self.config.as_ref().map(|c| c.buffer.overview.clone());
+                    Box::new(OverviewComponent::new(self.stats_rx.clone(), store_capacity))
+                }
                 ComponentId::Connections => {
-                    Box::new(ConnectionsComponent::new(Arc::clone(&self.conns_rx)))
+                    let store_capacity = self.config.as_ref().map(|c| c.buffer.connections);
+                    Box::new(ConnectionsComponent::new(Arc::clone(&self.conns_rx), store_capacity))
                 }
                 ComponentId::Proxies => Box::new(ProxiesComponent::default()),
                 ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
@@ -108,7 +112,10 @@ impl RootComponent {
                 ComponentId::ProxyProviderDetail => {
                     Box::new(ProxyProviderDetailComponent::default())
                 }
-                ComponentId::Logs => Box::new(LogsComponent::new()),
+                ComponentId::Logs => {
+                    let store_capacity = self.config.as_ref().map(|c| c.buffer.logs);
+                    Box::new(LogsComponent::new(store_capacity))
+                }
                 ComponentId::Rules => Box::new(RulesComponent::default()),
                 ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
                 ComponentId::Config => Box::new(CoreConfigComponent::default()),
