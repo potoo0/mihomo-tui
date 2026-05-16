@@ -49,3 +49,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run clippy
         run: cargo clippy-strict
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run tests
+        run: cargo test --locked
