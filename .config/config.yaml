@@ -16,3 +16,25 @@ log-file: mihomo-tui.log
 #   info,mihomo_tui=debug
 #   info,mihomo_tui=trace,mihomo_tui::app=debug
 log-level: error
+
+# UI settings, Optional
+# connections.sort:
+#   - field must match a sortable Connections column title, case-insensitive.
+#     Allowed values: Alive, Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP
+#   - dir: asc | desc, default is desc
+# proxy-detail.sort:
+#   - field currently supports: latency, name
+#   - dir: asc | desc, default is asc
+ui:
+  connections:
+    sort: { field: "DownRate", dir: "desc" }
+  proxy-detail:
+    sort: { field: "Latency", dir: "asc" }
+
+# Buffer sizes below are the default values.
+# You can adjust them based on your actual usage and performance needs.
+# Larger values keep more history in memory; smaller values use less memory.
+buffer:
+  overview: { memory: 100, traffic: 100 }
+  connections: 500
+  logs: 500

@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
         .mut_arg("config", |a| a.help(help).value_hint(ValueHint::FilePath).next_line_help(true));
     let args = cli::Args::from_arg_matches(&cmd.get_matches())?;
 
-    let config = config::Config::new(args.config)?;
+    let config = config::load(args.config)?;
     logging::init(&config)?;
 
     let api = api::Api::new(&config)?;

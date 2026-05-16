@@ -552,7 +552,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use super::*;
-    use crate::config::Config;
+    use crate::config::load as load_config;
 
     fn init_logger() {
         static INIT: Once = Once::new();
@@ -758,7 +758,7 @@ mod tests {
 
     fn init_api() -> Api {
         let config =
-            Config::new(Some(PathBuf::from("/home/wsl/.config/mihomo-tui/config.yaml"))).unwrap();
+            load_config(Some(PathBuf::from("/home/wsl/.config/mihomo-tui/config.yaml"))).unwrap();
         Api::new(&config).unwrap()
     }
 }

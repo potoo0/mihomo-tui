@@ -92,6 +92,14 @@ impl Connections {
     }
 }
 
+pub fn find_sortable_connection_col(field: &str) -> Option<usize> {
+    CONNECTION_COLS
+        .iter()
+        .enumerate()
+        .find(|(_, def)| def.sortable && def.title.eq_ignore_ascii_case(field))
+        .map(|(idx, _)| idx)
+}
+
 pub static CONNECTION_COLS: &[ColDef<Connection>] = &[
     ColDef {
         id: "alive",
