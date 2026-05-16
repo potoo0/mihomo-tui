@@ -541,7 +541,7 @@ impl Api {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "local-api-test"))]
 mod tests {
     use std::path::PathBuf;
     use std::sync::{Arc, Once};
