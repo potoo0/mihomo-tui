@@ -3,7 +3,7 @@ use ratatui::symbols::bar;
 use ratatui::text::Line;
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct Latency(Option<i64>);
+pub struct Latency(pub Option<i64>);
 
 #[repr(usize)]
 #[derive(Debug)]
@@ -14,7 +14,7 @@ pub enum LatencyQuality {
     NotConnected = 3,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QualityStats([usize; LatencyQuality::COUNT]);
 
 impl Latency {

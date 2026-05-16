@@ -1,16 +1,23 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
 
 use anyhow::Result;
 use indexmap::IndexMap;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::api::Api;
+use crate::config::ProxyDetailSortConfig;
 use crate::models::proxy::Proxy;
+use crate::models::sort::{ProxyGroupSortField, SortDir};
 use crate::store::proxy_setting::ProxySetting;
 use crate::widgets::latency::{LatencyQuality, QualityStats};
 
 pub static GLOBAL_PROXIES: OnceLock<RwLock<Proxies>> = OnceLock::new();
+
+/// Special root proxy group used as the source of top-level proxy order.
+/// It should not be sorted in proxy-detail group sorting.
+const ROOT_PROXY_GROUP: &str = "GLOBAL";
 
 #[derive(Debug)]
 pub struct ProxyView {
@@ -20,6 +27,7 @@ pub struct ProxyView {
 
 #[derive(Debug, Default)]
 pub struct Proxies {
+    sort: Option<ProxyDetailSortConfig>,
     proxies: HashMap<String, Arc<Proxy>>,
     visible: Vec<Arc<ProxyView>>,
 }
@@ -135,6 +143,61 @@ impl Proxies {
         }
         Self::load(api).await
     }
+
+    pub fn init_sort_config(sort: Option<ProxyDetailSortConfig>) {
+        let mut p = Self::global().write().expect("proxies store poisoned");
+        if p.sort.is_none() {
+            info!(?sort, "Initializing sort config");
+            p.sort = sort;
+        }
+    }
+
+    fn update_sort_and_reload<F>(api: Arc<Api>, f: F)
+    where
+        F: FnOnce(Option<ProxyDetailSortConfig>) -> Option<ProxyDetailSortConfig>,
+    {
+        {
+            let mut p = Self::global().write().expect("proxies store poisoned");
+            let old_sort = p.sort.take();
+            let new_sort = f(old_sort.clone());
+            if old_sort.is_none() && new_sort.is_none() {
+                p.sort = new_sort;
+                return;
+            }
+            info!(old = ?old_sort, new = ?new_sort, "Changed proxy detail sort");
+            p.sort = new_sort;
+        } // release lock
+
+        tokio::task::Builder::new()
+            .name("proxies-loader")
+            .spawn(async {
+                if let Err(e) = Self::load(api).await {
+                    error!(error = ?e, "Failed to reload proxies after sort change");
+                }
+            })
+            .expect("Failed to spawn proxies loader task");
+    }
+
+    pub fn switch_sort_field(api: Arc<Api>) {
+        Self::update_sort_and_reload(api, |old_sort| match old_sort {
+            None => Some(ProxyDetailSortConfig {
+                field: ProxyGroupSortField::Latency,
+                dir: SortDir::Asc,
+            }),
+            Some(old) => match old.field {
+                ProxyGroupSortField::Latency => {
+                    Some(ProxyDetailSortConfig { field: ProxyGroupSortField::Name, dir: old.dir })
+                }
+                ProxyGroupSortField::Name => None,
+            },
+        });
+    }
+
+    pub fn toggle_sort_direction(api: Arc<Api>) {
+        Self::update_sort_and_reload(api, |old_sort| {
+            old_sort.map(|old| ProxyDetailSortConfig { dir: old.dir.toggle(), ..old })
+        });
+    }
 }
 
 /// Internal methods for managing proxies
@@ -147,8 +210,12 @@ impl Proxies {
     }
 
     pub fn push(&mut self, mut proxies: IndexMap<String, Proxy>) {
-        self.remove_missing_children(&mut proxies);
-        self.update_delay(&mut proxies);
+        Self::remove_missing_children(&mut proxies);
+        Self::update_delay(&mut proxies);
+        if let Some(sort) = &self.sort {
+            Self::sort_proxies(&mut proxies, sort);
+        }
+
         self.proxies = proxies.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
         let threshold = ProxySetting::global().read().unwrap().threshold;
 
@@ -180,7 +247,76 @@ impl Proxies {
         })
     }
 
-    fn remove_missing_children(&self, proxies: &mut IndexMap<String, Proxy>) {
+    fn build_sort_index(&self) -> HashMap<String, usize> {
+        self.proxies
+            .get(ROOT_PROXY_GROUP)
+            .and_then(|v| v.children.as_ref())
+            .into_iter()
+            .flat_map(|v| v.iter())
+            .enumerate()
+            .map(|(idx, key)| (key.clone(), idx))
+            .collect()
+    }
+}
+
+impl Proxies {
+    fn sort_proxies(proxies: &mut IndexMap<String, Proxy>, sort_config: &ProxyDetailSortConfig) {
+        match sort_config.field {
+            ProxyGroupSortField::Name => Self::sort_proxies_by_name(proxies, sort_config.dir),
+            ProxyGroupSortField::Latency => Self::sort_proxies_by_latency(proxies, sort_config.dir),
+        }
+    }
+
+    fn sort_proxies_by_name(proxies: &mut IndexMap<String, Proxy>, dir: SortDir) {
+        for proxy in proxies.values_mut() {
+            if proxy.name == ROOT_PROXY_GROUP {
+                continue;
+            }
+            let Some(children) = proxy.children.as_mut() else {
+                continue;
+            };
+
+            children.sort_by(|a, b| match dir {
+                SortDir::Asc => a.cmp(b),
+                SortDir::Desc => b.cmp(a),
+            });
+        }
+    }
+
+    fn sort_proxies_by_latency(proxies: &mut IndexMap<String, Proxy>, dir: SortDir) {
+        let snapshot: HashMap<String, i64> = proxies
+            .iter()
+            .filter_map(|(key, proxy)| match proxy.latency.0 {
+                Some(delay) if delay > 0 => Some((key.clone(), delay)),
+                _ => None,
+            })
+            .collect();
+
+        for proxy in proxies.values_mut() {
+            if proxy.name == ROOT_PROXY_GROUP {
+                continue;
+            }
+            let Some(children) = proxy.children.as_mut() else {
+                continue;
+            };
+
+            children.sort_by(|a, b| {
+                let a_latency = snapshot.get(a).copied();
+                let b_latency = snapshot.get(b).copied();
+                match (a_latency, b_latency) {
+                    (Some(a), Some(b)) => match dir {
+                        SortDir::Asc => a.cmp(&b),
+                        SortDir::Desc => b.cmp(&a),
+                    },
+                    (Some(_), None) => Ordering::Less,
+                    (None, Some(_)) => Ordering::Greater,
+                    (None, None) => Ordering::Equal,
+                }
+            });
+        }
+    }
+
+    fn remove_missing_children(proxies: &mut IndexMap<String, Proxy>) {
         let keys: HashSet<_> = proxies.keys().cloned().collect();
         for v in proxies.values_mut() {
             if let Some(children) = v.children.as_mut() {
@@ -194,7 +330,7 @@ impl Proxies {
         }
     }
 
-    fn update_delay(&self, proxies: &mut IndexMap<String, Proxy>) {
+    fn update_delay(proxies: &mut IndexMap<String, Proxy>) {
         fn update(key: &str, proxies: &mut IndexMap<String, Proxy>) {
             let (selected, has_children) = {
                 let proxy = match proxies.get_mut(key) {
@@ -222,15 +358,140 @@ impl Proxies {
             update(&k, proxies);
         }
     }
+}
 
-    fn build_sort_index(&self) -> HashMap<String, usize> {
-        self.proxies
-            .get("GLOBAL")
-            .and_then(|v| v.children.as_ref())
-            .into_iter()
-            .flat_map(|v| v.iter())
-            .enumerate()
-            .map(|(idx, key)| (key.clone(), idx))
-            .collect()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ProxyDetailSortConfig;
+    use crate::models::proxy::DelayHistory;
+    use crate::models::sort::{ProxyGroupSortField, SortDir};
+
+    fn proxy(name: &str, children: Option<Vec<&str>>, latency: Option<i64>) -> Proxy {
+        Proxy {
+            name: name.to_string(),
+            r#type: "Mock".to_string(),
+            hidden: None,
+            children: children.map(|v| v.into_iter().map(str::to_string).collect()),
+            selected: None,
+            history: vec![DelayHistory { delay: latency.unwrap_or_default() }],
+            latency: latency.into(),
+        }
+    }
+
+    fn sort_config(field: ProxyGroupSortField, dir: SortDir) -> ProxyDetailSortConfig {
+        ProxyDetailSortConfig { field, dir }
+    }
+
+    #[test]
+    fn test_sort_proxies_by_name_asc() {
+        let mut proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["b", "a", "c"]), None)),
+            ("a".to_string(), proxy("alpha", None, Some(30))),
+            ("b".to_string(), proxy("beta", None, Some(20))),
+            ("c".to_string(), proxy("charlie", None, Some(10))),
+        ]);
+
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxyGroupSortField::Name, SortDir::Asc));
+
+        assert_eq!(
+            proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_sort_proxies_by_name_desc() {
+        let mut proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["b", "a", "c"]), None)),
+            ("a".to_string(), proxy("alpha", None, Some(30))),
+            ("b".to_string(), proxy("beta", None, Some(20))),
+            ("c".to_string(), proxy("charlie", None, Some(10))),
+        ]);
+
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxyGroupSortField::Name, SortDir::Desc));
+
+        assert_eq!(
+            proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
+            vec!["c".to_string(), "b".to_string(), "a".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_sort_proxies_by_latency_asc() {
+        let mut proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["slow", "timeout", "fast"]), None)),
+            ("fast".to_string(), proxy("fast", None, Some(10))),
+            ("slow".to_string(), proxy("slow", None, Some(50))),
+            ("timeout".to_string(), proxy("timeout", None, Some(0))),
+        ]);
+
+        Proxies::sort_proxies(
+            &mut proxies,
+            &sort_config(ProxyGroupSortField::Latency, SortDir::Asc),
+        );
+
+        assert_eq!(
+            proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
+            vec!["fast".to_string(), "slow".to_string(), "timeout".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_sort_proxies_by_latency_desc() {
+        let mut proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["slow", "timeout", "fast"]), None)),
+            ("fast".to_string(), proxy("fast", None, Some(10))),
+            ("slow".to_string(), proxy("slow", None, Some(50))),
+            ("timeout".to_string(), proxy("timeout", None, Some(-1))),
+        ]);
+
+        Proxies::sort_proxies(
+            &mut proxies,
+            &sort_config(ProxyGroupSortField::Latency, SortDir::Desc),
+        );
+
+        assert_eq!(
+            proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
+            vec!["slow".to_string(), "fast".to_string(), "timeout".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_sort_proxies_by_latency_keeps_stable_order_for_equal_values() {
+        let mut proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["second", "first", "timeout"]), None)),
+            ("first".to_string(), proxy("alpha", None, Some(20))),
+            ("second".to_string(), proxy("beta", None, Some(20))),
+            ("timeout".to_string(), proxy("timeout", None, Some(0))),
+        ]);
+
+        Proxies::sort_proxies(
+            &mut proxies,
+            &sort_config(ProxyGroupSortField::Latency, SortDir::Asc),
+        );
+
+        assert_eq!(
+            proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
+            vec!["second".to_string(), "first".to_string(), "timeout".to_string()]
+        );
+    }
+
+    #[test]
+    fn test_sort_proxies_ignores_proxies_without_children() {
+        let mut proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["b", "a"]), None)),
+            ("leaf".to_string(), proxy("leaf", None, Some(100))),
+            ("a".to_string(), proxy("alpha", None, Some(10))),
+            ("b".to_string(), proxy("beta", None, Some(20))),
+        ]);
+
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxyGroupSortField::Name, SortDir::Asc));
+
+        assert!(proxies.get("leaf").unwrap().children.is_none());
+        assert_eq!(
+            proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
+            vec!["a".to_string(), "b".to_string()]
+        );
     }
 }
