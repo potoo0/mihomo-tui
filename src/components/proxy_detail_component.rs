@@ -291,16 +291,12 @@ impl Component for ProxyDetailComponent {
                 Fragment::hl(arrow::UP),
                 Fragment::raw("/"),
                 Fragment::hl(arrow::LEFT),
-                Fragment::raw(" nav "),
+                Fragment::raw("/"),
                 Fragment::hl(arrow::RIGHT),
                 Fragment::raw("/"),
                 Fragment::hl(arrow::DOWN),
             ]),
-            Shortcut::new(vec![
-                Fragment::hl("PgUp"),
-                Fragment::raw(" page "),
-                Fragment::hl("PgDn"),
-            ]),
+            Shortcut::new(vec![Fragment::hl("PgUp"), Fragment::raw("/"), Fragment::hl("PgDn")]),
             Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
             Shortcut::new(vec![Fragment::hl("["), Fragment::raw(" layer "), Fragment::hl("]")]),
             Shortcut::from("cur", 0).unwrap(),
@@ -308,6 +304,7 @@ impl Component for ProxyDetailComponent {
             Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
             Shortcut::from("refresh", 0).unwrap(),
             Shortcut::from("test", 0).unwrap(),
+            Shortcut::from("sort", 0).unwrap(),
         ]
     }
 
@@ -365,6 +362,8 @@ impl Component for ProxyDetailComponent {
                     }
                 }
             },
+            KeyCode::Char('s') => Proxies::switch_sort_field(self.api.clone().unwrap()),
+            KeyCode::Char('S') => Proxies::toggle_sort_direction(self.api.clone().unwrap()),
             KeyCode::Char('[')
                 if !self.loading.load(Ordering::Relaxed) && self.layers.len() > 1 =>
             {

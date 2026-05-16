@@ -16,6 +16,7 @@ use tracing::{error, info, warn};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::config::Config;
 use crate::store::proxies::{Proxies, ProxyView};
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::symbols::arrow;
@@ -236,12 +237,19 @@ impl Component for ProxiesComponent {
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
-        self.load_proxies()?;
         Ok(())
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
+        let sort_config =
+            config.ui.as_ref().and_then(|ui| ui.proxy_detail.as_ref()).and_then(|c| c.sort.clone());
+        Proxies::init_sort_config(sort_config);
+        self.load_proxies()?;
         Ok(())
     }
 

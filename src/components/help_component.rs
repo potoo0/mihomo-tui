@@ -95,6 +95,8 @@ impl HelpComponent {
             HelpRow::entry("Enter", "update selected proxy"),
             HelpRow::entry("c", "jump to current selected proxy"),
             HelpRow::entry("[, ]", "navigate nested groups"),
+            HelpRow::entry("s", "switch sort by: none, latency, name"),
+            HelpRow::entry("S", "toggle sort direction"),
             // proxy providers / proxy provider detail
             HelpRow::Empty,
             HelpRow::key_title("# ProxyProviders (Pxy-Pr)"),
