@@ -7,7 +7,6 @@ use nucleo_matcher::Matcher;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 
 use crate::models::Log;
-use crate::store::LOGS_BUFFER_SIZE;
 use crate::utils::columns::ColDef;
 use crate::utils::row_filter::RowFilter;
 
@@ -19,12 +18,11 @@ pub struct Logs {
 }
 
 impl Logs {
-    pub fn new(capacity: Option<NonZeroUsize>) -> Self {
-        let capacity = capacity.map(NonZeroUsize::get).unwrap_or(LOGS_BUFFER_SIZE);
+    pub fn new(capacity: NonZeroUsize) -> Self {
         Self {
             matcher: Default::default(),
-            buffer: RwLock::new(AllocRingBuffer::new(capacity)),
-            view: RwLock::new(AllocRingBuffer::new(capacity)),
+            buffer: RwLock::new(AllocRingBuffer::new(capacity.get())),
+            view: RwLock::new(AllocRingBuffer::new(capacity.get())),
         }
     }
 

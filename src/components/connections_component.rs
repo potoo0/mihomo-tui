@@ -52,7 +52,7 @@ pub struct ConnectionsComponent {
 impl ConnectionsComponent {
     pub fn new(
         conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>,
-        store_capacity: Option<NonZeroUsize>,
+        store_capacity: NonZeroUsize,
     ) -> Self {
         Self {
             token: CancellationToken::new(),
