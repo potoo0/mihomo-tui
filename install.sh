@@ -55,6 +55,7 @@ adjust_format() {
 resolve_os() {
   case ${OS} in
     linux) TARGET_OS="Linux-musl" ;;
+    android) TARGET_OS="Linux-android" ;;
     darwin) TARGET_OS="macOS" ;;
     windows) TARGET_OS="Windows-msvc" ;;
     *) TARGET_OS="${OS}" ;;
@@ -217,6 +218,15 @@ log_crit() {
 }
 uname_os() {
   os=$(uname -s | tr '[:upper:]' '[:lower:]')
+  if [ "$os" = "linux" ]; then
+    if uname -o 2>/dev/null | grep -qi '^android$'; then
+      os="android"
+    elif [ -n "${ANDROID_ROOT:-}" ] || [ -n "${ANDROID_DATA:-}" ]; then
+      os="android"
+    elif [ -n "${PREFIX:-}" ] && echo "${PREFIX}" | grep -q '/com.termux/'; then
+      os="android"
+    fi
+  fi
   case "$os" in
     msys*) os="windows" ;;
     mingw*) os="windows" ;;
