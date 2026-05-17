@@ -28,7 +28,7 @@ pub struct SortSpec {
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum ProxyGroupSortField {
+pub enum ProxySortField {
     #[default]
     #[serde(alias = "LATENCY", alias = "Latency")]
     Latency,
@@ -43,15 +43,15 @@ mod tests {
     #[test]
     fn test_deserialize_from_yaml() {
         let yaml = "latency";
-        let parsed: ProxyGroupSortField = serde_yaml_ng::from_str(yaml).unwrap();
-        assert_eq!(parsed, ProxyGroupSortField::Latency);
+        let parsed: ProxySortField = serde_yaml_ng::from_str(yaml).unwrap();
+        assert_eq!(parsed, ProxySortField::Latency);
 
         let yaml_upper = "LATENCY";
-        let parsed: ProxyGroupSortField = serde_yaml_ng::from_str(yaml_upper).unwrap();
-        assert_eq!(parsed, ProxyGroupSortField::Latency);
+        let parsed: ProxySortField = serde_yaml_ng::from_str(yaml_upper).unwrap();
+        assert_eq!(parsed, ProxySortField::Latency);
 
         let yaml_upper = "Latency";
-        let parsed: ProxyGroupSortField = serde_yaml_ng::from_str(yaml_upper).unwrap();
-        assert_eq!(parsed, ProxyGroupSortField::Latency);
+        let parsed: ProxySortField = serde_yaml_ng::from_str(yaml_upper).unwrap();
+        assert_eq!(parsed, ProxySortField::Latency);
     }
 }

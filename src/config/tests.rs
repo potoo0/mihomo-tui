@@ -1,7 +1,7 @@
 use url::Url;
 
 use super::*;
-use crate::models::sort::{ProxyGroupSortField, SortDir, SortSpec};
+use crate::models::sort::{ProxySortField, SortDir, SortSpec};
 use crate::store::connections::find_sortable_connection_col;
 
 #[test]
@@ -134,7 +134,7 @@ ui:
     let proxy_detail = ui.proxy_detail.as_ref().unwrap();
     let sort = proxy_detail.sort.as_ref().unwrap();
 
-    assert_eq!(sort.field, ProxyGroupSortField::Latency);
+    assert_eq!(sort.field, ProxySortField::Latency);
     assert_eq!(sort.dir, SortDir::Asc);
     assert!(ui.connections.is_none());
 

@@ -4,7 +4,7 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize};
 use url::Url;
 
-use crate::models::sort::{ProxyGroupSortField, SortDir, SortSpec};
+use crate::models::sort::{ProxySortField, SortDir, SortSpec};
 use crate::store::connections::{CONNECTION_COLS, find_sortable_connection_col};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -35,6 +35,7 @@ pub struct Config {
 pub struct UiConfig {
     pub connections: Option<ConnectionsUiConfig>,
     pub proxy_detail: Option<ProxyDetailUiConfig>,
+    pub proxy_provider_detail: Option<ProxyDetailUiConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,13 +48,13 @@ pub struct ConnectionsUiConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProxyDetailUiConfig {
-    pub sort: Option<ProxyDetailSortConfig>,
+    pub sort: Option<ProxySortConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct ProxyDetailSortConfig {
-    pub field: ProxyGroupSortField,
+pub struct ProxySortConfig {
+    pub field: ProxySortField,
 
     #[serde(default = "default_proxy_detail_sort_dir")]
     pub dir: SortDir,

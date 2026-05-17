@@ -400,8 +400,13 @@ impl Component for ProxyDetailComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::ProxyDetail(name) => self.show(name),
-            Action::Tick if self.loading.load(Ordering::Relaxed) => {
-                self.throbber.calc_next();
+            Action::Tick => {
+                if self.loading.load(Ordering::Relaxed) {
+                    self.throbber.calc_next();
+                }
+                if self.pending_test.load(Ordering::Relaxed) > 0 {
+                    self.pending_test_throbber.calc_next();
+                }
             }
             _ => (),
         }
