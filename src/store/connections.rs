@@ -11,7 +11,6 @@ use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde_json::Value;
 
 use crate::models::Connection;
-use crate::store::CONNS_BUFFER_SIZE;
 use crate::store::query::QueryState;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey};
@@ -27,12 +26,11 @@ pub struct Connections {
 }
 
 impl Connections {
-    pub fn new(capacity: Option<NonZeroUsize>) -> Self {
-        let capacity = capacity.map(NonZeroUsize::get).unwrap_or(CONNS_BUFFER_SIZE);
+    pub fn new(capacity: NonZeroUsize) -> Self {
         Self {
             matcher: Default::default(),
-            buffer: RwLock::new(AllocRingBuffer::new(capacity)),
-            view: RwLock::new(AllocRingBuffer::new(capacity)),
+            buffer: RwLock::new(AllocRingBuffer::new(capacity.get())),
+            view: RwLock::new(AllocRingBuffer::new(capacity.get())),
             last_bytes: Default::default(),
         }
     }

@@ -47,7 +47,7 @@ pub struct LogsComponent {
 }
 
 impl LogsComponent {
-    pub fn new(store_capacity: Option<NonZeroUsize>) -> Self {
+    pub fn new(store_capacity: NonZeroUsize) -> Self {
         Self {
             api: None,
             token: CancellationToken::new(),

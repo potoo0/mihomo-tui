@@ -22,7 +22,6 @@ use crate::components::{Component, ComponentId};
 use crate::config::OverviewBufferConfig;
 use crate::models::{ConnectionStats, Memory, Traffic};
 use crate::palette;
-use crate::store::BUFFER_SIZE;
 use crate::utils::axis::{axis_bounds, axis_labels};
 use crate::utils::byte_size::{ByteSizeOptExt, human_bytes};
 use crate::utils::symbols::arrow;
@@ -45,14 +44,10 @@ pub struct OverviewComponent {
 impl OverviewComponent {
     pub fn new(
         stats_rx: Receiver<Option<ConnectionStats>>,
-        store_capacity: Option<OverviewBufferConfig>,
+        store_capacity: OverviewBufferConfig,
     ) -> Self {
-        let memory = AllocRingBuffer::new(
-            store_capacity.as_ref().map(|c| c.memory.get()).unwrap_or(BUFFER_SIZE),
-        );
-        let traffic = AllocRingBuffer::new(
-            store_capacity.as_ref().map(|c| c.traffic.get()).unwrap_or(BUFFER_SIZE),
-        );
+        let memory = AllocRingBuffer::new(store_capacity.memory.get());
+        let traffic = AllocRingBuffer::new(store_capacity.traffic.get());
         Self {
             api: Default::default(),
             token: Default::default(),

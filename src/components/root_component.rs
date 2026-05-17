@@ -98,11 +98,17 @@ impl RootComponent {
         self.components.entry(id).or_insert_with(|| {
             let mut c: Box<dyn Component> = match id {
                 ComponentId::Overview => {
-                    let store_capacity = self.config.as_ref().map(|c| c.buffer.overview.clone());
+                    let store_capacity =
+                        self.config.as_ref().map(|c| c.buffer.overview.clone()).unwrap_or_default();
                     Box::new(OverviewComponent::new(self.stats_rx.clone(), store_capacity))
                 }
                 ComponentId::Connections => {
-                    let store_capacity = self.config.as_ref().map(|c| c.buffer.connections);
+                    let store_capacity = self
+                        .config
+                        .as_ref()
+                        .map(|c| c.buffer.clone())
+                        .unwrap_or_default()
+                        .connections;
                     Box::new(ConnectionsComponent::new(Arc::clone(&self.conns_rx), store_capacity))
                 }
                 ComponentId::Proxies => Box::new(ProxiesComponent::default()),
@@ -113,7 +119,8 @@ impl RootComponent {
                     Box::new(ProxyProviderDetailComponent::default())
                 }
                 ComponentId::Logs => {
-                    let store_capacity = self.config.as_ref().map(|c| c.buffer.logs);
+                    let store_capacity =
+                        self.config.as_ref().map(|c| c.buffer.clone()).unwrap_or_default().logs;
                     Box::new(LogsComponent::new(store_capacity))
                 }
                 ComponentId::Rules => Box::new(RulesComponent::default()),
