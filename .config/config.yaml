@@ -30,6 +30,8 @@ ui:
     sort: { field: "DownRate", dir: "desc" }
   proxy-detail:
     sort: { field: "Latency", dir: "asc" }
+  proxy-provider-detail:
+    sort: { field: "Latency", dir: "asc" }
 
 # Buffer sizes below are the default values.
 # You can adjust them based on your actual usage and performance needs.

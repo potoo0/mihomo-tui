@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::components::ComponentId;
 use crate::error::UserError;
 use crate::models::Connection;
-use crate::models::proxy_provider::ProxyProvider;
 use crate::widgets::shortcut::Shortcut;
 
 #[derive(Debug, Clone)]
@@ -34,6 +33,5 @@ pub enum Action {
     ProxyDetail(String),
     ProxySetting,
     ProxySettingChanged,
-    ProxyProviderDetail(Arc<ProxyProvider>),
-    ProxyProviderRefresh,
+    ProxyProviderDetail(String),
 }

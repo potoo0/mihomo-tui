@@ -7,9 +7,9 @@ use indexmap::IndexMap;
 use tracing::{debug, error, info, warn};
 
 use crate::api::Api;
-use crate::config::ProxyDetailSortConfig;
+use crate::config::ProxySortConfig;
 use crate::models::proxy::Proxy;
-use crate::models::sort::{ProxyGroupSortField, SortDir};
+use crate::models::sort::{ProxySortField, SortDir};
 use crate::store::proxy_setting::ProxySetting;
 use crate::widgets::latency::{LatencyQuality, QualityStats};
 
@@ -27,7 +27,7 @@ pub struct ProxyView {
 
 #[derive(Debug, Default)]
 pub struct Proxies {
-    sort: Option<ProxyDetailSortConfig>,
+    sort: Option<ProxySortConfig>,
     proxies: HashMap<String, Arc<Proxy>>,
     visible: Vec<Arc<ProxyView>>,
 }
@@ -144,7 +144,7 @@ impl Proxies {
         Self::load(api).await
     }
 
-    pub fn init_sort_config(sort: Option<ProxyDetailSortConfig>) {
+    pub fn init_sort_config(sort: Option<ProxySortConfig>) {
         let mut p = Self::global().write().expect("proxies store poisoned");
         if p.sort.is_none() {
             info!(?sort, "Initializing sort config");
@@ -154,7 +154,7 @@ impl Proxies {
 
     fn update_sort_and_reload<F>(api: Arc<Api>, f: F)
     where
-        F: FnOnce(Option<ProxyDetailSortConfig>) -> Option<ProxyDetailSortConfig>,
+        F: FnOnce(Option<ProxySortConfig>) -> Option<ProxySortConfig>,
     {
         {
             let mut p = Self::global().write().expect("proxies store poisoned");
@@ -180,22 +180,19 @@ impl Proxies {
 
     pub fn switch_sort_field(api: Arc<Api>) {
         Self::update_sort_and_reload(api, |old_sort| match old_sort {
-            None => Some(ProxyDetailSortConfig {
-                field: ProxyGroupSortField::Latency,
-                dir: SortDir::Asc,
-            }),
+            None => Some(ProxySortConfig { field: ProxySortField::Latency, dir: SortDir::Asc }),
             Some(old) => match old.field {
-                ProxyGroupSortField::Latency => {
-                    Some(ProxyDetailSortConfig { field: ProxyGroupSortField::Name, dir: old.dir })
+                ProxySortField::Latency => {
+                    Some(ProxySortConfig { field: ProxySortField::Name, dir: old.dir })
                 }
-                ProxyGroupSortField::Name => None,
+                ProxySortField::Name => None,
             },
         });
     }
 
     pub fn toggle_sort_direction(api: Arc<Api>) {
         Self::update_sort_and_reload(api, |old_sort| {
-            old_sort.map(|old| ProxyDetailSortConfig { dir: old.dir.toggle(), ..old })
+            old_sort.map(|old| ProxySortConfig { dir: old.dir.toggle(), ..old })
         });
     }
 }
@@ -260,10 +257,10 @@ impl Proxies {
 }
 
 impl Proxies {
-    fn sort_proxies(proxies: &mut IndexMap<String, Proxy>, sort_config: &ProxyDetailSortConfig) {
+    fn sort_proxies(proxies: &mut IndexMap<String, Proxy>, sort_config: &ProxySortConfig) {
         match sort_config.field {
-            ProxyGroupSortField::Name => Self::sort_proxies_by_name(proxies, sort_config.dir),
-            ProxyGroupSortField::Latency => Self::sort_proxies_by_latency(proxies, sort_config.dir),
+            ProxySortField::Name => Self::sort_proxies_by_name(proxies, sort_config.dir),
+            ProxySortField::Latency => Self::sort_proxies_by_latency(proxies, sort_config.dir),
         }
     }
 
@@ -363,9 +360,9 @@ impl Proxies {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ProxyDetailSortConfig;
+    use crate::config::ProxySortConfig;
     use crate::models::proxy::DelayHistory;
-    use crate::models::sort::{ProxyGroupSortField, SortDir};
+    use crate::models::sort::{ProxySortField, SortDir};
 
     fn proxy(name: &str, children: Option<Vec<&str>>, latency: Option<i64>) -> Proxy {
         Proxy {
@@ -379,8 +376,8 @@ mod tests {
         }
     }
 
-    fn sort_config(field: ProxyGroupSortField, dir: SortDir) -> ProxyDetailSortConfig {
-        ProxyDetailSortConfig { field, dir }
+    fn sort_config(field: ProxySortField, dir: SortDir) -> ProxySortConfig {
+        ProxySortConfig { field, dir }
     }
 
     #[test]
@@ -392,7 +389,7 @@ mod tests {
             ("c".to_string(), proxy("charlie", None, Some(10))),
         ]);
 
-        Proxies::sort_proxies(&mut proxies, &sort_config(ProxyGroupSortField::Name, SortDir::Asc));
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxySortField::Name, SortDir::Asc));
 
         assert_eq!(
             proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
@@ -409,7 +406,7 @@ mod tests {
             ("c".to_string(), proxy("charlie", None, Some(10))),
         ]);
 
-        Proxies::sort_proxies(&mut proxies, &sort_config(ProxyGroupSortField::Name, SortDir::Desc));
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxySortField::Name, SortDir::Desc));
 
         assert_eq!(
             proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
@@ -426,10 +423,7 @@ mod tests {
             ("timeout".to_string(), proxy("timeout", None, Some(0))),
         ]);
 
-        Proxies::sort_proxies(
-            &mut proxies,
-            &sort_config(ProxyGroupSortField::Latency, SortDir::Asc),
-        );
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxySortField::Latency, SortDir::Asc));
 
         assert_eq!(
             proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
@@ -446,10 +440,7 @@ mod tests {
             ("timeout".to_string(), proxy("timeout", None, Some(-1))),
         ]);
 
-        Proxies::sort_proxies(
-            &mut proxies,
-            &sort_config(ProxyGroupSortField::Latency, SortDir::Desc),
-        );
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxySortField::Latency, SortDir::Desc));
 
         assert_eq!(
             proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
@@ -466,10 +457,7 @@ mod tests {
             ("timeout".to_string(), proxy("timeout", None, Some(0))),
         ]);
 
-        Proxies::sort_proxies(
-            &mut proxies,
-            &sort_config(ProxyGroupSortField::Latency, SortDir::Asc),
-        );
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxySortField::Latency, SortDir::Asc));
 
         assert_eq!(
             proxies.get("group").and_then(|p| p.children.clone()).unwrap(),
@@ -486,7 +474,7 @@ mod tests {
             ("b".to_string(), proxy("beta", None, Some(20))),
         ]);
 
-        Proxies::sort_proxies(&mut proxies, &sort_config(ProxyGroupSortField::Name, SortDir::Asc));
+        Proxies::sort_proxies(&mut proxies, &sort_config(ProxySortField::Name, SortDir::Asc));
 
         assert!(proxies.get("leaf").unwrap().children.is_none());
         assert_eq!(

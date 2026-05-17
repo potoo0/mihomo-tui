@@ -1,5 +1,5 @@
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
-use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -11,11 +11,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::config::Config;
 use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::utils::byte_size::human_bytes;
 use crate::utils::symbols::arrow;
@@ -32,9 +33,7 @@ pub struct ProxyProvidersComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
 
-    store: Arc<RwLock<ProxyProviders>>,
     navigator: ScrollableNavigator,
-
     loading: Arc<AtomicBool>,
     throbber: ThrobberState,
 
@@ -46,14 +45,12 @@ impl ProxyProvidersComponent {
     fn load_providers(&self) -> Result<()> {
         info!("Loading proxy providers");
         let api = Arc::clone(self.api.as_ref().unwrap());
-        let store = Arc::clone(&self.store);
         let loading = Arc::clone(&self.loading);
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-providers-loader").spawn(async move {
-            match api.get_providers().await {
-                Ok(providers) => store.write().unwrap().push(providers),
-                Err(e) => error!(error = ?e, "Failed to get proxy providers"),
+            if let Err(e) = ProxyProviders::load(api).await {
+                error!(error = ?e, "Failed to get proxy providers")
             }
             loading.store(false, Ordering::Relaxed);
         })?;
@@ -64,16 +61,16 @@ impl ProxyProvidersComponent {
     fn provider_health_check(&self, name: String) -> Result<()> {
         info!("Health check for provider: {}", name);
         let api = Arc::clone(self.api.as_ref().unwrap());
-        let action_tx = self.action_tx.as_ref().unwrap().clone();
         let pending_test = Arc::clone(&self.pending_test);
         pending_test.fetch_add(1, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-health-check").spawn(async move {
-            match api.health_check_provider(name).await {
-                Ok(_) => _ = action_tx.send(Action::ProxyProviderRefresh),
-                Err(e) => error!(error = ?e, "Failed to health check provider"),
+            if let Err(e) = ProxyProviders::health_check_and_reload(api, &name).await {
+                error!(error = ?e, "Failed to health check and reload provider");
             }
-            pending_test.fetch_sub(1, Ordering::Relaxed);
+            let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
+                if x == 0 { None } else { Some(x - 1) }
+            });
         })?;
 
         Ok(())
@@ -87,12 +84,9 @@ impl ProxyProvidersComponent {
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-update").spawn(async move {
-            match api.update_provider(name).await {
-                Ok(_) => _ = action_tx.send(Action::ProxyProviderRefresh),
-                Err(e) => {
-                    error!(error = ?e, "Failed to update provider");
-                    let _ = action_tx.send(Action::Error(("Update proxy provider", e).into()));
-                }
+            if let Err(e) = ProxyProviders::update_and_reload(api, &name).await {
+                error!(error = ?e, "Failed to update provider");
+                let _ = action_tx.send(Action::Error(("Update proxy provider", e).into()));
             }
             loading.store(false, Ordering::Relaxed);
         })?;
@@ -221,7 +215,10 @@ impl ProxyProvidersComponent {
     }
 
     fn render_providers(&mut self, frame: &mut Frame, outer: Rect) {
-        let providers = self.store.read().unwrap().view();
+        let providers = {
+            let guard = ProxyProviders::global().read().unwrap();
+            guard.view()
+        };
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
@@ -245,6 +242,16 @@ impl ProxyProvidersComponent {
                 Self::render_provider(proxy, focused, frame, rect);
             },
         );
+    }
+}
+
+impl Drop for ProxyProvidersComponent {
+    fn drop(&mut self) {
+        info!("`ProxyProvidersComponent` dropped");
+        match ProxyProviders::global().write() {
+            Ok(mut p) => p.clear(),
+            Err(_) => warn!("Failed to acquire write lock to clear proxy providers store"),
+        }
     }
 }
 
@@ -280,12 +287,22 @@ impl Component for ProxyProvidersComponent {
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
-        self.load_providers()?;
         Ok(())
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
+        let sort_config = config
+            .ui
+            .as_ref()
+            .and_then(|ui| ui.proxy_provider_detail.as_ref())
+            .and_then(|c| c.sort.clone());
+        ProxyProviders::init_sort_config(sort_config);
+        self.load_providers()?;
         Ok(())
     }
 
@@ -295,35 +312,26 @@ impl Component for ProxyProvidersComponent {
         }
         match key.code {
             KeyCode::Esc => self.navigator.focused = None,
-            KeyCode::Char('r')
-                if self
-                    .loading
-                    .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-                    .is_ok() =>
-            {
-                return Ok(Some(Action::ProxyProviderRefresh));
-            }
+            KeyCode::Char('r') => self.load_providers()?,
             KeyCode::Char('s') => return Ok(Some(Action::ProxySetting)),
             KeyCode::Enter => {
-                let store = self.store.read().unwrap();
                 if let Some(idx) = self.navigator.focused {
-                    let action =
-                        store.get(idx).map(|v| v.provider.clone()).map(Action::ProxyProviderDetail);
+                    let action = ProxyProviders::get(idx)
+                        .map(|v| v.provider.name.clone())
+                        .map(Action::ProxyProviderDetail);
                     return Ok(action);
                 }
             }
             KeyCode::Char('t') => {
-                let store = self.store.read().unwrap();
                 if let Some(idx) = self.navigator.focused
-                    && let Some(p) = store.get(idx)
+                    && let Some(p) = ProxyProviders::get(idx)
                 {
                     self.provider_health_check(p.provider.name.clone())?;
                 }
             }
             KeyCode::Char('u') => {
-                let store = self.store.read().unwrap();
                 if let Some(idx) = self.navigator.focused
-                    && let Some(p) = store.get(idx)
+                    && let Some(p) = ProxyProviders::get(idx)
                 {
                     self.update_provider(p.provider.name.clone())?;
                 }
@@ -336,7 +344,7 @@ impl Component for ProxyProvidersComponent {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::ProxyProviderRefresh | Action::ProxySettingChanged => self.load_providers()?,
+            Action::ProxySettingChanged => self.load_providers()?,
             Action::Tick => {
                 if self.loading.load(Ordering::Relaxed) {
                     self.throbber.calc_next();
