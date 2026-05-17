@@ -1,4 +1,22 @@
 
+## 0.4.0 - 2026-05-17
+
+### Features
+
+- **Config**
+  - Add configurable buffer sizes for **Overview**, **Connections**, and **Logs**.
+  - Add optional initial sort settings for **Connections**, **Proxy Detail**, and **Proxy Provider Detail**.
+- **Shortcuts**
+  - **Proxy Detail** / **Proxy Provider Detail**:
+    - `s` to switch sort by: none, latency, name
+    - `S` to toggle the sort direction
+
+### Chores
+
+- Add Android `aarch64-linux-android` release target and enable manual release workflow runs.
+- Make local API tests opt-in behind the `local-api-test` feature and add a CI test job.
+- Replace `vergen-gix` with `vergen-gitcl` to reduce vulnerable dependencies.
+
 ## 0.3.4 - 2026-04-14
 
 ### Features

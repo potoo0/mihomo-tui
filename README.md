@@ -21,7 +21,7 @@
 ## Limitations
 
 - The tool is designed only to interact with the [API](https://wiki.metacubex.one/api/). It does not manage any actual configuration files.
-- The tool uses a ring buffer to store the [last 500 connections](/src/store/mod.rs#L11).
+- The tool keeps only a bounded history; see [.config/config.yaml](./.config/config.yaml) for default buffer sizes.
 
 ## Installation
 
@@ -104,7 +104,26 @@ log-file: /tmp/mihomo-tui.log
 #   info,mihomo_tui=debug
 #   info,mihomo_tui=trace,mihomo_tui::app=debug
 log-level: error
+
+# UI settings, Optional
+# connections.sort:
+#   - field must match a sortable Connections column title, case-insensitive.
+#     Allowed values: Alive, Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP
+#   - dir: asc | desc, default is desc
+# proxy-detail.sort:
+#   - field currently supports: latency, name
+#   - dir: asc | desc, default is asc
+ui:
+  connections:
+    sort: { field: "DownRate", dir: "desc" }
+  proxy-detail:
+    sort: { field: "Latency", dir: "asc" }
+  proxy-provider-detail:
+    sort: { field: "Latency", dir: "asc" }
+
 ```
+
+For the full default config, see [.config/config.yaml](./.config/config.yaml).
 
 ## Acknowledgments
 
