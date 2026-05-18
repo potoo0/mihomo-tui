@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use url::Url;
 
 use super::*;
@@ -14,6 +16,16 @@ fn test_config_default() {
     assert_eq!(config.log_file, default_config.log_file);
     assert_eq!(config.log_level, default_config.log_level);
     assert!(config.ui.is_some());
+    assert_eq!(config.proxy_setting.test_url, default_config.proxy_setting.test_url);
+    assert_eq!(config.proxy_setting.test_timeout, default_config.proxy_setting.test_timeout);
+    assert_eq!(
+        config.proxy_setting.latency_threshold,
+        default_config.proxy_setting.latency_threshold
+    );
+    assert_eq!(
+        config.proxy_setting.auto_terminate_connections,
+        default_config.proxy_setting.auto_terminate_connections
+    );
     assert_eq!(config.buffer.connections, default_config.buffer.connections);
     assert_eq!(config.buffer.logs, default_config.buffer.logs);
     assert_eq!(config.buffer.overview.memory, default_config.buffer.overview.memory);
@@ -37,6 +49,167 @@ log-level: "info"
     assert_eq!(config.mihomo_secret, Some("secret".to_owned()));
     assert_eq!(config.log_file, Some("/tmp/log.log".to_owned()));
     assert_eq!(config.log_level, Some("info".to_owned()));
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_proxy_setting_defaults_when_missing() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+
+    assert_eq!(config.proxy_setting.test_url, ProxySetting::default().test_url);
+    assert_eq!(config.proxy_setting.test_timeout, ProxySetting::default().test_timeout);
+    assert_eq!(config.proxy_setting.latency_threshold, LatencyThreshold::default());
+    assert!(!config.proxy_setting.auto_terminate_connections);
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_proxy_setting_partial_defaults() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+proxy-setting:
+  test-timeout: 3000
+  auto-terminate-connections: true
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+
+    assert_eq!(config.proxy_setting.test_url, ProxySetting::default().test_url);
+    assert_eq!(config.proxy_setting.test_timeout, NonZeroUsize::new(3000).unwrap());
+    assert_eq!(config.proxy_setting.latency_threshold, LatencyThreshold::default());
+    assert!(config.proxy_setting.auto_terminate_connections);
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_proxy_setting_custom() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+proxy-setting:
+  test-url: "https://example.com/generate_204"
+  test-timeout: 3000
+  latency-threshold: "300,800"
+  auto-terminate-connections: true
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+
+    assert_eq!(config.proxy_setting.test_url, "https://example.com/generate_204".to_owned());
+    assert_eq!(config.proxy_setting.test_timeout, NonZeroUsize::new(3000).unwrap());
+    assert_eq!(config.proxy_setting.latency_threshold, LatencyThreshold { medium: 300, high: 800 });
+    assert!(config.proxy_setting.auto_terminate_connections);
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_proxy_setting_invalid_threshold() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+proxy-setting:
+  latency-threshold: "1000,500"
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let result = load(Some(cfg_path.0.clone()));
+    assert!(result.is_err(), "expected error, got {:?}", result);
+
+    let err_msg = format!("{:#}", result.unwrap_err());
+    assert!(
+        err_msg.contains("Threshold must satisfy medium < high"),
+        "unexpected error: {}",
+        err_msg
+    );
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_proxy_setting_invalid_url() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+proxy-setting:
+  test-url: "ftp://example.com"
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let result = load(Some(cfg_path.0.clone()));
+    assert!(result.is_err(), "expected error, got {:?}", result);
+
+    let err_msg = format!("{:#}", result.unwrap_err());
+    assert!(
+        err_msg.contains("URL must start with http:// or https://"),
+        "unexpected error: {}",
+        err_msg
+    );
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_proxy_setting_invalid_timeout() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+proxy-setting:
+  test-timeout: 0
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let result = load(Some(cfg_path.0.clone()));
+    assert!(result.is_err(), "expected error, got {:?}", result);
+
+    let err_msg = format!("{:#}", result.unwrap_err());
+    assert!(
+        err_msg.contains("invalid value: integer `0`, expected a nonzero usize"),
+        "unexpected error: {}",
+        err_msg
+    );
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_proxy_setting_timeout_too_large() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+proxy-setting:
+  test-timeout: 60001
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let result = load(Some(cfg_path.0.clone()));
+    assert!(result.is_err(), "expected error, got {:?}", result);
+
+    let err_msg = format!("{:#}", result.unwrap_err());
+    assert!(
+        err_msg.contains("Timeout must be between 1 and 60000 milliseconds"),
+        "unexpected error: {}",
+        err_msg
+    );
 
     drop(cfg_path);
 }

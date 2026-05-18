@@ -13,6 +13,7 @@ use tracing::{error, info};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
 use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::store::proxy_setting::ProxySetting;
@@ -154,7 +155,7 @@ impl ProxyProviderDetailComponent {
     }
 
     fn render_card(
-        threshold: (u64, u64),
+        threshold: LatencyThreshold,
         proxy: &Proxy,
         focused: bool,
         frame: &mut Frame,
@@ -189,7 +190,7 @@ impl ProxyProviderDetailComponent {
             .length(provider.proxies.len(), ((area.height / CARD_HEIGHT) as usize) * cols);
         let visible =
             &provider.proxies[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
-        let threshold = ProxySetting::global().read().unwrap().threshold;
+        let threshold = ProxySetting::global().read().unwrap().latency_threshold;
         self.navigator.iter_layout(visible, CARD_HEIGHT, col_chunks).for_each(
             |(proxy, focused, rect)| Self::render_card(threshold, proxy, focused, frame, rect),
         );

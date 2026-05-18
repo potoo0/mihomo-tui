@@ -259,7 +259,7 @@ impl Component for ConnectionsComponent {
                 Fragment::hl(arrow::RIGHT),
             ]),
             Shortcut::from("reverse", 0).unwrap(),
-            Shortcut::from("terminal", 0).unwrap(),
+            Shortcut::from("term", 0).unwrap(),
             Shortcut::from("capture", 0).unwrap(),
             Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
             Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),

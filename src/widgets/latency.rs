@@ -2,6 +2,8 @@ use ratatui::prelude::{Color, Span};
 use ratatui::symbols::bar;
 use ratatui::text::Line;
 
+use crate::config::LatencyThreshold;
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Latency(pub Option<i64>);
 
@@ -22,7 +24,7 @@ impl Latency {
         self.0.is_none()
     }
 
-    pub fn as_span<'a>(&self, threshold: (u64, u64)) -> Span<'a> {
+    pub fn as_span<'a>(&self, threshold: LatencyThreshold) -> Span<'a> {
         Span::styled(
             self.0.filter(|v| *v > 0).map(|v| format!("{}", v)).unwrap_or("-".into()),
             LatencyQuality::from(*self, threshold).color(),
@@ -69,12 +71,12 @@ impl LatencyQuality {
         }
     }
 
-    pub fn from(latency: Latency, threshold: (u64, u64)) -> Self {
+    pub fn from(latency: Latency, threshold: LatencyThreshold) -> Self {
         match latency.0 {
             None => LatencyQuality::NotConnected,
             Some(d) if d <= 0 => LatencyQuality::NotConnected,
-            Some(d) if d < threshold.0 as i64 => LatencyQuality::Fast,
-            Some(d) if d < threshold.1 as i64 => LatencyQuality::Medium,
+            Some(d) if d < threshold.medium as i64 => LatencyQuality::Fast,
+            Some(d) if d < threshold.high as i64 => LatencyQuality::Medium,
             Some(_) => LatencyQuality::Slow,
         }
     }

@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 use tracing::{debug, error, info, warn};
 
 use crate::api::Api;
-use crate::config::ProxySortConfig;
+use crate::config::{LatencyThreshold, ProxySortConfig};
 use crate::models::proxy::Proxy;
 use crate::models::sort::{ProxySortField, SortDir};
 use crate::store::proxy_setting::ProxySetting;
@@ -117,7 +117,7 @@ impl Proxies {
     pub async fn test_and_reload(api: Arc<Api>, name: &str) -> Result<()> {
         let (test_url, test_timeout) = {
             let setting = ProxySetting::global().read().unwrap();
-            (setting.test_url.clone(), setting.test_timeout)
+            (setting.test_url.clone(), setting.test_timeout.get())
         };
 
         let result = api.test_proxy(name, &test_url, test_timeout).await;
@@ -132,7 +132,7 @@ impl Proxies {
     pub async fn test_group_and_reload(api: Arc<Api>, name: &str) -> Result<()> {
         let (test_url, test_timeout) = {
             let setting = ProxySetting::global().read().unwrap();
-            (setting.test_url.clone(), setting.test_timeout)
+            (setting.test_url.clone(), setting.test_timeout.get())
         };
 
         let result = api.test_proxy_group(name, &test_url, test_timeout).await;
@@ -214,7 +214,7 @@ impl Proxies {
         }
 
         self.proxies = proxies.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
-        let threshold = ProxySetting::global().read().unwrap().threshold;
+        let threshold = ProxySetting::global().read().unwrap().latency_threshold;
 
         let sort_index = self.build_sort_index();
         let mut visible: Vec<Arc<ProxyView>> = self
@@ -228,7 +228,7 @@ impl Proxies {
         self.visible = visible;
     }
 
-    fn build_proxy_view(&self, proxy: &Arc<Proxy>, threshold: (u64, u64)) -> Arc<ProxyView> {
+    fn build_proxy_view(&self, proxy: &Arc<Proxy>, threshold: LatencyThreshold) -> Arc<ProxyView> {
         let mut quality_stats = [0; LatencyQuality::COUNT];
         if let Some(ref children) = proxy.children {
             for child in children {

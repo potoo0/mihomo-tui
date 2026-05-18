@@ -1,13 +1,12 @@
 use std::num::NonZeroUsize;
 
-use serde::de::Error as _;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::Deserialize;
 use url::Url;
 
+use super::deserialize::deserialize_connections_sort;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
-use crate::store::connections::{CONNECTION_COLS, find_sortable_connection_col};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
     pub mihomo_api: Url,
@@ -27,10 +26,13 @@ pub struct Config {
     pub ui: Option<UiConfig>,
 
     #[serde(default)]
+    pub proxy_setting: ProxySetting,
+
+    #[serde(default)]
     pub buffer: BufferConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct UiConfig {
     pub connections: Option<ConnectionsUiConfig>,
@@ -38,20 +40,20 @@ pub struct UiConfig {
     pub proxy_provider_detail: Option<ProxyDetailUiConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConnectionsUiConfig {
     #[serde(default, deserialize_with = "deserialize_connections_sort")]
     pub sort: Option<SortSpec>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProxyDetailUiConfig {
     pub sort: Option<ProxySortConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProxySortConfig {
     pub field: ProxySortField,
@@ -60,7 +62,28 @@ pub struct ProxySortConfig {
     pub dir: SortDir,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "kebab-case", default)]
+pub struct ProxySetting {
+    pub test_url: String,
+    pub test_timeout: NonZeroUsize,
+    pub latency_threshold: LatencyThreshold,
+    pub auto_terminate_connections: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LatencyThreshold {
+    pub medium: u64,
+    pub high: u64,
+}
+
+impl LatencyThreshold {
+    pub const fn as_tuple(self) -> (u64, u64) {
+        (self.medium, self.high)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case", default)]
 pub struct BufferConfig {
     pub overview: OverviewBufferConfig,
@@ -68,11 +91,28 @@ pub struct BufferConfig {
     pub logs: NonZeroUsize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case", default)]
 pub struct OverviewBufferConfig {
     pub memory: NonZeroUsize,
     pub traffic: NonZeroUsize,
+}
+
+impl Default for LatencyThreshold {
+    fn default() -> Self {
+        Self { medium: 500, high: 1000 }
+    }
+}
+
+impl Default for ProxySetting {
+    fn default() -> Self {
+        Self {
+            test_url: "https://www.gstatic.com/generate_204".into(),
+            test_timeout: NonZeroUsize::new(5000).unwrap(),
+            latency_threshold: LatencyThreshold::default(),
+            auto_terminate_connections: false,
+        }
+    }
 }
 
 impl Default for BufferConfig {
@@ -96,39 +136,4 @@ impl Default for OverviewBufferConfig {
 
 fn default_proxy_detail_sort_dir() -> SortDir {
     SortDir::Asc
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct RawConnectionsSortConfig {
-    field: String,
-
-    #[serde(default)]
-    dir: SortDir,
-}
-
-fn deserialize_connections_sort<'de, D>(deserializer: D) -> Result<Option<SortSpec>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let raw = Option::<RawConnectionsSortConfig>::deserialize(deserializer)?;
-    raw.map(raw_connections_sort_into_sort_spec).transpose().map_err(D::Error::custom)
-}
-
-fn raw_connections_sort_into_sort_spec(raw: RawConnectionsSortConfig) -> anyhow::Result<SortSpec> {
-    let Some(col) = find_sortable_connection_col(&raw.field) else {
-        let allowed = CONNECTION_COLS
-            .iter()
-            .filter(|def| def.sortable)
-            .map(|def| def.title)
-            .collect::<Vec<_>>()
-            .join(", ");
-        anyhow::bail!(
-            "invalid `ui.connections.sort.field`: {:?}, allowed values: {}",
-            raw.field,
-            allowed
-        );
-    };
-
-    Ok(SortSpec { col, dir: raw.dir })
 }

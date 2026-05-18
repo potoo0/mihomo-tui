@@ -12,6 +12,7 @@ use crate::api::Api;
 use crate::components::root_component::RootComponent;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
+use crate::store::proxy_setting::ProxySetting;
 use crate::tui::{Event, Tui};
 
 pub struct App {
@@ -46,6 +47,7 @@ impl App {
         let mut tui = Tui::new()?;
         tui.enter()?;
 
+        *ProxySetting::global().write().unwrap() = self.config.proxy_setting.clone();
         self.root.init(Arc::clone(&self.api))?;
         self.root.register_action_handler(self.action_tx.clone())?;
         self.root.register_config_handler(Arc::clone(&self.config))?;
