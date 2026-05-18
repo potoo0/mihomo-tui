@@ -1,6 +1,8 @@
+mod deserialize;
 mod schema;
 #[cfg(test)]
 mod tests;
+pub mod validate;
 
 use std::path::PathBuf;
 use std::sync::LazyLock;
@@ -25,6 +27,7 @@ pub fn load(path: Option<PathBuf>) -> anyhow::Result<Config> {
     }
 
     let default_config: Config = serde_yaml_ng::from_str(DEFAULT_CONFIG)?;
+    default_config.validate()?;
     let config_path: PathBuf = get_config_path();
     info!("Using default config file at `{}`", config_path.display());
     // If config file does not exist, create one with default content
@@ -46,6 +49,7 @@ fn read_from_file(path: &PathBuf) -> anyhow::Result<Config> {
         fs::File::open(path).with_context(|| format!("Fail to open file `{}`", path.display()))?;
     let cfg: Config = serde_yaml_ng::from_reader(result)
         .with_context(|| format!("Fail to deserialize file `{}`", path.display()))?;
+    cfg.validate().with_context(|| format!("Invalid config file `{}`", path.display()))?;
     Ok(cfg)
 }
 

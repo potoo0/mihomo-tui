@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use tracing::{error, info};
 
 use crate::api::Api;
-use crate::config::ProxySortConfig;
+use crate::config::{LatencyThreshold, ProxySortConfig};
 use crate::models::proxy_provider::ProxyProvider;
 use crate::models::sort::{ProxySortField, SortDir};
 use crate::store::proxy_setting::ProxySetting;
@@ -193,7 +193,7 @@ impl ProxyProviders {
     }
 
     pub fn push(&mut self, mut providers: IndexMap<String, ProxyProvider>) {
-        let threshold = ProxySetting::global().read().unwrap().threshold;
+        let threshold = ProxySetting::global().read().unwrap().latency_threshold;
         if let Some(sort) = &self.sort {
             Self::sort_providers(&mut providers, sort);
         }
@@ -204,7 +204,11 @@ impl ProxyProviders {
             .collect();
     }
 
-    fn build_view(&self, mut provider: ProxyProvider, threshold: (u64, u64)) -> Arc<ProviderView> {
+    fn build_view(
+        &self,
+        mut provider: ProxyProvider,
+        threshold: LatencyThreshold,
+    ) -> Arc<ProviderView> {
         provider.updated_at_str = provider.updated_at.and_then(format_datetime);
         let mut quality_stats = [0; LatencyQuality::COUNT];
         for proxy in provider.proxies.iter_mut() {

@@ -218,7 +218,7 @@ impl Api {
         Ok(())
     }
 
-    pub async fn test_proxy<S: AsRef<str>>(&self, name: S, url: S, timeout: u64) -> Result<u16> {
+    pub async fn test_proxy<S: AsRef<str>>(&self, name: S, url: S, timeout: usize) -> Result<u16> {
         #[derive(Deserialize)]
         struct DelayResp {
             delay: u16,
@@ -246,7 +246,7 @@ impl Api {
         &self,
         name: S,
         url: S,
-        timeout: u64,
+        timeout: usize,
     ) -> Result<HashMap<String, u16>> {
         let resp = self
             .client

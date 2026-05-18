@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::cmp::PartialEq;
-use std::str::FromStr;
+use std::num::NonZeroUsize;
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -12,10 +12,10 @@ use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use tokio::sync::mpsc::UnboundedSender;
 use tui_input::{Input, InputRequest};
-use url::Url;
 
 use crate::action::Action;
 use crate::components::{Component, ComponentId};
+use crate::config::LatencyThreshold;
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -29,8 +29,10 @@ pub enum ProxySettingField {
     TestUrl,
     #[strum(to_string = "Test Timeout (ms)")]
     TestTimeout,
-    #[strum(to_string = "Threshold (good,bad)")]
+    #[strum(to_string = "Threshold (medium,high)")]
     Threshold,
+    #[strum(to_string = "Auto Terminate Connections")]
+    AutoTerminateConnections,
 }
 
 impl ProxySettingField {
@@ -38,15 +40,17 @@ impl ProxySettingField {
         match self {
             ProxySettingField::TestUrl => ProxySettingField::TestTimeout,
             ProxySettingField::TestTimeout => ProxySettingField::Threshold,
-            ProxySettingField::Threshold => ProxySettingField::TestUrl,
+            ProxySettingField::Threshold => ProxySettingField::AutoTerminateConnections,
+            ProxySettingField::AutoTerminateConnections => ProxySettingField::TestUrl,
         }
     }
 
     pub fn prev(&self) -> Self {
         match self {
-            ProxySettingField::TestUrl => ProxySettingField::Threshold,
+            ProxySettingField::TestUrl => ProxySettingField::AutoTerminateConnections,
             ProxySettingField::TestTimeout => ProxySettingField::TestUrl,
             ProxySettingField::Threshold => ProxySettingField::TestTimeout,
+            ProxySettingField::AutoTerminateConnections => ProxySettingField::Threshold,
         }
     }
 
@@ -57,8 +61,9 @@ impl ProxySettingField {
         match self {
             ProxySettingField::TestUrl => setting.test_url.clone(),
             ProxySettingField::TestTimeout => setting.test_timeout.to_string(),
-            ProxySettingField::Threshold => {
-                format!("{},{}", setting.threshold.0, setting.threshold.1)
+            ProxySettingField::Threshold => setting.latency_threshold.to_string(),
+            ProxySettingField::AutoTerminateConnections => {
+                setting.auto_terminate_connections.to_string()
             }
         }
     }
@@ -89,48 +94,41 @@ impl ProxySettingComponent {
     }
 
     fn submit(&self) -> Result<(), String> {
+        let input = self.input.value().trim();
         let lock = ProxySetting::global();
         let mut setting = lock.write().unwrap();
 
         match self.focused {
             ProxySettingField::TestUrl => {
-                let url = self.input.value().trim();
-                if url.is_empty() {
-                    Err("URL cannot be empty".into())
-                } else if !url.starts_with("http://") && !url.starts_with("https://") {
-                    Err("URL must start with http:// or https://".into())
-                } else {
-                    Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
-                    setting.test_url = url.to_string();
-                    Ok(())
-                }
+                ProxySetting::validate_test_url(input).map_err(|e| e.to_string())?;
+                setting.test_url = input.into();
+                Ok(())
             }
 
-            ProxySettingField::TestTimeout => match u64::from_str(self.input.value().trim()) {
-                Ok(v) if v > 0 && v <= 60000 => {
-                    setting.test_timeout = v;
+            ProxySettingField::TestTimeout => match input.parse::<usize>() {
+                Ok(v) => {
+                    let timeout = NonZeroUsize::new(v)
+                        .ok_or_else(|| "Timeout must be a valid number".to_string())?;
+                    ProxySetting::validate_test_timeout(timeout).map_err(|e| e.to_string())?;
+                    setting.test_timeout = timeout;
                     Ok(())
                 }
-                Ok(_) => Err("Timeout must be between 1 and 60000 milliseconds".into()),
                 Err(_) => Err("Timeout must be a valid number".into()),
             },
 
             ProxySettingField::Threshold => {
-                let parts: Vec<_> = self.input.value().split(',').collect();
-                if parts.len() != 2 {
-                    return Err(
-                        "Threshold must be two comma-separated numbers (e.g. 500,800)".into()
-                    );
-                }
-                let (a, b) = (u64::from_str(parts[0].trim()), u64::from_str(parts[1].trim()));
-                match (a, b) {
-                    (Ok(x), Ok(y)) if x > 0 && x < y => {
-                        setting.threshold = (x, y);
-                        Ok(())
-                    }
-                    (Ok(_), Ok(_)) => Err("Threshold must satisfy good < bad".into()),
-                    _ => Err("Threshold values must be valid positive numbers".into()),
-                }
+                let threshold = input.parse::<LatencyThreshold>().map_err(|e| e.to_string())?;
+                ProxySetting::validate_latency_threshold(threshold).map_err(|e| e.to_string())?;
+                setting.latency_threshold = threshold;
+                Ok(())
+            }
+
+            ProxySettingField::AutoTerminateConnections => {
+                // TODO support "true"/"false" or "1"/"0"
+                setting.auto_terminate_connections = input
+                    .parse::<bool>()
+                    .map_err(|_| "Auto terminate connections must be true or false".to_string())?;
+                Ok(())
             }
         }
     }
