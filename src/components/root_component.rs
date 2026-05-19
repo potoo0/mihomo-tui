@@ -198,7 +198,7 @@ impl RootComponent {
         let conns_rx = Arc::clone(&self.conns_rx);
 
         tokio::task::Builder::new().name("connections_wrapper-loader").spawn(async move {
-            let stream = match api.get_connections().await {
+            let stream = match api.stream_connections().await {
                 Ok(stream) => stream,
                 Err(e) => {
                     error!(error = ?e, "Failed to get connections stream.");

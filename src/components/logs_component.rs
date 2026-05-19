@@ -77,7 +77,7 @@ impl LogsComponent {
         let live_mode = Arc::clone(&self.live_mode);
 
         tokio::task::Builder::new().name("log-loader").spawn(async move {
-            let stream = match api.get_logs(level).await {
+            let stream = match api.stream_logs(level).await {
                 Ok(stream) => stream,
                 Err(e) => {
                     error!(error = ?e, "Failed to get memory stream");

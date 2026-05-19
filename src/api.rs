@@ -135,7 +135,7 @@ impl Api {
         Ok(stream)
     }
 
-    pub async fn get_logs(
+    pub async fn stream_logs(
         &self,
         level: Option<LogLevel>,
     ) -> Result<impl Stream<Item = Result<Log>>> {
@@ -143,7 +143,27 @@ impl Api {
         self.create_stream::<Log>("/logs", params).await
     }
 
-    pub async fn get_connections(&self) -> Result<impl Stream<Item = Result<ConnectionsWrapper>>> {
+    pub async fn get_connections(&self) -> Result<ConnectionsWrapper> {
+        let resp = self
+            .client
+            .get(self.api.join("/connections")?)
+            .send()
+            .await
+            .context("Fail to send `GET /connections`")?;
+
+        let body = Self::check_status(resp)
+            .await
+            .context("Fail to request `GET /connections`")?
+            .json::<ConnectionsWrapper>()
+            .await
+            .context("Fail to parse response of `GET /connections`")?;
+
+        Ok(body)
+    }
+
+    pub async fn stream_connections(
+        &self,
+    ) -> Result<impl Stream<Item = Result<ConnectionsWrapper>>> {
         self.create_stream::<ConnectionsWrapper>("/connections", None).await
     }
 
@@ -166,11 +186,11 @@ impl Api {
         Ok(())
     }
 
-    pub async fn get_memory(&self) -> Result<impl Stream<Item = Result<Memory>>> {
+    pub async fn stream_memory(&self) -> Result<impl Stream<Item = Result<Memory>>> {
         self.create_stream::<Memory>("/memory", None).await
     }
 
-    pub async fn get_traffic(&self) -> Result<impl Stream<Item = Result<Traffic>>> {
+    pub async fn stream_traffic(&self) -> Result<impl Stream<Item = Result<Traffic>>> {
         self.create_stream::<Traffic>("/traffic", None).await
     }
 
@@ -685,8 +705,8 @@ mod tests {
         }
 
         let handles = vec![
-            spawn_consumer!("memory", get_memory, api, 10),
-            spawn_consumer!("traffic", get_traffic, api, 10),
+            spawn_consumer!("memory", stream_memory, api, 2),
+            spawn_consumer!("traffic", stream_traffic, api, 2),
         ];
 
         for h in handles {
@@ -698,8 +718,16 @@ mod tests {
     async fn test_get_connections() {
         init_logger();
         let api = init_api();
+        let conns = api.get_connections().await.unwrap();
+        debug!("connections: {:?}", conns.connections);
+    }
 
-        let stream = api.get_connections().await.unwrap().take(10);
+    #[tokio::test]
+    async fn test_stream_connections() {
+        init_logger();
+        let api = init_api();
+
+        let stream = api.stream_connections().await.unwrap().take(2);
         pin_mut!(stream);
         while let Some(msg) = stream.next().await {
             let value = msg.unwrap().connections.unwrap()[0].metadata.clone();
@@ -716,7 +744,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_logs() {
+    async fn test_stream_logs() {
         init_logger();
         let api = init_api();
 
@@ -727,7 +755,7 @@ mod tests {
         tokio::task::Builder::new()
             .name("consumer")
             .spawn(async move {
-                api.get_logs(Some(LogLevel::Debug))
+                api.stream_logs(Some(LogLevel::Debug))
                     .await
                     .unwrap()
                     .take_until(token_cloned.cancelled())
@@ -741,7 +769,7 @@ mod tests {
 
         let mut cnt = 0;
         while let Some(msg) = msg_rx.recv().await {
-            if cnt > 10 {
+            if cnt > 2 {
                 token.cancel();
             }
             debug!("msg: {msg:?}");
