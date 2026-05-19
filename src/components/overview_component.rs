@@ -65,7 +65,7 @@ impl OverviewComponent {
         let store = Arc::clone(&self.memory);
 
         tokio::task::Builder::new().name("memory-loader").spawn(async move {
-            let stream = match api.get_memory().await {
+            let stream = match api.stream_memory().await {
                 Ok(stream) => stream,
                 Err(e) => {
                     error!(error = ?e, "Failed to get memory stream");
@@ -94,7 +94,7 @@ impl OverviewComponent {
         let store = Arc::clone(&self.traffic);
 
         tokio::task::Builder::new().name("traffic-loader").spawn(async move {
-            let stream = match api.get_traffic().await {
+            let stream = match api.stream_traffic().await {
                 Ok(stream) => stream,
                 Err(e) => {
                     error!(error = ?e, "Failed to get traffic stream");
