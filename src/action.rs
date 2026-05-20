@@ -30,6 +30,7 @@ pub enum Action {
     /// Programmatically sets the filter pattern without re-triggering `FilterChanged`.
     FilterSet(Option<String>),
     ConnectionTerminateRequest(Arc<Connection>),
+    ConnectionBatchTerminateRequest(Vec<String>),
     ProxyDetail(String),
     ProxySetting,
     ProxySettingChanged,

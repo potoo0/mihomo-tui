@@ -226,6 +226,16 @@ impl ConnectionsComponent {
             self.store.compute_view(state);
         }
     }
+
+    fn filtered_active_connection_ids(&self) -> Vec<String> {
+        self.store.with_view(|records| {
+            records
+                .iter()
+                .filter(|conn| !conn.inactive.load(Ordering::Relaxed))
+                .map(|conn| conn.id.clone())
+                .collect()
+        })
+    }
 }
 
 impl Drop for ConnectionsComponent {
@@ -259,7 +269,12 @@ impl Component for ConnectionsComponent {
                 Fragment::hl(arrow::RIGHT),
             ]),
             Shortcut::from("reverse", 0).unwrap(),
-            Shortcut::from("term", 0).unwrap(),
+            Shortcut::new(vec![
+                Fragment::hl("t"),
+                Fragment::raw("/"),
+                Fragment::hl("T"),
+                Fragment::raw("erm"),
+            ]),
             Shortcut::from("capture", 0).unwrap(),
             Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
             Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
@@ -316,6 +331,14 @@ impl Component for ConnectionsComponent {
                     .and_then(|idx| self.store.get(idx))
                     .map(Action::ConnectionTerminateRequest);
                 return Ok(action);
+            }
+            KeyCode::Char('T') => {
+                let ids = self.filtered_active_connection_ids();
+                if ids.is_empty() {
+                    debug!("No active filtered connections to terminate");
+                    return Ok(None);
+                }
+                return Ok(Some(Action::ConnectionBatchTerminateRequest(ids)));
             }
             KeyCode::Char('c') => self
                 .capture_mode

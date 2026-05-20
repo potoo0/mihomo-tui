@@ -17,6 +17,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
+use crate::components::connection_batch_terminate_component::ConnectionBatchTerminateComponent;
 use crate::components::connection_detail_component::ConnectionDetailComponent;
 use crate::components::connection_terminate_component::ConnectionTerminateComponent;
 use crate::components::connections_component::ConnectionsComponent;
@@ -128,6 +129,9 @@ impl RootComponent {
                 ComponentId::Config => Box::new(CoreConfigComponent::default()),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
+                ComponentId::ConnectionBatchTerminate => {
+                    Box::new(ConnectionBatchTerminateComponent::default())
+                }
                 ComponentId::ConnectionTerminate => {
                     Box::new(ConnectionTerminateComponent::default())
                 }
@@ -382,6 +386,9 @@ impl Component for RootComponent {
             Action::ProxyProviderDetail(_) => self.open_popup(ComponentId::ProxyProviderDetail)?,
             Action::ConnectionTerminateRequest(_) => {
                 self.open_popup(ComponentId::ConnectionTerminate)?
+            }
+            Action::ConnectionBatchTerminateRequest(_) => {
+                self.open_popup(ComponentId::ConnectionBatchTerminate)?
             }
             Action::Focus(focused) => self.focused = Some(focused),
             Action::Unfocus => {

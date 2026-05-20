@@ -34,12 +34,11 @@ ui:
     sort: { field: "Latency", dir: "asc" }
 
 # Proxy settings.
-# latency-threshold is two comma-separated numbers: medium,high.
 proxy-setting:
   test-url: https://www.gstatic.com/generate_204
   test-timeout: 5000
-  latency-threshold: "500,1000"
-  auto-terminate-connections: false
+  latency-threshold: "500,1000" # ms, two comma-separated numbers: medium,high
+  auto-terminate-connections: true
 
 # Buffer sizes below are the default values.
 # You can adjust them based on your actual usage and performance needs.
