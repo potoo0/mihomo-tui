@@ -130,10 +130,14 @@ impl ProxyDetailComponent {
         let action_tx = self.action_tx.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("proxy-updater").spawn(async move {
-            if let Err(e) = Proxies::update_and_reload(api, &selector_name, &name).await {
-                warn!(error = ?e, "Failed to update selected proxy for {}: {}", selector_name, name);
-                let _ = action_tx.send(Action::Error(("Update selected proxy", e).into()));
+            match Proxies::update_and_reload(api.clone(), &selector_name, &name).await {
+                Ok(()) => Self::spawn_connection_terminator(api, selector_name),
+                Err(e) => {
+                    warn!(error = ?e, "Failed to update selected proxy for {}: {}", selector_name, name);
+                    let _ = action_tx.send(Action::Error(("Update selected proxy", e).into()));
+                }
             }
+
             loading.store(false, Ordering::Relaxed);
         })?;
 
@@ -174,6 +178,35 @@ impl ProxyDetailComponent {
         })?;
 
         Ok(())
+    }
+
+    fn spawn_connection_terminator(api: Arc<Api>, selector_name: String) {
+        if !ProxySetting::global().read().unwrap().auto_terminate_connections {
+            return;
+        }
+        debug!("Auto-terminating connections for selector {} after proxy update", selector_name);
+        if let Err(e) = tokio::task::Builder::new().name("conn-terminator").spawn(async move {
+            let Ok(wrapper) = api.get_connections().await else {
+                debug!("Failed to get connections for termination");
+                return;
+            };
+            // `into_iter + collect` to release large connection payloads early.
+            let conns = wrapper
+                .connections
+                .into_iter()
+                .flat_map(|c| c.into_iter())
+                .filter(|c| c.chains.contains(&selector_name))
+                .map(|c| c.id)
+                .collect::<Vec<_>>();
+            debug!(selector_name = %selector_name, num_conns = conns.len(), "Terminating connections");
+            for conn_id in conns {
+                if let Err(e) = api.delete_connection(&conn_id).await {
+                    debug!(error = ?e, "Failed to terminate connection: {}", conn_id);
+                }
+            }
+        }) {
+            warn!(error = ?e, "Failed to spawn connection terminator task");
+        }
     }
 
     fn focus_current(&mut self, proxy: &Proxy) {
