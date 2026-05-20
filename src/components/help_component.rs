@@ -80,7 +80,8 @@ impl HelpComponent {
             HelpRow::Empty,
             HelpRow::key_title("# Connections (Conn)"),
             HelpRow::entry("Left, Right", "select sort column"),
-            HelpRow::entry("t", "terminate connection"),
+            HelpRow::entry("t", "terminate selected connection"),
+            HelpRow::entry("T", "terminate filtered connections"),
             HelpRow::entry("r", "reverse sort direction"),
             HelpRow::entry("c", "capture mode"),
             // proxies / proxy detail
