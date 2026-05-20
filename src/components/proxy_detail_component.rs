@@ -338,7 +338,12 @@ impl Component for ProxyDetailComponent {
             Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
             Shortcut::from("refresh", 0).unwrap(),
             Shortcut::from("test", 0).unwrap(),
-            Shortcut::from("sort", 0).unwrap(),
+            Shortcut::new(vec![
+                Fragment::hl("s"),
+                Fragment::raw("/"),
+                Fragment::hl("S"),
+                Fragment::raw("ort"),
+            ]),
         ]
     }
 
