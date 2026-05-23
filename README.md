@@ -121,6 +121,15 @@ ui:
   proxy-provider-detail:
     sort: { field: "Latency", dir: "asc" }
 
+# Default proxy settings.
+proxy-setting:
+  test-url: https://www.gstatic.com/generate_204
+  test-timeout: 5000
+  # `medium,high` latency thresholds in milliseconds.
+  latency-threshold: "500,1000"
+  # Terminate related connections after switching a proxy.
+  auto-terminate-connections: true
+
 ```
 
 For the full default config, see [.config/config.yaml](./.config/config.yaml).

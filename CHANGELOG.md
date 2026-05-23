@@ -1,4 +1,20 @@
 
+## 0.4.1 - 2026-05-23
+
+### Features
+
+- **Config**
+  - Load default proxy settings from the config file
+- **Connections**
+  - Add `T` to batch terminate active connections in the current filtered view.
+- **Proxy**
+  - Add configurable automatic connection termination after switching a proxy.
+
+### Refactors
+
+- Rename streaming API helpers to make stream-based methods explicit.
+- Show `s` / `S` sort shortcut variants in **Proxy Detail** and **Proxy Provider Detail**.
+
 ## 0.4.0 - 2026-05-17
 
 ### Features
