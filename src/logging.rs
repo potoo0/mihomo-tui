@@ -30,10 +30,10 @@ pub fn init(config: &Config) -> Result<()> {
         .or_else(|_| EnvFilter::try_new(log_level))?;
 
     let file_subscriber = fmt::layer()
-        .with_file(true)
-        .with_line_number(true)
+        .with_file(false)
+        .with_line_number(false)
         .with_writer(log_file)
-        .with_target(false)
+        .with_target(true)
         .with_ansi(false)
         .with_filter(env_filter);
 
