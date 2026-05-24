@@ -1,4 +1,10 @@
 
+## 0.4.2 - 2026-05-24
+
+### Bug Fixes
+
+- **Proxy Detail**: Use the group delay endpoint when testing nested proxy groups.
+
 ## 0.4.1 - 2026-05-23
 
 ### Features
