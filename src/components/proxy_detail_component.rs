@@ -144,37 +144,28 @@ impl ProxyDetailComponent {
         Ok(())
     }
 
-    fn test_proxy(&self, name: String) -> Result<()> {
-        info!("Testing proxy {}", name);
+    fn test_proxy(&self, name: String, is_group: bool, reset_pending: bool) -> Result<()> {
+        info!(name = %name, is_group, reset_pending, "Testing proxy");
         let api = Arc::clone(self.api.as_ref().unwrap());
         let pending_test = Arc::clone(&self.pending_test);
         pending_test.fetch_add(1, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-tester").spawn(async move {
-            if let Err(e) = Proxies::test_and_reload(api, &name).await {
-                error!(error = ?e, "Failed to test and load proxy: {}", name);
+            let result = if is_group {
+                Proxies::test_group_and_reload(api, &name).await
+            } else {
+                Proxies::test_and_reload(api, &name).await
+            };
+            if let Err(e) = result {
+                error!(error = ?e, name = %name, is_group, "Failed to test and load proxy");
             }
-            let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
-                if x == 0 { None } else { Some(x - 1) }
-            });
-        })?;
-
-        Ok(())
-    }
-
-    fn test_proxy_group(&self, name: String) -> Result<()> {
-        info!("Testing proxy group {}", name);
-        let api = Arc::clone(self.api.as_ref().unwrap());
-        let pending_test = Arc::clone(&self.pending_test);
-        pending_test.fetch_add(1, Ordering::Relaxed);
-
-        tokio::task::Builder::new().name("proxy-group-tester").spawn(async move {
-            if let Err(e) = Proxies::test_group_and_reload(api, &name).await {
-                error!(error = ?e, "Failed to test and load proxy: {}", name);
+            if reset_pending {
+                pending_test.store(0, Ordering::Relaxed);
+            } else {
+                let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
+                    if x == 0 { None } else { Some(x - 1) }
+                });
             }
-            // group already includes all child proxies,
-            // so we can safely reset the count instead of decrementing it.
-            pending_test.store(0, Ordering::Relaxed);
         })?;
 
         Ok(())
@@ -391,16 +382,20 @@ impl Component for ProxyDetailComponent {
                     self.update_proxy(selector_name, name.clone())?;
                 }
             }
-            KeyCode::Char('t') => match self.navigator.focused {
-                None => {
-                    self.test_proxy_group(proxy.name.clone())?;
-                }
-                Some(idx) => {
-                    if let Some(name) = proxy.children.as_ref().and_then(|v| v.get(idx).cloned()) {
-                        self.test_proxy(name)?;
-                    }
-                }
-            },
+            KeyCode::Char('t') => {
+                let (name, is_group, reset_pending) = self
+                    .navigator
+                    .focused
+                    .and_then(|idx| proxy.children.as_ref().and_then(|v| v.get(idx)))
+                    .map(|name| {
+                        let is_group = Proxies::get_by_name(name)
+                            .map(|p| p.children.as_ref().is_some_and(|c| !c.is_empty()))
+                            .unwrap_or(false);
+                        (name.clone(), is_group, false)
+                    })
+                    .unwrap_or_else(|| (proxy.name.clone(), proxy.children.is_some(), true));
+                self.test_proxy(name, is_group, reset_pending)?;
+            }
             KeyCode::Char('s') => Proxies::switch_sort_field(self.api.clone().unwrap()),
             KeyCode::Char('S') => Proxies::toggle_sort_direction(self.api.clone().unwrap()),
             KeyCode::Char('[')
