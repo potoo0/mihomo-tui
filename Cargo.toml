@@ -35,7 +35,6 @@ reqwest = { version = "0.13.1", default-features = false, features = [
 ringbuffer = "0.16.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
-serde_yaml_ng = "0.10"
 signal-hook = "0.4.1"
 strip-ansi-escapes = "0.2.1"
 strum = { version = "0.28", features = ["derive"] }
@@ -56,6 +55,7 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 tui-input = "0.15.0"
 unicode-segmentation = "1.12.0"
 url = { version = "2.5.7", features = ["serde"] }
+yaml_serde = "0.10"
 
 [build-dependencies]
 anyhow = "1.0.99"
