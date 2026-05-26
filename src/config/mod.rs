@@ -26,7 +26,7 @@ pub fn load(path: Option<PathBuf>) -> anyhow::Result<Config> {
         return read_from_file(config_path);
     }
 
-    let default_config: Config = serde_yaml_ng::from_str(DEFAULT_CONFIG)?;
+    let default_config: Config = yaml_serde::from_str(DEFAULT_CONFIG)?;
     default_config.validate()?;
     let config_path: PathBuf = get_config_path();
     info!("Using default config file at `{}`", config_path.display());
@@ -47,7 +47,7 @@ fn read_from_file(path: &PathBuf) -> anyhow::Result<Config> {
     }
     let result =
         fs::File::open(path).with_context(|| format!("Fail to open file `{}`", path.display()))?;
-    let cfg: Config = serde_yaml_ng::from_reader(result)
+    let cfg: Config = yaml_serde::from_reader(result)
         .with_context(|| format!("Fail to deserialize file `{}`", path.display()))?;
     cfg.validate().with_context(|| format!("Invalid config file `{}`", path.display()))?;
     Ok(cfg)

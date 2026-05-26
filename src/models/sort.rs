@@ -43,15 +43,15 @@ mod tests {
     #[test]
     fn test_deserialize_from_yaml() {
         let yaml = "latency";
-        let parsed: ProxySortField = serde_yaml_ng::from_str(yaml).unwrap();
+        let parsed: ProxySortField = yaml_serde::from_str(yaml).unwrap();
         assert_eq!(parsed, ProxySortField::Latency);
 
         let yaml_upper = "LATENCY";
-        let parsed: ProxySortField = serde_yaml_ng::from_str(yaml_upper).unwrap();
+        let parsed: ProxySortField = yaml_serde::from_str(yaml_upper).unwrap();
         assert_eq!(parsed, ProxySortField::Latency);
 
         let yaml_upper = "Latency";
-        let parsed: ProxySortField = serde_yaml_ng::from_str(yaml_upper).unwrap();
+        let parsed: ProxySortField = yaml_serde::from_str(yaml_upper).unwrap();
         assert_eq!(parsed, ProxySortField::Latency);
     }
 }

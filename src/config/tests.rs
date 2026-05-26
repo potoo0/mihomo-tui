@@ -8,7 +8,7 @@ use crate::store::connections::find_sortable_connection_col;
 
 #[test]
 fn test_config_default() {
-    let default_config: Config = serde_yaml_ng::from_str(DEFAULT_CONFIG).unwrap();
+    let default_config: Config = yaml_serde::from_str(DEFAULT_CONFIG).unwrap();
 
     let config = load(None).unwrap();
     assert_eq!(config.mihomo_api, default_config.mihomo_api);
