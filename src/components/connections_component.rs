@@ -254,15 +254,17 @@ impl Component for ConnectionsComponent {
         vec![
             Shortcut::new(vec![
                 Fragment::hl(arrow::UP),
+                Fragment::raw("/"),
+                Fragment::hl("PgUp"),
+                Fragment::raw("/"),
+                Fragment::hl("g"),
                 Fragment::raw(" nav "),
+                Fragment::hl("G"),
+                Fragment::raw("/"),
+                Fragment::hl("PgDn"),
+                Fragment::raw("/"),
                 Fragment::hl(arrow::DOWN),
             ]),
-            Shortcut::new(vec![
-                Fragment::hl("PgUp"),
-                Fragment::raw(" page "),
-                Fragment::hl("PgDn"),
-            ]),
-            Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
             Shortcut::new(vec![
                 Fragment::hl(arrow::LEFT),
                 Fragment::raw(" sort "),
