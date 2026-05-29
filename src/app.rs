@@ -12,6 +12,7 @@ use crate::api::Api;
 use crate::components::root_component::RootComponent;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
+use crate::store::connections_setting::ConnectionsSetting;
 use crate::store::proxy_setting::ProxySetting;
 use crate::tui::{Event, Tui};
 
@@ -47,7 +48,12 @@ impl App {
         let mut tui = Tui::new()?;
         tui.enter()?;
 
+        // initialize global settings
         *ProxySetting::global().write().unwrap() = self.config.proxy_setting.clone();
+        if let Some(connections) = self.config.ui.as_ref().and_then(|ui| ui.connections.as_ref()) {
+            *ConnectionsSetting::global().write().unwrap() = Arc::new(connections.into());
+        }
+        // initialize root component
         self.root.init(Arc::clone(&self.api))?;
         self.root.register_action_handler(self.action_tx.clone())?;
         self.root.register_config_handler(Arc::clone(&self.config))?;

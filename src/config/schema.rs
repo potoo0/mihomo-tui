@@ -1,9 +1,9 @@
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 use serde::Deserialize;
 use url::Url;
 
-use super::deserialize::deserialize_connections_sort;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -40,11 +40,11 @@ pub struct UiConfig {
     pub proxy_provider_detail: Option<ProxyDetailUiConfig>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone)]
 pub struct ConnectionsUiConfig {
-    #[serde(default, deserialize_with = "deserialize_connections_sort")]
+    pub columns: Vec<usize>,
     pub sort: Option<SortSpec>,
+    pub source_ip_alias: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

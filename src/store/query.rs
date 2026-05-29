@@ -13,6 +13,13 @@ impl QueryState {
         Self { pattern: None, sort: None, max_cols }
     }
 
+    pub fn set_max_cols(&mut self, max_cols: usize) {
+        self.max_cols = max_cols;
+        if self.sort.is_some_and(|sort| sort.col >= max_cols) {
+            self.sort = None;
+        }
+    }
+
     pub fn sort_rev(&mut self) {
         if let Some(ob) = self.sort.as_mut() {
             ob.dir = ob.dir.toggle();
@@ -70,5 +77,27 @@ mod tests {
         // wrap around to last sortable column
         state.sort_prev();
         assert_eq!(state.sort.map(|v| v.col), Some(2));
+    }
+
+    #[test]
+    fn test_set_max_cols_keeps_valid_sort() {
+        let mut state = QueryState::new(3);
+        state.sort = Some(SortSpec { col: 1, dir: SortDir::Desc });
+
+        state.set_max_cols(2);
+
+        assert_eq!(state.max_cols, 2);
+        assert_eq!(state.sort, Some(SortSpec { col: 1, dir: SortDir::Desc }));
+    }
+
+    #[test]
+    fn test_set_max_cols_clears_invalid_sort() {
+        let mut state = QueryState::new(3);
+        state.sort = Some(SortSpec { col: 2, dir: SortDir::Desc });
+
+        state.set_max_cols(2);
+
+        assert_eq!(state.max_cols, 2);
+        assert_eq!(state.sort, None);
     }
 }

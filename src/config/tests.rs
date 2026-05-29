@@ -4,7 +4,7 @@ use url::Url;
 
 use super::*;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
-use crate::store::connections::find_sortable_connection_col;
+use crate::store::connections::{DEFAULT_CONNECTION_COL_INDICES, find_sortable_connection_col};
 
 #[test]
 fn test_config_default() {
@@ -16,6 +16,10 @@ fn test_config_default() {
     assert_eq!(config.log_file, default_config.log_file);
     assert_eq!(config.log_level, default_config.log_level);
     assert!(config.ui.is_some());
+    assert_eq!(
+        config.ui.as_ref().unwrap().connections.as_ref().unwrap().columns,
+        default_config.ui.as_ref().unwrap().connections.as_ref().unwrap().columns
+    );
     assert_eq!(config.proxy_setting.test_url, default_config.proxy_setting.test_url);
     assert_eq!(config.proxy_setting.test_timeout, default_config.proxy_setting.test_timeout);
     assert_eq!(
@@ -254,6 +258,7 @@ ui:
     let connections = ui.connections.as_ref().unwrap();
     let sort = connections.sort.as_ref().unwrap();
 
+    assert_eq!(connections.columns, DEFAULT_CONNECTION_COL_INDICES);
     assert_eq!(
         *sort,
         SortSpec { col: find_sortable_connection_col("Host").unwrap(), dir: SortDir::Desc }
@@ -284,6 +289,59 @@ ui:
     assert_eq!(
         connections.sort,
         Some(SortSpec { col: find_sortable_connection_col("Host").unwrap(), dir: SortDir::Asc })
+    );
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_ui_connections_columns() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["Host", "Rule", "DownRate"]
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+    let columns = &config.ui.as_ref().unwrap().connections.as_ref().unwrap().columns;
+
+    assert_eq!(
+        columns,
+        &vec![
+            find_sortable_connection_col("Host").unwrap(),
+            find_sortable_connection_col("Rule").unwrap(),
+            find_sortable_connection_col("DownRate").unwrap(),
+        ]
+    );
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_ui_connections_columns_case_insensitive() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["hOsT", "downrate"]
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+    let columns = &config.ui.as_ref().unwrap().connections.as_ref().unwrap().columns;
+
+    assert_eq!(
+        columns,
+        &vec![
+            find_sortable_connection_col("Host").unwrap(),
+            find_sortable_connection_col("DownRate").unwrap()
+        ]
     );
 
     drop(cfg_path);
@@ -330,7 +388,107 @@ ui:
     let connections = ui.connections.as_ref().unwrap();
 
     assert!(connections.sort.is_none());
+    assert_eq!(connections.columns, DEFAULT_CONNECTION_COL_INDICES);
     assert!(ui.proxy_detail.is_none());
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_ui_connections_columns_unknown() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["Host", "Foo"]
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let result = load(Some(cfg_path.0.clone()));
+    assert!(result.is_err(), "expected error, got {:?}", result);
+
+    let err_msg = format!("{:#}", result.unwrap_err());
+    assert!(
+        err_msg.contains("invalid `ui.connections.columns` value"),
+        "unexpected error: {}",
+        err_msg
+    );
+    assert!(err_msg.contains("\"Foo\""), "unexpected error: {}", err_msg);
+    assert!(err_msg.contains("Host"), "unexpected error: {}", err_msg);
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_ui_connections_columns_duplicate() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["Host", "host"]
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let result = load(Some(cfg_path.0.clone()));
+    assert!(result.is_err(), "expected error, got {:?}", result);
+
+    let err_msg = format!("{:#}", result.unwrap_err());
+    assert!(
+        err_msg.contains("duplicate `ui.connections.columns` value"),
+        "unexpected error: {}",
+        err_msg
+    );
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_ui_connections_columns_empty() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: []
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let result = load(Some(cfg_path.0.clone()));
+    assert!(result.is_err(), "expected error, got {:?}", result);
+
+    let err_msg = format!("{:#}", result.unwrap_err());
+    assert!(
+        err_msg.contains("`ui.connections.columns` cannot be empty"),
+        "unexpected error: {}",
+        err_msg
+    );
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_ui_connections_sort_hidden_by_columns_is_ignored() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["Host", "Rule"]
+    sort:
+      field: "DownRate"
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+    let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+
+    assert!(connections.sort.is_none());
 
     drop(cfg_path);
 }
