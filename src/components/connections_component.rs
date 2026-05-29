@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -19,11 +19,10 @@ use tracing::{debug, info};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
-use crate::config::Config;
 use crate::models::Connection;
 use crate::models::sort::SortDir;
-use crate::store::connections::{CONNECTION_COLS, Connections};
-use crate::store::query::QueryState;
+use crate::store::connections::{CONNECTION_COL_CONSTRAINTS, CONNECTION_COLS, Connections};
+use crate::store::connections_setting::ConnectionsSetting;
 use crate::utils::symbols::{arrow, triangle};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -37,8 +36,6 @@ pub struct ConnectionsComponent {
     action_tx: Option<UnboundedSender<Action>>,
 
     store: Arc<Connections>,
-    query_state: Arc<Mutex<QueryState>>,
-
     navigator: ScrollableNavigator,
     table_state: TableState,
 
@@ -59,7 +56,6 @@ impl ConnectionsComponent {
             conns_rx,
             action_tx: None,
             store: Arc::new(Connections::new(store_capacity)),
-            query_state: Arc::new(Mutex::new(QueryState::new(CONNECTION_COLS.len()))),
             navigator: Default::default(),
             table_state: Default::default(),
             live_mode: Arc::new(AtomicBool::new(true)),
@@ -71,7 +67,6 @@ impl ConnectionsComponent {
 
     fn load_connections(&mut self) -> Result<()> {
         let store = Arc::clone(&self.store);
-        let query_state = Arc::clone(&self.query_state);
         let live_mode = Arc::clone(&self.live_mode);
         let capture_mode = Arc::clone(&self.capture_mode);
         let rx = Arc::clone(&self.conns_rx);
@@ -85,8 +80,7 @@ impl ConnectionsComponent {
                         Some(records) => {
                             store.push(capture_mode.load(Ordering::Relaxed), records);
                             if live_mode.load(Ordering::Relaxed) {
-                                let query_state = query_state.lock().unwrap().clone();
-                                store.compute_view(&query_state);
+                                store.compute_view();
                             }
                         },
                         _ => break,
@@ -157,11 +151,12 @@ impl ConnectionsComponent {
             Span::raw(TOP_TITLE_RIGHT),
         ]);
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
-        let sort = self.query_state.lock().unwrap().sort;
-        let header = CONNECTION_COLS
+        let setting = ConnectionsSetting::snapshot();
+        let sort = setting.query_state.sort;
+        let header = setting
+            .columns
             .iter()
-            .map(|def| def.title)
-            .enumerate()
+            .filter_map(|&index| CONNECTION_COLS.get(index).map(|def| (index, def.title)))
             .map(|(index, title)| {
                 if let Some(sort) = sort
                     && index == sort.col
@@ -179,33 +174,35 @@ impl ConnectionsComponent {
             .height(1)
             .bottom_margin(1);
         let selected_row_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
-        let alive_col_width = if self.capture_mode.load(Ordering::Relaxed) { 6 } else { 0 };
 
         let rows: Vec<Row> = records
             .iter()
             .map(|item| {
-                Row::new(CONNECTION_COLS.iter().map(|def| (def.accessor)(item)))
-                    .height(ROW_HEIGHT as u16)
+                Row::new(
+                    setting
+                        .columns
+                        .iter()
+                        .filter_map(|&index| CONNECTION_COLS.get(index))
+                        .map(|def| (def.accessor)(item)),
+                )
+                .height(ROW_HEIGHT as u16)
             })
             .collect();
-        let table = Table::new(
-            rows,
-            [
-                Constraint::Length(alive_col_width),
-                Constraint::Min(30),
-                Constraint::Max(15),
-                Constraint::Min(10),
-                Constraint::Max(15),
-                Constraint::Max(15),
-                Constraint::Max(15),
-                Constraint::Max(15),
-                Constraint::Max(20),
-            ],
-        )
-        .block(block)
-        .header(header)
-        .column_spacing(2)
-        .row_highlight_style(selected_row_style);
+        // TODO optimize by caching header and constraints ?
+        // TODO capture_mode should bound to `Alive` column
+        let constraints = setting.columns.iter().filter_map(|&index| {
+            let constraint = CONNECTION_COL_CONSTRAINTS.get(index)?;
+            if index == 0 && !self.capture_mode.load(Ordering::Relaxed) {
+                Some(Constraint::Length(0))
+            } else {
+                Some(*constraint)
+            }
+        });
+        let table = Table::new(rows, constraints)
+            .block(block)
+            .header(header)
+            .column_spacing(2)
+            .row_highlight_style(selected_row_style);
 
         frame.render_stateful_widget(table, area, &mut self.table_state);
     }
@@ -218,12 +215,10 @@ impl ConnectionsComponent {
         }
     }
 
-    fn handle_query_state_changed(&self, state: &QueryState) {
+    fn handle_query_state_changed(&self) {
         // recompute view only when not in live mode, and has sorting specified
-        if !self.live_mode.load(Ordering::Relaxed)
-            && let Some(_) = state.sort
-        {
-            self.store.compute_view(state);
+        if !self.live_mode.load(Ordering::Relaxed) {
+            self.store.compute_view();
         }
     }
 
@@ -280,6 +275,7 @@ impl Component for ConnectionsComponent {
             Shortcut::from("capture", 0).unwrap(),
             Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
             Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
+            Shortcut::from("setting", 0).unwrap(),
         ]
     }
 
@@ -294,16 +290,6 @@ impl Component for ConnectionsComponent {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
-        let sort = config
-            .ui
-            .as_ref()
-            .and_then(|ui| ui.connections.as_ref())
-            .and_then(|connections| connections.sort);
-        self.query_state.lock().unwrap().sort = sort;
-        Ok(())
-    }
-
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if self.navigator.handle_key_event(false, key) {
             self.live_mode(false);
@@ -312,19 +298,16 @@ impl Component for ConnectionsComponent {
         match key.code {
             KeyCode::Esc => self.live_mode(true),
             KeyCode::Left => {
-                let mut guard = self.query_state.lock().unwrap();
-                guard.sort_prev();
-                self.handle_query_state_changed(&guard.clone());
+                ConnectionsSetting::update(|setting| setting.query_state.sort_prev());
+                self.handle_query_state_changed();
             }
             KeyCode::Right => {
-                let mut guard = self.query_state.lock().unwrap();
-                guard.sort_next();
-                self.handle_query_state_changed(&guard.clone());
+                ConnectionsSetting::update(|setting| setting.query_state.sort_next());
+                self.handle_query_state_changed();
             }
             KeyCode::Char('r') => {
-                let mut guard = self.query_state.lock().unwrap();
-                guard.sort_rev();
-                self.handle_query_state_changed(&guard.clone());
+                ConnectionsSetting::update(|setting| setting.query_state.sort_rev());
+                self.handle_query_state_changed();
             }
             KeyCode::Char('t') => {
                 let action = self
@@ -354,6 +337,7 @@ impl Component for ConnectionsComponent {
                     .map(Action::ConnectionDetail);
                 return Ok(action);
             }
+            KeyCode::Char('s') => return Ok(Some(Action::ConnectionsSetting)),
             _ => (),
         };
 
@@ -368,12 +352,16 @@ impl Component for ConnectionsComponent {
             }
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
-                self.query_state.lock().unwrap().pattern = pattern;
+                ConnectionsSetting::update(|setting| setting.query_state.pattern = pattern);
             }
             Action::TabSwitch(to) if to == self.id() => {
-                let pattern = self.query_state.lock().unwrap().pattern.clone();
+                let pattern =
+                    ConnectionsSetting::global().write().unwrap().query_state.pattern.clone();
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
                 return Ok(Some(Action::FilterSet(pattern)));
+            }
+            Action::ConnectionsSettingChanged => {
+                todo!("apply sorting and filtering with new visible columns if not in live mode")
             }
             _ => {}
         }

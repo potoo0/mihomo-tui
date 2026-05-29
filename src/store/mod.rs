@@ -1,4 +1,5 @@
 pub mod connections;
+pub mod connections_setting;
 pub mod logs;
 pub mod proxies;
 pub mod proxy_providers;

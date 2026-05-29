@@ -84,11 +84,12 @@ impl HelpComponent {
             HelpRow::entry("T", "terminate filtered connections"),
             HelpRow::entry("r", "reverse sort direction"),
             HelpRow::entry("c", "capture mode"),
+            HelpRow::entry("s", "open connection settings"),
             // proxies / proxy detail
             HelpRow::Empty,
             HelpRow::key_title("# Proxies (Pxy)"),
             HelpRow::entry("r", "refresh proxies"),
-            HelpRow::entry("s", "open settings"),
+            HelpRow::entry("s", "open proxy settings"),
             HelpRow::entry("t", "test proxy"),
             // proxy detail
             HelpRow::Empty,
