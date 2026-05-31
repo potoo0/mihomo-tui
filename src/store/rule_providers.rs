@@ -34,7 +34,8 @@ impl RuleProviders {
         let buffer = self.buffer.read().unwrap();
 
         let mut matcher = self.matcher.lock().unwrap();
-        let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, RULE_PROVIDER_COLS);
+        let filtered =
+            RowFilter::new(buffer.iter(), &mut matcher, pattern, RULE_PROVIDER_COLS.iter());
         let mut guard = self.view.write().unwrap();
         guard.clear();
         filtered.for_each(|v| guard.push(v));

@@ -7,3 +7,4 @@ pub mod row_filter;
 pub mod symbols;
 pub mod text_ui;
 pub mod time;
+pub mod tui_input;

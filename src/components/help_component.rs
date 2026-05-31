@@ -85,6 +85,16 @@ impl HelpComponent {
             HelpRow::entry("r", "reverse sort direction"),
             HelpRow::entry("c", "capture mode"),
             HelpRow::entry("s", "open connection settings"),
+            // connections settings
+            HelpRow::Empty,
+            HelpRow::key_title("## Connections Settings"),
+            HelpRow::entry("Shift+Tab, Tab", "navigate settings panes"),
+            HelpRow::entry("Enter", "apply settings"),
+            HelpRow::entry("Esc", "cancel settings"),
+            HelpRow::entry("Left, Right", "select column"),
+            HelpRow::entry("Ctrl+Left, Ctrl+Right", "move selected column"),
+            HelpRow::entry("Space", "toggle selected column"),
+            HelpRow::entry("Up, Down, PageUp, PageDown", "navigate source IP aliases"),
             // proxies / proxy detail
             HelpRow::Empty,
             HelpRow::key_title("# Proxies (Pxy)"),

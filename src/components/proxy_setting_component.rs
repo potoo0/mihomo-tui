@@ -3,7 +3,7 @@ use std::cmp::PartialEq;
 use std::num::NonZeroUsize;
 
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Margin, Rect};
 use ratatui::prelude::{Color, Style};
@@ -11,13 +11,14 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use tokio::sync::mpsc::UnboundedSender;
-use tui_input::{Input, InputRequest};
+use tui_input::Input;
 
 use crate::action::Action;
 use crate::components::{Component, ComponentId};
 use crate::config::LatencyThreshold;
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::text_ui::{popup_area, top_title_line};
+use crate::utils::tui_input::input_request;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const LINE_HEIGHT: u16 = 3;
@@ -151,29 +152,6 @@ impl ProxySettingComponent {
         self.input = self.focused.value().into();
     }
 
-    fn input_request(&mut self, key: KeyEvent) -> Option<InputRequest> {
-        use KeyCode::*;
-        use tui_input::InputRequest::*;
-
-        match (key.code, key.modifiers) {
-            (Backspace, KeyModifiers::NONE) => Some(DeletePrevChar),
-            (Delete, KeyModifiers::NONE) => Some(DeleteNextChar),
-            (Left, KeyModifiers::NONE) => Some(GoToPrevChar),
-            (Left, KeyModifiers::CONTROL) => Some(GoToPrevWord),
-            (Right, KeyModifiers::NONE) => Some(GoToNextChar),
-            (Right, KeyModifiers::CONTROL) => Some(GoToNextWord),
-            (Char('w'), KeyModifiers::CONTROL)
-            | (Backspace, KeyModifiers::META)
-            | (Backspace, KeyModifiers::ALT) => Some(DeletePrevWord),
-            (Delete, KeyModifiers::CONTROL) => Some(DeleteNextWord),
-            (Home, KeyModifiers::NONE) => Some(GoToStart),
-            (End, KeyModifiers::NONE) => Some(GoToEnd),
-            (Char(c), KeyModifiers::NONE) => Some(InsertChar(c)),
-            (Char(c), KeyModifiers::SHIFT) => Some(InsertChar(c)),
-            (_, _) => None,
-        }
-    }
-
     fn render_settings(&self, frame: &mut Frame, mut area: Rect) {
         area.height = LINE_HEIGHT;
 
@@ -253,7 +231,7 @@ impl Component for ProxySettingComponent {
                 }
             }
             _ => {
-                if let Some(req) = self.input_request(key) {
+                if let Some(req) = input_request(key) {
                     let _ = self.input.handle(req);
                 }
             }

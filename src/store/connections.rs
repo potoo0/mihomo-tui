@@ -14,7 +14,7 @@ use serde_json::Value;
 use crate::models::Connection;
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::utils::byte_size::human_bytes;
-use crate::utils::columns::{ColDef, SortKey};
+use crate::utils::columns::{ColDef, SortKey, TextResolver, find_index_ignore_ascii_case};
 use crate::utils::row_filter::RowFilter;
 use crate::utils::symbols::dot;
 
@@ -72,14 +72,22 @@ impl Connections {
 
         let pattern = query_state.pattern.as_deref();
         let mut matcher = self.matcher.lock().unwrap();
-        let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, CONNECTION_COLS);
+        let text_resolver = SourceIpAliasTextResolver { source_ip_alias: &setting.source_ip_alias };
+        let filtered = RowFilter::new(
+            buffer.iter(),
+            &mut matcher,
+            pattern,
+            setting.columns.iter().filter_map(|&idx| CONNECTION_COLS.get(idx)),
+        )
+        .with_text_resolver(&text_resolver);
 
         if let Some(sort) = query_state.sort
-            && let Some(col_def) = CONNECTION_COLS.get(sort.col)
+            && let Some(col_def) =
+                setting.columns.get(sort.col).and_then(|&col| CONNECTION_COLS.get(col))
             && col_def.sortable
         {
             let mut v: Vec<Arc<Connection>> = filtered.collect();
-            v.sort_by(|a, b| col_def.ordering(a, b, sort.dir));
+            v.sort_by(|a, b| col_def.ordering_with_text_resolver(a, b, sort.dir, &text_resolver));
             let mut guard = self.view.write().unwrap();
             guard.clear();
             guard.extend(v)
@@ -102,16 +110,65 @@ impl Connections {
     pub fn get(&self, index: usize) -> Option<Arc<Connection>> {
         self.view.read().unwrap().get(index).cloned()
     }
+
+    pub fn source_ips(&self) -> Vec<String> {
+        let mut source_ips = self
+            .buffer
+            .read()
+            .unwrap()
+            .iter()
+            .filter_map(|connection| {
+                connection.metadata.get("sourceIP").and_then(Value::as_str).map(str::trim)
+            })
+            .filter(|source_ip| !source_ip.is_empty())
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>();
+        source_ips.sort_unstable();
+        source_ips.dedup();
+        source_ips
+    }
 }
 
-pub fn find_sortable_connection_col(field: &str) -> Option<usize> {
-    CONNECTION_COLS
-        .iter()
-        .enumerate()
-        .find(|(_, def)| def.sortable && def.title.eq_ignore_ascii_case(field))
-        .map(|(idx, _)| idx)
+pub(crate) struct SourceIpAliasTextResolver<'a> {
+    pub(crate) source_ip_alias: &'a HashMap<String, String>,
 }
 
+impl TextResolver<Connection> for SourceIpAliasTextResolver<'_> {
+    fn resolve<'row>(
+        &self,
+        col: &ColDef<Connection>,
+        _connection: &'row Connection,
+        text: Cow<'row, str>,
+    ) -> Cow<'row, str> {
+        if col.id != "source_ip" {
+            return text;
+        }
+
+        self.source_ip_alias
+            .get(text.as_ref())
+            .map(|alias| Cow::Owned(alias.clone()))
+            .unwrap_or(text)
+    }
+}
+
+/// Index of the runtime-only alive indicator column.
+///
+/// This column is added for capture mode display and is not user-configurable.
+pub const ALIVE_COLUMN_INDEX: usize = find_index_ignore_ascii_case(CONNECTION_COLS, "Alive");
+
+pub fn with_alive_column(columns: impl IntoIterator<Item = usize>) -> Vec<usize> {
+    let mut columns = columns.into_iter().collect::<Vec<_>>();
+    if !columns.contains(&ALIVE_COLUMN_INDEX) {
+        columns.insert(0, ALIVE_COLUMN_INDEX);
+    }
+    columns
+}
+
+/// Column definitions for the connections table.
+///
+/// User config stores column IDs, which are parsed into runtime indices in this
+/// slice. `ALIVE_COLUMN_INDEX` is runtime-only and must stay excluded from user
+/// column settings.
 pub static CONNECTION_COLS: &[ColDef<Connection>] = &[
     ColDef {
         id: "alive",
@@ -234,11 +291,55 @@ pub static CONNECTION_COL_CONSTRAINTS: &[Constraint] = &[
     Constraint::Max(20),
 ];
 
+/// Default runtime columns for the connections table.
+///
+/// Runtime columns include `ALIVE_COLUMN_INDEX`; user-configurable columns must
+/// filter it out before showing or persisting user choices.
 pub const DEFAULT_CONNECTION_COL_INDICES: &[usize] = &[0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::num::NonZeroUsize;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::{Arc, Mutex as StdMutex, OnceLock};
+
     use ringbuffer::{AllocRingBuffer, RingBuffer};
+    use serde_json::json;
+
+    use super::*;
+    use crate::models::sort::{SortDir, SortSpec};
+    use crate::store::query::QueryState;
+
+    fn settings_test_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<StdMutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| StdMutex::new(())).lock().unwrap()
+    }
+
+    fn connection(id: &str, source_ip: Option<&str>) -> Connection {
+        let metadata =
+            source_ip.map_or_else(|| json!({}), |source_ip| json!({ "sourceIP": source_ip }));
+        Connection {
+            id: id.into(),
+            metadata,
+            upload: 0,
+            download: 0,
+            start: String::new(),
+            chains: Vec::new(),
+            rule: String::new(),
+            rule_payload: String::new(),
+            inactive: Arc::new(AtomicBool::new(false)),
+            upload_rate: 0,
+            download_rate: 0,
+        }
+    }
+
+    fn connection_col_index(id: &str) -> usize {
+        CONNECTION_COLS
+            .iter()
+            .position(|col| col.id == id)
+            .unwrap_or_else(|| panic!("connection column {id:?} should exist"))
+    }
 
     #[test]
     fn test_ring_buffer() {
@@ -255,5 +356,131 @@ mod tests {
         buffer.enqueue(4);
         assert_eq!(buffer.len(), 2);
         assert_eq!(buffer.to_vec(), vec![3, 4]);
+    }
+
+    #[test]
+    fn source_ips_returns_sorted_unique_non_empty_values() {
+        let store = Connections::new(NonZeroUsize::new(10).unwrap());
+
+        store.push(
+            false,
+            vec![
+                connection("1", Some("10.0.0.2")),
+                connection("2", Some("10.0.0.1")),
+                connection("3", Some("10.0.0.2")),
+                connection("4", Some("")),
+                connection("5", None),
+            ],
+        );
+
+        assert_eq!(store.source_ips(), vec!["10.0.0.1", "10.0.0.2"]);
+    }
+
+    #[test]
+    fn filters_only_visible_columns() {
+        let _guard = settings_test_lock();
+        let store = Connections::new(NonZeroUsize::new(10).unwrap());
+        let mut conn = connection("1", None);
+        conn.rule = "secret-rule".to_string();
+        store.push(false, vec![conn]);
+
+        let columns = with_alive_column([connection_col_index("host")]);
+        ConnectionsSetting::update(|setting| {
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.query_state.pattern = Some("secret-rule".to_string());
+            setting.source_ip_alias.clear();
+        });
+        store.compute_view();
+        assert_eq!(store.with_view(|records| records.len()), 0);
+
+        let columns = with_alive_column([connection_col_index("rule")]);
+        ConnectionsSetting::update(|setting| {
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.query_state.pattern = Some("secret-rule".to_string());
+            setting.source_ip_alias.clear();
+        });
+        store.compute_view();
+        assert_eq!(
+            store.with_view(|records| {
+                records.iter().map(|connection| connection.id.to_string()).collect::<Vec<_>>()
+            }),
+            vec!["1"]
+        );
+
+        ConnectionsSetting::update(|setting| {
+            let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.source_ip_alias.clear();
+        });
+    }
+
+    #[test]
+    fn source_ip_alias_filters_and_sorts_view() {
+        let _guard = settings_test_lock();
+        let store = Connections::new(NonZeroUsize::new(10).unwrap());
+        store.push(
+            false,
+            vec![connection("1", Some("10.0.0.2")), connection("2", Some("10.0.0.1"))],
+        );
+
+        let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
+        ConnectionsSetting::update(|setting| {
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.source_ip_alias =
+                HashMap::from([("10.0.0.1".to_string(), "phone".to_string())]);
+        });
+
+        ConnectionsSetting::update(|setting| {
+            setting.query_state.pattern = Some("phone".to_string());
+            setting.query_state.sort = None;
+        });
+        store.compute_view();
+        assert_eq!(
+            store.with_view(|records| {
+                records.iter().map(|connection| connection.id.to_string()).collect::<Vec<_>>()
+            }),
+            vec!["2"]
+        );
+
+        let columns = with_alive_column([connection_col_index("host")]);
+        ConnectionsSetting::update(|setting| {
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.query_state.pattern = Some("phone".to_string());
+        });
+        store.compute_view();
+        assert_eq!(store.with_view(|records| records.len()), 0);
+
+        let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
+        let source_ip_visible_col =
+            columns.iter().position(|&col| CONNECTION_COLS[col].id == "source_ip").unwrap();
+        ConnectionsSetting::update(|setting| {
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.query_state.pattern = None;
+            setting.query_state.sort =
+                Some(SortSpec { col: source_ip_visible_col, dir: SortDir::Asc });
+        });
+        store.compute_view();
+        assert_eq!(
+            store.with_view(|records| {
+                records.iter().map(|connection| connection.id.to_string()).collect::<Vec<_>>()
+            }),
+            vec!["1", "2"]
+        );
+
+        let source_ip_col = CONNECTION_COLS.iter().find(|col| col.id == "source_ip").unwrap();
+        assert_eq!((source_ip_col.accessor)(&connection("3", Some("10.0.0.1"))), "10.0.0.1");
+
+        ConnectionsSetting::update(|setting| {
+            let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.source_ip_alias.clear();
+        });
     }
 }

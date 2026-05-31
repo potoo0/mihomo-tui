@@ -3,6 +3,11 @@ use std::cmp::Ordering;
 
 use crate::models::sort::SortDir;
 
+pub trait TextResolver<T> {
+    fn resolve<'row>(&self, col: &ColDef<T>, item: &'row T, text: Cow<'row, str>)
+    -> Cow<'row, str>;
+}
+
 pub struct ColDef<T> {
     #[allow(dead_code)]
     pub id: &'static str,
@@ -17,6 +22,7 @@ pub struct ColDef<T> {
 
 impl<T> ColDef<T> {
     /// Compare two items based on this column definition
+    #[allow(dead_code)]
     #[inline]
     pub fn cmp(&self, a: &T, b: &T) -> Ordering {
         if let Some(f) = self.sort_key {
@@ -28,9 +34,38 @@ impl<T> ColDef<T> {
         }
     }
 
+    /// Compare two items using the provided text resolver when this column has
+    /// no typed sort key.
+    #[inline]
+    pub fn cmp_with_text_resolver(&self, a: &T, b: &T, resolver: &dyn TextResolver<T>) -> Ordering {
+        if let Some(f) = self.sort_key {
+            f(a).cmp(&f(b))
+        } else {
+            let sa = resolver.resolve(self, a, (self.accessor)(a));
+            let sb = resolver.resolve(self, b, (self.accessor)(b));
+            sa.as_ref().cmp(sb.as_ref())
+        }
+    }
+
+    #[allow(dead_code)]
     #[inline]
     pub fn ordering(&self, a: &T, b: &T, dir: SortDir) -> Ordering {
         let ord = self.cmp(a, b);
+        match dir {
+            SortDir::Asc => ord,
+            SortDir::Desc => ord.reverse(),
+        }
+    }
+
+    #[inline]
+    pub fn ordering_with_text_resolver(
+        &self,
+        a: &T,
+        b: &T,
+        dir: SortDir,
+        resolver: &dyn TextResolver<T>,
+    ) -> Ordering {
+        let ord = self.cmp_with_text_resolver(a, b, resolver);
         match dir {
             SortDir::Asc => ord,
             SortDir::Desc => ord.reverse(),
@@ -54,4 +89,18 @@ impl SortKey {
             (Bool(_), U64(_)) => Ordering::Less,
         }
     }
+}
+
+pub const fn find_index_ignore_ascii_case<T>(cols: &[ColDef<T>], name: &str) -> usize {
+    let mut i = 0;
+
+    while i < cols.len() {
+        if cols[i].title.eq_ignore_ascii_case(name) {
+            return i;
+        }
+
+        i += 1;
+    }
+
+    panic!("name not found")
 }

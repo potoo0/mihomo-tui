@@ -2,6 +2,7 @@ mod connection_batch_terminate_component;
 mod connection_detail_component;
 mod connection_terminate_component;
 mod connections_component;
+mod connections_setting_component;
 mod core_config_component;
 mod filter_component;
 mod footer_component;
@@ -60,6 +61,7 @@ pub enum ComponentId {
     ConnectionTerminate,
     ConnectionBatchTerminate,
     Connections,
+    ConnectionsSetting,
     Proxies,
     ProxyDetail,
     ProxySetting,
