@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer};
 use super::{ConnectionsUiConfig, LatencyThreshold};
 use crate::models::sort::{SortDir, SortSpec};
 use crate::store::connections::{
-    CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES, find_sortable_connection_col,
+    ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES, with_alive_column,
 };
 
 impl fmt::Display for LatencyThreshold {
@@ -84,26 +84,28 @@ impl<'de> Deserialize<'de> for ConnectionsUiConfig {
 fn raw_connections_ui_config_into_config(
     raw: RawConnectionsUiConfig,
 ) -> Result<ConnectionsUiConfig> {
-    let columns = raw
-        .columns
-        .map(raw_connections_columns_into_indices)
-        .transpose()?
-        .unwrap_or_else(|| DEFAULT_CONNECTION_COL_INDICES.to_vec());
-    let sort = raw
-        .sort
-        .map(raw_connections_sort_into_sort_spec)
-        .transpose()?
-        .filter(|sort| columns.contains(&sort.col));
+    let columns = with_alive_column(
+        raw.columns
+            .map(raw_connections_columns_into_indices)
+            .transpose()?
+            .unwrap_or_else(|| DEFAULT_CONNECTION_COL_INDICES.to_vec()),
+    );
+
+    let sort = raw.sort.map(raw_connections_sort_into_sort_spec).transpose()?.and_then(|sort| {
+        // Convert the resolved column definition index into a visible columns index.
+        columns.iter().position(|&col| col == sort.col).map(|col| SortSpec { col, dir: sort.dir })
+    });
 
     Ok(ConnectionsUiConfig { columns, sort, source_ip_alias: raw.source_ip_alias })
 }
 
 fn raw_connections_sort_into_sort_spec(raw: RawConnectionsSortConfig) -> Result<SortSpec> {
-    let Some(col) = find_sortable_connection_col(&raw.field) else {
+    let sortable_cols = sortable_connection_cols();
+    let Some(col) = find_index_ignore_case(&sortable_cols, &raw.field) else {
         bail!(
-            "invalid `ui.connections.sort.field`: {:?}, allowed values: [{}]",
-            raw.field,
-            allowed_sortable_connection_col_titles()
+            "`ui.connections.sort.field` must be one of [{}], got {:?}",
+            join_connection_col_titles(&sortable_cols),
+            raw.field
         );
     };
 
@@ -111,20 +113,21 @@ fn raw_connections_sort_into_sort_spec(raw: RawConnectionsSortConfig) -> Result<
 }
 
 fn raw_connections_columns_into_indices(raw: Vec<String>) -> Result<Vec<usize>> {
+    let configurable_cols = configurable_connection_cols();
     if raw.is_empty() {
         bail!(
-            "`ui.connections.columns` cannot be empty, allowed values: [{}]",
-            allowed_connection_col_titles()
+            "`ui.connections.columns` cannot be empty, must be one of [{}]",
+            join_connection_col_titles(&configurable_cols)
         );
     }
 
     let mut cols = Vec::with_capacity(raw.len());
     for field in raw {
-        let Some(col) = find_connection_col(&field) else {
+        let Some(col) = find_index_ignore_case(&configurable_cols, &field) else {
             bail!(
-                "invalid `ui.connections.columns` value: {:?}, allowed values: [{}]",
-                field,
-                allowed_connection_col_titles()
+                "`ui.connections.columns` values must be one of [{}], got {:?}",
+                join_connection_col_titles(&configurable_cols),
+                field
             );
         };
 
@@ -137,23 +140,29 @@ fn raw_connections_columns_into_indices(raw: Vec<String>) -> Result<Vec<usize>> 
     Ok(cols)
 }
 
-fn find_connection_col(field: &str) -> Option<usize> {
+fn find_index_ignore_case(items: &[(usize, &'static str)], name: &str) -> Option<usize> {
+    items.iter().find(|(_, title)| title.eq_ignore_ascii_case(name)).map(|(idx, _)| *idx)
+}
+
+fn sortable_connection_cols() -> Vec<(usize, &'static str)> {
     CONNECTION_COLS
         .iter()
         .enumerate()
-        .find(|(_, def)| def.title.eq_ignore_ascii_case(field))
-        .map(|(idx, _)| idx)
+        .filter(|(idx, _)| *idx != ALIVE_COLUMN_INDEX)
+        .filter(|(_, def)| def.sortable)
+        .map(|(idx, def)| (idx, def.title))
+        .collect::<Vec<_>>()
 }
 
-fn allowed_connection_col_titles() -> String {
-    CONNECTION_COLS.iter().map(|def| def.title).collect::<Vec<_>>().join(", ")
-}
-
-fn allowed_sortable_connection_col_titles() -> String {
+fn configurable_connection_cols() -> Vec<(usize, &'static str)> {
     CONNECTION_COLS
         .iter()
-        .filter(|def| def.sortable)
-        .map(|def| def.title)
+        .enumerate()
+        .filter(|(idx, _)| *idx != ALIVE_COLUMN_INDEX)
+        .map(|(idx, def)| (idx, def.title))
         .collect::<Vec<_>>()
-        .join(", ")
+}
+
+fn join_connection_col_titles(cols: &[(usize, &'static str)]) -> String {
+    cols.iter().map(|(_, title)| *title).collect::<Vec<_>>().join(", ")
 }

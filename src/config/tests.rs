@@ -4,7 +4,14 @@ use url::Url;
 
 use super::*;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
-use crate::store::connections::{DEFAULT_CONNECTION_COL_INDICES, find_sortable_connection_col};
+use crate::store::connections::{CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES};
+
+fn connection_col_index(title: &str) -> usize {
+    CONNECTION_COLS
+        .iter()
+        .position(|def| def.title.eq_ignore_ascii_case(title))
+        .unwrap_or_else(|| panic!("connection column {title:?} should exist"))
+}
 
 #[test]
 fn test_config_default() {
@@ -241,41 +248,14 @@ mihomo-api: "localhost"
 }
 
 #[test]
-fn test_config_ui_connections_sort_only() {
+fn test_config_ui_connections_sort_uses_visible_column_index() {
     let cfg_path = TempFile::new(temp_config_path());
 
     let custom_config = r#"
 mihomo-api: "http://localhost"
 ui:
   connections:
-    sort:
-      field: "Host"
-"#;
-    fs::write(&cfg_path.0, custom_config).unwrap();
-
-    let config = load(Some(cfg_path.0.clone())).unwrap();
-    let ui = config.ui.as_ref().unwrap();
-    let connections = ui.connections.as_ref().unwrap();
-    let sort = connections.sort.as_ref().unwrap();
-
-    assert_eq!(connections.columns, DEFAULT_CONNECTION_COL_INDICES);
-    assert_eq!(
-        *sort,
-        SortSpec { col: find_sortable_connection_col("Host").unwrap(), dir: SortDir::Desc }
-    );
-    assert!(ui.proxy_detail.is_none());
-
-    drop(cfg_path);
-}
-
-#[test]
-fn test_config_ui_connections_sort_case_insensitive() {
-    let cfg_path = TempFile::new(temp_config_path());
-
-    let custom_config = r#"
-mihomo-api: "http://localhost"
-ui:
-  connections:
+    columns: ["Rule", "Host"]
     sort:
       field: "hOsT"
       dir: asc
@@ -283,53 +263,30 @@ ui:
     fs::write(&cfg_path.0, custom_config).unwrap();
 
     let config = load(Some(cfg_path.0.clone())).unwrap();
-    let ui = config.ui.as_ref().unwrap();
-    let connections = ui.connections.as_ref().unwrap();
+    let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
 
     assert_eq!(
-        connections.sort,
-        Some(SortSpec { col: find_sortable_connection_col("Host").unwrap(), dir: SortDir::Asc })
-    );
-
-    drop(cfg_path);
-}
-
-#[test]
-fn test_config_ui_connections_columns() {
-    let cfg_path = TempFile::new(temp_config_path());
-
-    let custom_config = r#"
-mihomo-api: "http://localhost"
-ui:
-  connections:
-    columns: ["Host", "Rule", "DownRate"]
-"#;
-    fs::write(&cfg_path.0, custom_config).unwrap();
-
-    let config = load(Some(cfg_path.0.clone())).unwrap();
-    let columns = &config.ui.as_ref().unwrap().connections.as_ref().unwrap().columns;
-
-    assert_eq!(
-        columns,
-        &vec![
-            find_sortable_connection_col("Host").unwrap(),
-            find_sortable_connection_col("Rule").unwrap(),
-            find_sortable_connection_col("DownRate").unwrap(),
+        connections.columns,
+        vec![
+            connection_col_index("Alive"),
+            connection_col_index("Rule"),
+            connection_col_index("Host")
         ]
     );
+    assert_eq!(connections.sort, Some(SortSpec { col: 2, dir: SortDir::Asc }));
 
     drop(cfg_path);
 }
 
 #[test]
-fn test_config_ui_connections_columns_case_insensitive() {
+fn test_config_ui_connections_columns_parse_case_insensitive() {
     let cfg_path = TempFile::new(temp_config_path());
 
     let custom_config = r#"
 mihomo-api: "http://localhost"
 ui:
   connections:
-    columns: ["hOsT", "downrate"]
+    columns: ["hOsT", "Rule", "downrate"]
 "#;
     fs::write(&cfg_path.0, custom_config).unwrap();
 
@@ -339,8 +296,10 @@ ui:
     assert_eq!(
         columns,
         &vec![
-            find_sortable_connection_col("Host").unwrap(),
-            find_sortable_connection_col("DownRate").unwrap()
+            connection_col_index("Alive"),
+            connection_col_index("Host"),
+            connection_col_index("Rule"),
+            connection_col_index("DownRate"),
         ]
     );
 
@@ -395,80 +354,46 @@ ui:
 }
 
 #[test]
-fn test_config_ui_connections_columns_unknown() {
-    let cfg_path = TempFile::new(temp_config_path());
+fn test_config_ui_connections_columns_invalid_values() {
+    let cases = [
+        (r#"columns: ["Alive", "Host"]"#, "`ui.connections.columns` values must be one of"),
+        (r#"columns: ["Host", "Foo"]"#, "`ui.connections.columns` values must be one of"),
+        (r#"columns: ["Host", "host"]"#, "duplicate `ui.connections.columns` value"),
+        (r#"columns: []"#, "`ui.connections.columns` cannot be empty, must be one of"),
+    ];
 
-    let custom_config = r#"
+    for (columns, expected_error) in cases {
+        let cfg_path = TempFile::new(temp_config_path());
+        let custom_config = format!(
+            r#"
 mihomo-api: "http://localhost"
 ui:
   connections:
-    columns: ["Host", "Foo"]
-"#;
-    fs::write(&cfg_path.0, custom_config).unwrap();
+    {columns}
+"#
+        );
+        fs::write(&cfg_path.0, custom_config).unwrap();
 
-    let result = load(Some(cfg_path.0.clone()));
-    assert!(result.is_err(), "expected error, got {:?}", result);
+        let result = load(Some(cfg_path.0.clone()));
+        assert!(result.is_err(), "expected error for {columns}, got {:?}", result);
 
-    let err_msg = format!("{:#}", result.unwrap_err());
-    assert!(
-        err_msg.contains("invalid `ui.connections.columns` value"),
-        "unexpected error: {}",
-        err_msg
-    );
-    assert!(err_msg.contains("\"Foo\""), "unexpected error: {}", err_msg);
-    assert!(err_msg.contains("Host"), "unexpected error: {}", err_msg);
+        let err_msg = format!("{:#}", result.unwrap_err());
+        assert!(err_msg.contains(expected_error), "unexpected error: {}", err_msg);
 
-    drop(cfg_path);
-}
-
-#[test]
-fn test_config_ui_connections_columns_duplicate() {
-    let cfg_path = TempFile::new(temp_config_path());
-
-    let custom_config = r#"
-mihomo-api: "http://localhost"
-ui:
-  connections:
-    columns: ["Host", "host"]
-"#;
-    fs::write(&cfg_path.0, custom_config).unwrap();
-
-    let result = load(Some(cfg_path.0.clone()));
-    assert!(result.is_err(), "expected error, got {:?}", result);
-
-    let err_msg = format!("{:#}", result.unwrap_err());
-    assert!(
-        err_msg.contains("duplicate `ui.connections.columns` value"),
-        "unexpected error: {}",
-        err_msg
-    );
-
-    drop(cfg_path);
-}
-
-#[test]
-fn test_config_ui_connections_columns_empty() {
-    let cfg_path = TempFile::new(temp_config_path());
-
-    let custom_config = r#"
-mihomo-api: "http://localhost"
-ui:
-  connections:
-    columns: []
-"#;
-    fs::write(&cfg_path.0, custom_config).unwrap();
-
-    let result = load(Some(cfg_path.0.clone()));
-    assert!(result.is_err(), "expected error, got {:?}", result);
-
-    let err_msg = format!("{:#}", result.unwrap_err());
-    assert!(
-        err_msg.contains("`ui.connections.columns` cannot be empty"),
-        "unexpected error: {}",
-        err_msg
-    );
-
-    drop(cfg_path);
+        if columns.contains("Alive") {
+            assert!(err_msg.contains("got \"Alive\""), "unexpected error: {}", err_msg);
+            let allowed_values = err_msg
+                .split("must be one of [")
+                .nth(1)
+                .and_then(|value| value.split(']').next())
+                .unwrap_or_default();
+            assert!(
+                !allowed_values.contains("Alive"),
+                "`Alive` should not be listed as an allowed configurable column: {}",
+                err_msg
+            );
+        }
+    }
 }
 
 #[test]
@@ -495,30 +420,45 @@ ui:
 
 #[test]
 fn test_config_ui_connections_sort_invalid_field() {
-    let cfg_path = TempFile::new(temp_config_path());
+    for field in ["foo", "Alive"] {
+        let cfg_path = TempFile::new(temp_config_path());
 
-    let custom_config = r#"
+        let custom_config = format!(
+            r#"
 mihomo-api: "http://localhost"
 ui:
   connections:
     sort:
-      field: "foo"
-"#;
-    fs::write(&cfg_path.0, custom_config).unwrap();
+      field: "{field}"
+"#
+        );
+        fs::write(&cfg_path.0, custom_config).unwrap();
 
-    let result = load(Some(cfg_path.0.clone()));
-    assert!(result.is_err(), "expected error, got {:?}", result);
+        let result = load(Some(cfg_path.0.clone()));
+        assert!(result.is_err(), "expected error for {field}, got {:?}", result);
 
-    let err_msg = format!("{:#}", result.unwrap_err());
-    assert!(
-        err_msg.contains("invalid `ui.connections.sort.field`"),
-        "unexpected error: {}",
-        err_msg
-    );
-    assert!(err_msg.contains("\"foo\""), "unexpected error: {}", err_msg);
-    assert!(err_msg.contains("Host"), "unexpected error: {}", err_msg);
+        let err_msg = format!("{:#}", result.unwrap_err());
+        assert!(
+            err_msg.contains("`ui.connections.sort.field` must be one of"),
+            "unexpected error: {}",
+            err_msg
+        );
+        assert!(err_msg.contains(&format!("got \"{field}\"")), "unexpected error: {}", err_msg);
+        assert!(err_msg.contains("Host"), "unexpected error: {}", err_msg);
 
-    drop(cfg_path);
+        if field == "Alive" {
+            let allowed_values = err_msg
+                .split("must be one of [")
+                .nth(1)
+                .and_then(|value| value.split(']').next())
+                .unwrap_or_default();
+            assert!(
+                !allowed_values.contains("Alive"),
+                "`Alive` should not be listed as an allowed sort field: {}",
+                err_msg
+            );
+        }
+    }
 }
 
 #[test]

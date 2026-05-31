@@ -21,8 +21,11 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
-use crate::store::connections::{CONNECTION_COL_CONSTRAINTS, CONNECTION_COLS, Connections};
+use crate::store::connections::{
+    CONNECTION_COL_CONSTRAINTS, CONNECTION_COLS, Connections, SourceIpAliasTextResolver,
+};
 use crate::store::connections_setting::ConnectionsSetting;
+use crate::utils::columns::TextResolver;
 use crate::utils::symbols::{arrow, triangle};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -157,9 +160,10 @@ impl ConnectionsComponent {
             .columns
             .iter()
             .filter_map(|&index| CONNECTION_COLS.get(index).map(|def| (index, def.title)))
-            .map(|(index, title)| {
+            .enumerate()
+            .map(|(visible_index, (_index, title))| {
                 if let Some(sort) = sort
-                    && index == sort.col
+                    && visible_index == sort.col
                 {
                     let arrow = match sort.dir {
                         SortDir::Asc => triangle::UP,
@@ -174,6 +178,7 @@ impl ConnectionsComponent {
             .height(1)
             .bottom_margin(1);
         let selected_row_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
+        let text_resolver = SourceIpAliasTextResolver { source_ip_alias: &setting.source_ip_alias };
 
         let rows: Vec<Row> = records
             .iter()
@@ -183,13 +188,12 @@ impl ConnectionsComponent {
                         .columns
                         .iter()
                         .filter_map(|&index| CONNECTION_COLS.get(index))
-                        .map(|def| (def.accessor)(item)),
+                        .map(|def| text_resolver.resolve(def, item, (def.accessor)(item))),
                 )
                 .height(ROW_HEIGHT as u16)
             })
             .collect();
         // TODO optimize by caching header and constraints ?
-        // TODO capture_mode should bound to `Alive` column
         let constraints = setting.columns.iter().filter_map(|&index| {
             let constraint = CONNECTION_COL_CONSTRAINTS.get(index)?;
             if index == 0 && !self.capture_mode.load(Ordering::Relaxed) {
@@ -302,7 +306,17 @@ impl Component for ConnectionsComponent {
                 self.handle_query_state_changed();
             }
             KeyCode::Right => {
-                ConnectionsSetting::update(|setting| setting.query_state.sort_next());
+                ConnectionsSetting::update(|setting| {
+                    // When capture mode is off, the runtime Alive column is hidden with zero width.
+                    // If sorting starts from None, advance once more so Right lands on the first
+                    // visible user column instead of the hidden Alive column.
+                    if setting.query_state.sort.is_none()
+                        && !self.capture_mode.load(Ordering::Relaxed)
+                    {
+                        setting.query_state.sort_next()
+                    }
+                    setting.query_state.sort_next()
+                });
                 self.handle_query_state_changed();
             }
             KeyCode::Char('r') => {
@@ -337,7 +351,9 @@ impl Component for ConnectionsComponent {
                     .map(Action::ConnectionDetail);
                 return Ok(action);
             }
-            KeyCode::Char('s') => return Ok(Some(Action::ConnectionsSetting)),
+            KeyCode::Char('s') => {
+                return Ok(Some(Action::ConnectionsSetting(self.store.source_ips())));
+            }
             _ => (),
         };
 
@@ -360,9 +376,7 @@ impl Component for ConnectionsComponent {
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
                 return Ok(Some(Action::FilterSet(pattern)));
             }
-            Action::ConnectionsSettingChanged => {
-                todo!("apply sorting and filtering with new visible columns if not in live mode")
-            }
+            Action::ConnectionsSettingChanged => self.store.compute_view(),
             _ => {}
         }
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::prelude::Span;
@@ -8,11 +8,12 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Paragraph};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
-use tui_input::{Input, InputRequest};
+use tui_input::Input;
 
 use crate::action::Action;
 use crate::components::{Component, ComponentId};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
+use crate::utils::tui_input::input_request;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
 #[derive(Debug, Clone, Default)]
@@ -24,30 +25,6 @@ pub struct FilterComponent {
 }
 
 impl FilterComponent {
-    fn input_request(&mut self, key: KeyEvent) -> Option<InputRequest> {
-        use KeyCode::*;
-        use tui_input::InputRequest::*;
-
-        match (key.code, key.modifiers) {
-            (Backspace, KeyModifiers::NONE) => Some(DeletePrevChar),
-            (Delete, KeyModifiers::NONE) => Some(DeleteNextChar),
-            (Left, KeyModifiers::NONE) => Some(GoToPrevChar),
-            (Left, KeyModifiers::CONTROL) => Some(GoToPrevWord),
-            (Right, KeyModifiers::NONE) => Some(GoToNextChar),
-            (Right, KeyModifiers::CONTROL) => Some(GoToNextWord),
-            (Char('w'), KeyModifiers::CONTROL)
-            | (Backspace, KeyModifiers::META)
-            | (Backspace, KeyModifiers::ALT) => Some(DeletePrevWord),
-            (Delete, KeyModifiers::CONTROL) => Some(DeleteNextWord),
-            (Char('y'), KeyModifiers::CONTROL) => Some(Yank),
-            (Home, KeyModifiers::NONE) => Some(GoToStart),
-            (End, KeyModifiers::NONE) => Some(GoToEnd),
-            (Char(c), KeyModifiers::NONE) => Some(InsertChar(c)),
-            (Char(c), KeyModifiers::SHIFT) => Some(InsertChar(c)),
-            (_, _) => None,
-        }
-    }
-
     fn send(&mut self) -> Result<()> {
         if self.is_active && self.should_send {
             let pattern =
@@ -101,7 +78,7 @@ impl Component for FilterComponent {
                 return Ok(Some(Action::Unfocus));
             }
             _ => {
-                if let Some(req) = self.input_request(key) {
+                if let Some(req) = input_request(key) {
                     self.should_send = true;
                     let _ = self.input.handle(req);
                 }

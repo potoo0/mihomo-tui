@@ -25,7 +25,7 @@ pub enum Action {
     TabSwitch(ComponentId),
     Shortcuts(Vec<Shortcut>),
     ConnectionDetail(Arc<Connection>),
-    ConnectionsSetting,
+    ConnectionsSetting(Vec<String>),
     ConnectionsSettingChanged,
     /// Sent when the filter pattern is changed via user input.
     FilterChanged(Option<String>),

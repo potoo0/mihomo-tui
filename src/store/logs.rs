@@ -35,7 +35,7 @@ impl Logs {
         let buffer = self.buffer.read().unwrap();
 
         let mut matcher = self.matcher.lock().unwrap();
-        let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, LOG_COLS);
+        let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, LOG_COLS.iter());
         let mut guard = self.view.write().unwrap();
         guard.clear();
         guard.extend(filtered)

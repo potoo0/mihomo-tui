@@ -21,6 +21,7 @@ use crate::components::connection_batch_terminate_component::ConnectionBatchTerm
 use crate::components::connection_detail_component::ConnectionDetailComponent;
 use crate::components::connection_terminate_component::ConnectionTerminateComponent;
 use crate::components::connections_component::ConnectionsComponent;
+use crate::components::connections_setting_component::ConnectionsSettingComponent;
 use crate::components::core_config_component::CoreConfigComponent;
 use crate::components::filter_component::FilterComponent;
 use crate::components::footer_component::FooterComponent;
@@ -112,6 +113,7 @@ impl RootComponent {
                         .connections;
                     Box::new(ConnectionsComponent::new(Arc::clone(&self.conns_rx), store_capacity))
                 }
+                ComponentId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::default()),
                 ComponentId::Proxies => Box::new(ProxiesComponent::default()),
                 ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
                 ComponentId::ProxySetting => Box::new(ProxySettingComponent::default()),
@@ -381,6 +383,7 @@ impl Component for RootComponent {
             }
             Action::Help => self.open_popup(ComponentId::Help)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
+            Action::ConnectionsSetting(_) => self.open_popup(ComponentId::ConnectionsSetting)?,
             Action::ProxyDetail(_) => self.open_popup(ComponentId::ProxyDetail)?,
             Action::ProxySetting => self.open_popup(ComponentId::ProxySetting)?,
             Action::ProxyProviderDetail(_) => self.open_popup(ComponentId::ProxyProviderDetail)?,

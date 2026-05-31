@@ -9,7 +9,6 @@ pub static GLOBAL_CONNECTION_SETTING: OnceLock<RwLock<Arc<ConnectionsSetting>>> 
 
 #[derive(Clone)]
 pub struct ConnectionsSetting {
-    // TODO reset or migrate `sort` if columns changed.
     pub query_state: QueryState,
     pub columns: Vec<usize>,
     pub source_ip_alias: HashMap<String, String>,

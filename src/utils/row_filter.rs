@@ -1,9 +1,10 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use nucleo_matcher::pattern::{Atom, CaseMatching, Normalization};
 use nucleo_matcher::{Matcher, Utf32Str};
 
-use crate::utils::columns::ColDef;
+use crate::utils::columns::{ColDef, TextResolver};
 
 /// An iterator that filters items based on a fuzzy pattern and column definitions
 pub struct RowFilter<'a, T, I>
@@ -14,25 +15,42 @@ where
     matcher: &'a mut Matcher,
     pattern: Option<Atom>,
     haystack_buffer: Vec<char>,
-    cols: &'a [ColDef<T>],
+    cols: Vec<&'a ColDef<T>>,
+    text_resolver: Option<&'a dyn TextResolver<T>>,
 }
 
 impl<'a, T, I> RowFilter<'a, T, I>
 where
     I: Iterator<Item = &'a Arc<T>>,
 {
-    pub fn new(
-        iter: I,
-        matcher: &'a mut Matcher,
-        pattern: Option<&'a str>,
-        cols: &'a [ColDef<T>],
-    ) -> Self {
+    pub fn new<C>(iter: I, matcher: &'a mut Matcher, pattern: Option<&'a str>, cols: C) -> Self
+    where
+        C: IntoIterator<Item = &'a ColDef<T>>,
+    {
         let pattern = pattern.and_then(|p| {
             let atom = Atom::parse(p, CaseMatching::Smart, Normalization::Smart);
             if atom.needle_text().is_empty() { None } else { Some(atom) }
         });
         let haystack_buffer = Vec::new();
-        Self { iter, matcher, pattern, haystack_buffer, cols }
+        let cols = cols.into_iter().collect();
+        Self { iter, matcher, pattern, haystack_buffer, cols, text_resolver: None }
+    }
+
+    pub fn with_text_resolver(mut self, resolver: &'a dyn TextResolver<T>) -> Self {
+        self.text_resolver = Some(resolver);
+        self
+    }
+
+    fn text<'row>(
+        text_resolver: Option<&dyn TextResolver<T>>,
+        col: &ColDef<T>,
+        item: &'row T,
+    ) -> Cow<'row, str> {
+        let text = (col.accessor)(item);
+        match text_resolver {
+            Some(resolver) => resolver.resolve(col, item, text),
+            None => text,
+        }
     }
 }
 
@@ -47,15 +65,15 @@ where
             Some(p) => p,
             _ => return self.iter.next().cloned(),
         };
-        while let Some(item) = self.iter.next() {
+        for item in self.iter.by_ref() {
             let col_matcher = |col: &ColDef<T>| {
-                let text = (col.accessor)(item);
+                let text = Self::text(self.text_resolver, col, item);
                 pat.score(Utf32Str::new(&text, &mut self.haystack_buffer), self.matcher).is_some()
             };
             let hit = if pat.negative {
-                self.cols.iter().filter(|col| col.filterable).all(col_matcher)
+                self.cols.iter().copied().filter(|col| col.filterable).all(col_matcher)
             } else {
-                self.cols.iter().filter(|col| col.filterable).any(col_matcher)
+                self.cols.iter().copied().filter(|col| col.filterable).any(col_matcher)
             };
             if hit {
                 return Some(Arc::clone(item));

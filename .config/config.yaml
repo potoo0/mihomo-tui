@@ -20,18 +20,18 @@ log-level: error
 # UI settings, Optional
 # connections.columns:
 #   - ordered list of Connections column titles, case-insensitive.
-#     Allowed values: Alive, Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP
+#     Allowed values: Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP
 #   - sort is ignored when sort.field is not included in columns.
 # connections.sort:
 #   - field must match a sortable Connections column title, case-insensitive.
-#     Allowed values: Alive, Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP
+#     Allowed values: Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP
 #   - dir: asc | desc, default is desc
 # proxy-detail.sort:
 #   - field currently supports: latency, name
 #   - dir: asc | desc, default is asc
 ui:
   connections:
-    columns: ["Alive", "Host", "Rule", "Chains", "DownRate", "UpRate", "DownTotal", "UpTotal", "SourceIP"]
+    columns: ["Host", "Rule", "Chains", "DownRate", "UpRate", "DownTotal", "UpTotal", "SourceIP"]
     sort: { field: "DownRate", dir: "desc" }
   proxy-detail:
     sort: { field: "Latency", dir: "asc" }
