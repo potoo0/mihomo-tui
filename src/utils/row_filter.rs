@@ -23,16 +23,17 @@ impl<'a, T, I> RowFilter<'a, T, I>
 where
     I: Iterator<Item = &'a Arc<T>>,
 {
-    pub fn new<C>(iter: I, matcher: &'a mut Matcher, pattern: Option<&'a str>, cols: C) -> Self
+    pub fn new<C, D>(iter: I, matcher: &'a mut Matcher, pattern: Option<&'a str>, cols: C) -> Self
     where
-        C: IntoIterator<Item = &'a ColDef<T>>,
+        C: IntoIterator<Item = &'a D>,
+        D: AsRef<ColDef<T>> + 'a,
     {
         let pattern = pattern.and_then(|p| {
             let atom = Atom::parse(p, CaseMatching::Smart, Normalization::Smart);
             if atom.needle_text().is_empty() { None } else { Some(atom) }
         });
         let haystack_buffer = Vec::new();
-        let cols = cols.into_iter().collect();
+        let cols = cols.into_iter().map(AsRef::as_ref).collect();
         Self { iter, matcher, pattern, haystack_buffer, cols, text_resolver: None }
     }
 

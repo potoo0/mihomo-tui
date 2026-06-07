@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+use ratatui::layout::Constraint;
+
 use crate::models::sort::SortDir;
 
 pub trait TextResolver<T> {
@@ -18,6 +20,23 @@ pub struct ColDef<T> {
     pub accessor: for<'a> fn(&'a T) -> Cow<'a, str>,
     /// sort key, optional. If None, use the string from accessor for sorting
     pub sort_key: Option<fn(&T) -> SortKey>,
+}
+
+pub struct TableColDef<T> {
+    pub col: ColDef<T>,
+    pub constraint: Constraint,
+}
+
+impl<T> AsRef<ColDef<T>> for ColDef<T> {
+    fn as_ref(&self) -> &ColDef<T> {
+        self
+    }
+}
+
+impl<T> AsRef<ColDef<T>> for TableColDef<T> {
+    fn as_ref(&self) -> &ColDef<T> {
+        &self.col
+    }
 }
 
 impl<T> ColDef<T> {
@@ -89,18 +108,4 @@ impl SortKey {
             (Bool(_), U64(_)) => Ordering::Less,
         }
     }
-}
-
-pub const fn find_index_ignore_ascii_case<T>(cols: &[ColDef<T>], name: &str) -> usize {
-    let mut i = 0;
-
-    while i < cols.len() {
-        if cols[i].title.eq_ignore_ascii_case(name) {
-            return i;
-        }
-
-        i += 1;
-    }
-
-    panic!("name not found")
 }

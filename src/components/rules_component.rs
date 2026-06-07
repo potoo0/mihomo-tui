@@ -5,7 +5,7 @@ use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use indexmap::IndexMap;
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Margin, Rect};
+use ratatui::layout::{Margin, Rect};
 use ratatui::prelude::{Color, Line, Modifier, Span, Style};
 use ratatui::style::Stylize;
 use ratatui::widgets::{Block, BorderType, Cell, Row, Table, TableState};
@@ -212,7 +212,7 @@ impl RulesComponent {
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
         let header = RULE_COLS
             .iter()
-            .map(|def| def.title)
+            .map(|def| def.col.title)
             .map(|title| Cell::from(title).bold())
             .collect::<Row>()
             .height(1)
@@ -221,23 +221,13 @@ impl RulesComponent {
 
         let rows: Vec<Row> = records
             .iter()
-            .map(|item| Row::new(RULE_COLS.iter().map(|def| (def.accessor)(item))).height(1u16))
+            .map(|item| Row::new(RULE_COLS.iter().map(|def| (def.col.accessor)(item))).height(1u16))
             .collect();
-        let table = Table::new(
-            rows,
-            [
-                Constraint::Length(8),
-                Constraint::Min(1),
-                Constraint::Percentage(8),
-                Constraint::Percentage(8),
-                Constraint::Percentage(8),
-                Constraint::Percentage(20),
-            ],
-        )
-        .block(block)
-        .header(header)
-        .column_spacing(2)
-        .row_highlight_style(selected_row_style);
+        let table = Table::new(rows, RULE_COLS.iter().map(|def| def.constraint))
+            .block(block)
+            .header(header)
+            .column_spacing(2)
+            .row_highlight_style(selected_row_style);
 
         frame.render_stateful_widget(table, area, &mut self.table_state);
     }

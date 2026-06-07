@@ -3,9 +3,10 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, RwLock};
 
 use nucleo_matcher::Matcher;
+use ratatui::layout::Constraint;
 
 use crate::models::Rule;
-use crate::utils::columns::ColDef;
+use crate::utils::columns::{ColDef, TableColDef};
 use crate::utils::row_filter::RowFilter;
 use crate::utils::time::format_datetime;
 
@@ -57,84 +58,108 @@ impl Rules {
     }
 }
 
-pub static RULE_COLS: &[ColDef<Rule>] = &[
-    ColDef {
-        id: "index",
-        title: "Index",
-        filterable: false,
-        sortable: false,
-        accessor: |rule: &Rule| Cow::Owned(rule.index.map(|v| v.to_string()).unwrap_or("-".into())),
-        sort_key: None,
-    },
-    ColDef {
-        id: "rule",
-        title: "Rule",
-        filterable: true,
-        sortable: false,
-        accessor: |rule: &Rule| {
-            let mut content = String::with_capacity(
-                rule.r#type.len() + rule.payload.len() + rule.proxy.len() + 2,
-            );
-            content.push_str(&rule.r#type);
-            if !rule.payload.is_empty() {
-                content.push(',');
-                content.push_str(&rule.payload);
-            }
-            content.push(',');
-            content.push_str(&rule.proxy);
-            Cow::Owned(content)
+pub static RULE_COLS: &[TableColDef<Rule>] = &[
+    TableColDef {
+        col: ColDef {
+            id: "index",
+            title: "Index",
+            filterable: false,
+            sortable: false,
+            accessor: |rule: &Rule| {
+                Cow::Owned(rule.index.map(|v| v.to_string()).unwrap_or("-".into()))
+            },
+            sort_key: None,
         },
-        sort_key: None,
+        constraint: Constraint::Length(8),
     },
-    ColDef {
-        id: "size",
-        title: "Size",
-        filterable: false,
-        sortable: false,
-        accessor: |rule: &Rule| {
-            if rule.size <= -1 { Cow::Borrowed("-") } else { Cow::Owned(rule.size.to_string()) }
-        },
-        sort_key: None,
-    },
-    ColDef {
-        id: "disabled",
-        title: "Disabled",
-        filterable: false,
-        sortable: false,
-        accessor: |rule: &Rule| match rule.extra {
-            Some(ref extra) => {
-                let backend = extra.disabled;
-                let ui = rule.disable_state.load(Ordering::Relaxed);
-
-                match (backend, ui) {
-                    (true, true) => Cow::Borrowed("Y"),
-                    (false, false) => Cow::Borrowed("N"),
-                    (true, false) => Cow::Borrowed("Y -> N"),
-                    (false, true) => Cow::Borrowed("N -> Y"),
+    TableColDef {
+        col: ColDef {
+            id: "rule",
+            title: "Rule",
+            filterable: true,
+            sortable: false,
+            accessor: |rule: &Rule| {
+                let mut content = String::with_capacity(
+                    rule.r#type.len() + rule.payload.len() + rule.proxy.len() + 2,
+                );
+                content.push_str(&rule.r#type);
+                if !rule.payload.is_empty() {
+                    content.push(',');
+                    content.push_str(&rule.payload);
                 }
-            }
-            None => Cow::Borrowed("-"),
+                content.push(',');
+                content.push_str(&rule.proxy);
+                Cow::Owned(content)
+            },
+            sort_key: None,
         },
-        sort_key: None,
+        constraint: Constraint::Min(1),
     },
-    ColDef {
-        id: "hits",
-        title: "Hits",
-        filterable: false,
-        sortable: false,
-        accessor: |rule: &Rule| {
-            Cow::Owned(rule.extra.as_ref().map(|v| v.hit_count.to_string()).unwrap_or("-".into()))
+    TableColDef {
+        col: ColDef {
+            id: "size",
+            title: "Size",
+            filterable: false,
+            sortable: false,
+            accessor: |rule: &Rule| {
+                if rule.size <= -1 { Cow::Borrowed("-") } else { Cow::Owned(rule.size.to_string()) }
+            },
+            sort_key: None,
         },
-        sort_key: None,
+        constraint: Constraint::Percentage(8),
     },
-    ColDef {
-        id: "hit_at",
-        title: "HitAt",
-        filterable: false,
-        sortable: false,
-        accessor: |rule: &Rule| {
-            Cow::Borrowed(rule.extra.as_ref().and_then(|v| v.hit_at_str.as_deref()).unwrap_or("-"))
+    TableColDef {
+        col: ColDef {
+            id: "disabled",
+            title: "Disabled",
+            filterable: false,
+            sortable: false,
+            accessor: |rule: &Rule| match rule.extra {
+                Some(ref extra) => {
+                    let backend = extra.disabled;
+                    let ui = rule.disable_state.load(Ordering::Relaxed);
+
+                    match (backend, ui) {
+                        (true, true) => Cow::Borrowed("Y"),
+                        (false, false) => Cow::Borrowed("N"),
+                        (true, false) => Cow::Borrowed("Y -> N"),
+                        (false, true) => Cow::Borrowed("N -> Y"),
+                    }
+                }
+                None => Cow::Borrowed("-"),
+            },
+            sort_key: None,
         },
-        sort_key: None,
+        constraint: Constraint::Percentage(8),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "hits",
+            title: "Hits",
+            filterable: false,
+            sortable: false,
+            accessor: |rule: &Rule| {
+                Cow::Owned(
+                    rule.extra.as_ref().map(|v| v.hit_count.to_string()).unwrap_or("-".into()),
+                )
+            },
+            sort_key: None,
+        },
+        constraint: Constraint::Percentage(8),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "hit_at",
+            title: "HitAt",
+            filterable: false,
+            sortable: false,
+            accessor: |rule: &Rule| {
+                Cow::Borrowed(
+                    rule.extra.as_ref().and_then(|v| v.hit_at_str.as_deref()).unwrap_or("-"),
+                )
+            },
+            sort_key: None,
+        },
+        constraint: Constraint::Percentage(20),
     },
 ];

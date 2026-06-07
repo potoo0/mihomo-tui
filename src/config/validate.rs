@@ -80,8 +80,8 @@ impl ConnectionsUiConfig {
             .iter()
             .enumerate()
             .filter(|(idx, _)| *idx != ALIVE_COLUMN_INDEX)
-            .filter(|(_, def)| def.sortable)
-            .map(|(idx, def)| (idx, def.title))
+            .filter(|(_, def)| def.col.sortable)
+            .map(|(idx, def)| (idx, def.col.title))
             .collect::<Vec<_>>()
     }
 
@@ -90,7 +90,7 @@ impl ConnectionsUiConfig {
             .iter()
             .enumerate()
             .filter(|(idx, _)| *idx != ALIVE_COLUMN_INDEX)
-            .map(|(idx, def)| (idx, def.title))
+            .map(|(idx, def)| (idx, def.col.title))
             .collect::<Vec<_>>()
     }
 
