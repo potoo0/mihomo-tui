@@ -5,6 +5,7 @@ use url::Url;
 use super::*;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
 use crate::store::connections::{CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES};
+use crate::store::connections_setting::ConnectionsSetting;
 
 fn connection_col_index(title: &str) -> usize {
     CONNECTION_COLS
@@ -264,16 +265,20 @@ ui:
 
     let config = load(Some(cfg_path.0.clone())).unwrap();
     let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+    let setting = ConnectionsSetting::try_from(connections).unwrap();
+
+    assert_eq!(connections.columns, Some(vec!["Rule".to_owned(), "Host".to_owned()]));
+    assert_eq!(connections.sort.as_ref().unwrap().field, "hOsT");
 
     assert_eq!(
-        connections.columns,
+        setting.columns,
         vec![
             connection_col_index("Alive"),
             connection_col_index("Rule"),
             connection_col_index("Host")
         ]
     );
-    assert_eq!(connections.sort, Some(SortSpec { col: 2, dir: SortDir::Asc }));
+    assert_eq!(setting.query_state.sort, Some(SortSpec { col: 2, dir: SortDir::Asc }));
 
     drop(cfg_path);
 }
@@ -291,11 +296,12 @@ ui:
     fs::write(&cfg_path.0, custom_config).unwrap();
 
     let config = load(Some(cfg_path.0.clone())).unwrap();
-    let columns = &config.ui.as_ref().unwrap().connections.as_ref().unwrap().columns;
+    let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+    let setting = ConnectionsSetting::try_from(connections).unwrap();
 
     assert_eq!(
-        columns,
-        &vec![
+        setting.columns,
+        vec![
             connection_col_index("Alive"),
             connection_col_index("Host"),
             connection_col_index("Rule"),
@@ -345,9 +351,11 @@ ui:
     let config = load(Some(cfg_path.0.clone())).unwrap();
     let ui = config.ui.as_ref().unwrap();
     let connections = ui.connections.as_ref().unwrap();
+    let setting = ConnectionsSetting::try_from(connections).unwrap();
 
     assert!(connections.sort.is_none());
-    assert_eq!(connections.columns, DEFAULT_CONNECTION_COL_INDICES);
+    assert!(connections.columns.is_none());
+    assert_eq!(setting.columns, DEFAULT_CONNECTION_COL_INDICES);
     assert!(ui.proxy_detail.is_none());
 
     drop(cfg_path);
@@ -412,8 +420,9 @@ ui:
 
     let config = load(Some(cfg_path.0.clone())).unwrap();
     let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+    let setting = ConnectionsSetting::try_from(connections).unwrap();
 
-    assert!(connections.sort.is_none());
+    assert!(setting.query_state.sort.is_none());
 
     drop(cfg_path);
 }
