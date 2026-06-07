@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::convert::Into;
 use std::num::NonZeroUsize;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, RwLock};
@@ -14,7 +15,7 @@ use serde_json::Value;
 use crate::models::Connection;
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::utils::byte_size::human_bytes;
-use crate::utils::columns::{ColDef, SortKey, TextResolver, find_index_ignore_ascii_case};
+use crate::utils::columns::{ColDef, SortKey, TableColDef, TextResolver};
 use crate::utils::row_filter::RowFilter;
 use crate::utils::symbols::dot;
 
@@ -84,10 +85,12 @@ impl Connections {
         if let Some(sort) = query_state.sort
             && let Some(col_def) =
                 setting.columns.get(sort.col).and_then(|&col| CONNECTION_COLS.get(col))
-            && col_def.sortable
+            && col_def.col.sortable
         {
             let mut v: Vec<Arc<Connection>> = filtered.collect();
-            v.sort_by(|a, b| col_def.ordering_with_text_resolver(a, b, sort.dir, &text_resolver));
+            v.sort_by(|a, b| {
+                col_def.col.ordering_with_text_resolver(a, b, sort.dir, &text_resolver)
+            });
             let mut guard = self.view.write().unwrap();
             guard.clear();
             guard.extend(v)
@@ -154,7 +157,7 @@ impl TextResolver<Connection> for SourceIpAliasTextResolver<'_> {
 /// Index of the runtime-only alive indicator column.
 ///
 /// This column is added for capture mode display and is not user-configurable.
-pub const ALIVE_COLUMN_INDEX: usize = find_index_ignore_ascii_case(CONNECTION_COLS, "Alive");
+pub const ALIVE_COLUMN_INDEX: usize = find_connection_index_by_id("alive");
 
 pub fn with_alive_column(columns: impl IntoIterator<Item = usize>) -> Vec<usize> {
     let mut columns = columns.into_iter().collect::<Vec<_>>();
@@ -169,133 +172,174 @@ pub fn with_alive_column(columns: impl IntoIterator<Item = usize>) -> Vec<usize>
 /// User config stores column IDs, which are parsed into runtime indices in this
 /// slice. `ALIVE_COLUMN_INDEX` is runtime-only and must stay excluded from user
 /// column settings.
-pub static CONNECTION_COLS: &[ColDef<Connection>] = &[
-    ColDef {
-        id: "alive",
-        title: "Alive",
-        filterable: false,
-        sortable: true,
-        accessor: |c: &Connection| {
-            let alive = !c.inactive.load(Ordering::Relaxed);
-            Cow::Borrowed(if alive {
-                concatcp!(" ", dot::GREEN_LARGE)
-            } else {
-                concatcp!(" ", dot::RED_LARGE)
-            })
+pub static CONNECTION_COLS: &[TableColDef<Connection>] = &[
+    TableColDef {
+        col: ColDef {
+            id: "alive",
+            title: "Alive",
+            filterable: false,
+            sortable: true,
+            accessor: |c: &Connection| {
+                let alive = !c.inactive.load(Ordering::Relaxed);
+                Cow::Borrowed(if alive {
+                    concatcp!(" ", dot::GREEN_LARGE)
+                } else {
+                    concatcp!(" ", dot::RED_LARGE)
+                })
+            },
+            sort_key: Some(|c: &Connection| SortKey::Bool(!c.inactive.load(Ordering::Relaxed))),
         },
-        sort_key: Some(|c: &Connection| SortKey::Bool(!c.inactive.load(Ordering::Relaxed))),
+        constraint: Constraint::Length(6),
     },
-    ColDef {
-        id: "host",
-        title: "Host",
-        filterable: true,
-        sortable: true,
-        accessor: |c: &Connection| {
-            let dst_port = match &c.metadata["destinationPort"] {
-                Value::Number(number) => number
-                    .as_u64()
-                    .map(|v| Cow::Owned(format!("{v}")))
-                    .unwrap_or_else(|| Cow::Borrowed("")),
-                Value::String(str) => Cow::Borrowed(str.as_str()),
-                _ => Cow::Borrowed(""),
-            };
-            if let Some(h) =
-                c.metadata.get("host").and_then(Value::as_str).filter(|s| !s.is_empty())
-            {
-                return Cow::Owned(format!("{h}:{}", dst_port));
-            }
+    TableColDef {
+        col: ColDef {
+            id: "host",
+            title: "Host",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| {
+                let dst_port = match &c.metadata["destinationPort"] {
+                    Value::Number(number) => number
+                        .as_u64()
+                        .map(|v| Cow::Owned(format!("{v}")))
+                        .unwrap_or_else(|| Cow::Borrowed("")),
+                    Value::String(str) => Cow::Borrowed(str.as_str()),
+                    _ => Cow::Borrowed(""),
+                };
+                if let Some(h) =
+                    c.metadata.get("host").and_then(Value::as_str).filter(|s| !s.is_empty())
+                {
+                    return Cow::Owned(format!("{h}:{}", dst_port));
+                }
 
-            let dip = c.metadata.get("destinationIP").and_then(Value::as_str).unwrap_or("");
-            let with_port = if dip.contains(':') {
-                // IPv6
-                format!("[{dip}]:{}", dst_port)
-            } else {
-                format!("{dip}:{}", dst_port)
-            };
+                let dip = c.metadata.get("destinationIP").and_then(Value::as_str).unwrap_or("");
+                let with_port = if dip.contains(':') {
+                    // IPv6
+                    format!("[{dip}]:{}", dst_port)
+                } else {
+                    format!("{dip}:{}", dst_port)
+                };
 
-            Cow::Owned(with_port)
+                Cow::Owned(with_port)
+            },
+            sort_key: None,
         },
-        sort_key: None,
+        constraint: Constraint::Min(30),
     },
-    ColDef {
-        id: "rule",
-        title: "Rule",
-        filterable: true,
-        sortable: true,
-        accessor: |c: &Connection| Cow::Borrowed(c.rule.as_str()),
-        sort_key: None,
-    },
-    ColDef {
-        id: "chains",
-        title: "Chains",
-        filterable: true,
-        sortable: true,
-        accessor: |c: &Connection| {
-            // Reverse to display in correct order
-            let chains: Vec<&str> = c.chains.iter().rev().map(String::as_str).collect();
-            Cow::Owned(chains.join(" > "))
+    TableColDef {
+        col: ColDef {
+            id: "rule",
+            title: "Rule",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| Cow::Borrowed(c.rule.as_str()),
+            sort_key: None,
         },
-        sort_key: None,
+        constraint: Constraint::Max(15),
     },
-    ColDef {
-        id: "down_rate",
-        title: "DownRate",
-        filterable: false,
-        sortable: true,
-        accessor: |c: &Connection| Cow::Owned(human_bytes(c.download_rate as f64, Some("/s"))),
-        sort_key: Some(|c: &Connection| SortKey::U64(c.download_rate)),
+    TableColDef {
+        col: ColDef {
+            id: "chains",
+            title: "Chains",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| {
+                // Reverse to display in correct order
+                let chains: Vec<&str> = c.chains.iter().rev().map(String::as_str).collect();
+                Cow::Owned(chains.join(" > "))
+            },
+            sort_key: None,
+        },
+        constraint: Constraint::Min(10),
     },
-    ColDef {
-        id: "up_rate",
-        title: "UpRate",
-        filterable: false,
-        sortable: true,
-        accessor: |c: &Connection| Cow::Owned(human_bytes(c.upload_rate as f64, Some("/s"))),
-        sort_key: Some(|c: &Connection| SortKey::U64(c.upload_rate)),
+    TableColDef {
+        col: ColDef {
+            id: "down_rate",
+            title: "DownRate",
+            filterable: false,
+            sortable: true,
+            accessor: |c: &Connection| Cow::Owned(human_bytes(c.download_rate as f64, Some("/s"))),
+            sort_key: Some(|c: &Connection| SortKey::U64(c.download_rate)),
+        },
+        constraint: Constraint::Max(15),
     },
-    ColDef {
-        id: "down_total",
-        title: "DownTotal",
-        filterable: false,
-        sortable: true,
-        accessor: |c: &Connection| Cow::Owned(human_bytes(c.download as f64, None)),
-        sort_key: Some(|c: &Connection| SortKey::U64(c.download)),
+    TableColDef {
+        col: ColDef {
+            id: "up_rate",
+            title: "UpRate",
+            filterable: false,
+            sortable: true,
+            accessor: |c: &Connection| Cow::Owned(human_bytes(c.upload_rate as f64, Some("/s"))),
+            sort_key: Some(|c: &Connection| SortKey::U64(c.upload_rate)),
+        },
+        constraint: Constraint::Max(15),
     },
-    ColDef {
-        id: "up_total",
-        title: "UpTotal",
-        filterable: false,
-        sortable: true,
-        accessor: |c: &Connection| Cow::Owned(human_bytes(c.upload as f64, None)),
-        sort_key: Some(|c: &Connection| SortKey::U64(c.upload)),
+    TableColDef {
+        col: ColDef {
+            id: "down_total",
+            title: "DownTotal",
+            filterable: false,
+            sortable: true,
+            accessor: |c: &Connection| Cow::Owned(human_bytes(c.download as f64, None)),
+            sort_key: Some(|c: &Connection| SortKey::U64(c.download)),
+        },
+        constraint: Constraint::Max(15),
     },
-    ColDef {
-        id: "source_ip",
-        title: "SourceIP",
-        filterable: true,
-        sortable: true,
-        accessor: |c: &Connection| Cow::Borrowed(c.metadata["sourceIP"].as_str().unwrap_or("-")),
-        sort_key: None,
+    TableColDef {
+        col: ColDef {
+            id: "up_total",
+            title: "UpTotal",
+            filterable: false,
+            sortable: true,
+            accessor: |c: &Connection| Cow::Owned(human_bytes(c.upload as f64, None)),
+            sort_key: Some(|c: &Connection| SortKey::U64(c.upload)),
+        },
+        constraint: Constraint::Max(15),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "source_ip",
+            title: "SourceIP",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| {
+                Cow::Borrowed(c.metadata["sourceIP"].as_str().unwrap_or("-"))
+            },
+            sort_key: None,
+        },
+        constraint: Constraint::Max(20),
     },
 ];
 
-pub static CONNECTION_COL_CONSTRAINTS: &[Constraint] = &[
-    Constraint::Length(6),
-    Constraint::Min(30),
-    Constraint::Max(15),
-    Constraint::Min(10),
-    Constraint::Max(15),
-    Constraint::Max(15),
-    Constraint::Max(15),
-    Constraint::Max(15),
-    Constraint::Max(20),
-];
+const fn find_connection_index_by_id(id: &str) -> usize {
+    let mut i = 0;
+
+    while i < CONNECTION_COLS.len() {
+        if CONNECTION_COLS[i].col.id.eq_ignore_ascii_case(id) {
+            return i;
+        }
+
+        i += 1;
+    }
+
+    panic!("id not found")
+}
 
 /// Default runtime columns for the connections table.
 ///
 /// Runtime columns include `ALIVE_COLUMN_INDEX`; user-configurable columns must
 /// filter it out before showing or persisting user choices.
-pub const DEFAULT_CONNECTION_COL_INDICES: &[usize] = &[0, 1, 2, 3, 4, 5, 6, 7, 8];
+pub const DEFAULT_CONNECTION_COL_INDICES: &[usize] = &[
+    find_connection_index_by_id("alive"),
+    find_connection_index_by_id("host"),
+    find_connection_index_by_id("rule"),
+    find_connection_index_by_id("chains"),
+    find_connection_index_by_id("down_rate"),
+    find_connection_index_by_id("up_rate"),
+    find_connection_index_by_id("down_total"),
+    find_connection_index_by_id("up_total"),
+    find_connection_index_by_id("source_ip"),
+];
 
 #[cfg(test)]
 mod tests {
@@ -337,7 +381,7 @@ mod tests {
     fn connection_col_index(id: &str) -> usize {
         CONNECTION_COLS
             .iter()
-            .position(|col| col.id == id)
+            .position(|col| col.col.id == id)
             .unwrap_or_else(|| panic!("connection column {id:?} should exist"))
     }
 
@@ -457,7 +501,7 @@ mod tests {
 
         let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
         let source_ip_visible_col =
-            columns.iter().position(|&col| CONNECTION_COLS[col].id == "source_ip").unwrap();
+            columns.iter().position(|&col| CONNECTION_COLS[col].col.id == "source_ip").unwrap();
         ConnectionsSetting::update(|setting| {
             setting.columns = columns.clone();
             setting.query_state = QueryState::new(columns.len());
@@ -473,8 +517,8 @@ mod tests {
             vec!["1", "2"]
         );
 
-        let source_ip_col = CONNECTION_COLS.iter().find(|col| col.id == "source_ip").unwrap();
-        assert_eq!((source_ip_col.accessor)(&connection("3", Some("10.0.0.1"))), "10.0.0.1");
+        let source_ip_col = CONNECTION_COLS.iter().find(|col| col.col.id == "source_ip").unwrap();
+        assert_eq!((source_ip_col.col.accessor)(&connection("3", Some("10.0.0.1"))), "10.0.0.1");
 
         ConnectionsSetting::update(|setting| {
             let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();

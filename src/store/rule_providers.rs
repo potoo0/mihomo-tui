@@ -4,9 +4,10 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use indexmap::IndexMap;
 use nucleo_matcher::Matcher;
+use ratatui::layout::Constraint;
 
 use crate::models::RuleProvider;
-use crate::utils::columns::ColDef;
+use crate::utils::columns::{ColDef, TableColDef};
 use crate::utils::row_filter::RowFilter;
 use crate::utils::time::format_datetime;
 
@@ -50,45 +51,60 @@ impl RuleProviders {
     }
 }
 
-pub static RULE_PROVIDER_COLS: &[ColDef<RuleProvider>] = &[
-    ColDef {
-        id: "name",
-        title: "Name",
-        filterable: true,
-        sortable: true,
-        accessor: |c: &RuleProvider| Cow::Borrowed(c.name.as_str()),
-        sort_key: None,
+pub static RULE_PROVIDER_COLS: &[TableColDef<RuleProvider>] = &[
+    TableColDef {
+        col: ColDef {
+            id: "name",
+            title: "Name",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &RuleProvider| Cow::Borrowed(c.name.as_str()),
+            sort_key: None,
+        },
+        constraint: Constraint::Min(30),
     },
-    ColDef {
-        id: "vehicleType",
-        title: "VehicleType",
-        filterable: true,
-        sortable: true,
-        accessor: |c: &RuleProvider| Cow::Borrowed(c.vehicle_type.as_str()),
-        sort_key: None,
+    TableColDef {
+        col: ColDef {
+            id: "vehicleType",
+            title: "VehicleType",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &RuleProvider| Cow::Borrowed(c.vehicle_type.as_str()),
+            sort_key: None,
+        },
+        constraint: Constraint::Min(15),
     },
-    ColDef {
-        id: "behavior",
-        title: "Behavior",
-        filterable: true,
-        sortable: true,
-        accessor: |c: &RuleProvider| Cow::Borrowed(c.behavior.as_str()),
-        sort_key: None,
+    TableColDef {
+        col: ColDef {
+            id: "behavior",
+            title: "Behavior",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &RuleProvider| Cow::Borrowed(c.behavior.as_str()),
+            sort_key: None,
+        },
+        constraint: Constraint::Min(15),
     },
-    ColDef {
-        id: "rule_count",
-        title: "RuleCount",
-        filterable: false,
-        sortable: true,
-        accessor: |c: &RuleProvider| Cow::Owned(c.rule_count.to_string()),
-        sort_key: None,
+    TableColDef {
+        col: ColDef {
+            id: "rule_count",
+            title: "RuleCount",
+            filterable: false,
+            sortable: true,
+            accessor: |c: &RuleProvider| Cow::Owned(c.rule_count.to_string()),
+            sort_key: None,
+        },
+        constraint: Constraint::Min(15),
     },
-    ColDef {
-        id: "updated_at",
-        title: "UpdatedAt",
-        filterable: false,
-        sortable: true,
-        accessor: |c: &RuleProvider| Cow::Borrowed(c.updated_at_str.as_deref().unwrap_or("-")),
-        sort_key: None,
+    TableColDef {
+        col: ColDef {
+            id: "updated_at",
+            title: "UpdatedAt",
+            filterable: false,
+            sortable: true,
+            accessor: |c: &RuleProvider| Cow::Borrowed(c.updated_at_str.as_deref().unwrap_or("-")),
+            sort_key: None,
+        },
+        constraint: Constraint::Min(30),
     },
 ];

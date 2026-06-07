@@ -10,7 +10,7 @@ use crate::store::connections_setting::ConnectionsSetting;
 fn connection_col_index(title: &str) -> usize {
     CONNECTION_COLS
         .iter()
-        .position(|def| def.title.eq_ignore_ascii_case(title))
+        .position(|def| def.col.title.eq_ignore_ascii_case(title))
         .unwrap_or_else(|| panic!("connection column {title:?} should exist"))
 }
 

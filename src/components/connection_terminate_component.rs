@@ -1,5 +1,5 @@
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -21,7 +21,12 @@ use crate::utils::columns::ColDef;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
-const COLS: [&str; 4] = ["host", "rule", "chains", "source_ip"];
+const COLS: [&ColDef<Connection>; 4] = [
+    find_conn_def_by_id("host"),
+    find_conn_def_by_id("rule"),
+    find_conn_def_by_id("chains"),
+    find_conn_def_by_id("source_ip"),
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 enum Phase {
@@ -64,20 +69,6 @@ impl ConnectionTerminateComponent {
         self.token.cancel();
         *self.phase.write().unwrap() = Phase::Hidden;
         self.target = None;
-    }
-
-    fn cols_def() -> &'static [&'static ColDef<Connection>] {
-        static HOST_RULE_COLS: OnceLock<Vec<&'static ColDef<Connection>>> = OnceLock::new();
-        HOST_RULE_COLS
-            .get_or_init(|| {
-                COLS.iter()
-                    .map(|id| match CONNECTION_COLS.iter().find(|c| c.id == *id) {
-                        Some(c) => c,
-                        None => panic!("Column definition for `{}` not found", id),
-                    })
-                    .collect()
-            })
-            .as_slice()
     }
 
     fn terminate_connection(&mut self) -> Result<()> {
@@ -197,7 +188,7 @@ impl Component for ConnectionTerminateComponent {
         let chunks = Layout::vertical([Constraint::Min(3), Constraint::Length(3)]).split(inner);
 
         // content
-        let mut lines: Vec<Line> = Self::cols_def()
+        let mut lines: Vec<Line> = COLS
             .iter()
             .map(|def| {
                 let value = (def.accessor)(conn);
@@ -232,4 +223,18 @@ impl Component for ConnectionTerminateComponent {
 
         Ok(())
     }
+}
+
+const fn find_conn_def_by_id(id: &str) -> &ColDef<Connection> {
+    let mut i = 0;
+
+    while i < CONNECTION_COLS.len() {
+        if CONNECTION_COLS[i].col.id.eq_ignore_ascii_case(id) {
+            return &CONNECTION_COLS[i].col;
+        }
+
+        i += 1;
+    }
+
+    panic!("id not found")
 }

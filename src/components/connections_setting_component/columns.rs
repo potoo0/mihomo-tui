@@ -183,7 +183,7 @@ fn column_items_from_selected(selected_columns: &[usize]) -> Vec<ColumnSettingIt
             continue;
         }
         if let Some(def) = CONNECTION_COLS.get(original_index) {
-            items.push(ColumnSettingItem { original_index, title: def.title, selected: true });
+            items.push(ColumnSettingItem { original_index, title: def.col.title, selected: true });
         }
     }
 
@@ -191,7 +191,7 @@ fn column_items_from_selected(selected_columns: &[usize]) -> Vec<ColumnSettingIt
         if original_index == ALIVE_COLUMN_INDEX || selected_columns.contains(&original_index) {
             continue;
         }
-        items.push(ColumnSettingItem { original_index, title: def.title, selected: false });
+        items.push(ColumnSettingItem { original_index, title: def.col.title, selected: false });
     }
 
     items

@@ -21,9 +21,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
-use crate::store::connections::{
-    CONNECTION_COL_CONSTRAINTS, CONNECTION_COLS, Connections, SourceIpAliasTextResolver,
-};
+use crate::store::connections::{CONNECTION_COLS, Connections, SourceIpAliasTextResolver};
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::utils::columns::TextResolver;
 use crate::utils::symbols::{arrow, triangle};
@@ -159,7 +157,7 @@ impl ConnectionsComponent {
         let header = setting
             .columns
             .iter()
-            .filter_map(|&index| CONNECTION_COLS.get(index).map(|def| (index, def.title)))
+            .filter_map(|&index| CONNECTION_COLS.get(index).map(|def| (index, def.col.title)))
             .enumerate()
             .map(|(visible_index, (_index, title))| {
                 if let Some(sort) = sort
@@ -180,26 +178,24 @@ impl ConnectionsComponent {
         let selected_row_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
         let text_resolver = SourceIpAliasTextResolver { source_ip_alias: &setting.source_ip_alias };
 
-        let rows: Vec<Row> = records
-            .iter()
-            .map(|item| {
-                Row::new(
-                    setting
-                        .columns
-                        .iter()
-                        .filter_map(|&index| CONNECTION_COLS.get(index))
-                        .map(|def| text_resolver.resolve(def, item, (def.accessor)(item))),
-                )
-                .height(ROW_HEIGHT as u16)
-            })
-            .collect();
-        // TODO optimize by caching header and constraints ?
+        let rows: Vec<Row> =
+            records
+                .iter()
+                .map(|item| {
+                    Row::new(
+                        setting.columns.iter().filter_map(|&index| CONNECTION_COLS.get(index)).map(
+                            |def| text_resolver.resolve(&def.col, item, (def.col.accessor)(item)),
+                        ),
+                    )
+                    .height(ROW_HEIGHT as u16)
+                })
+                .collect();
         let constraints = setting.columns.iter().filter_map(|&index| {
-            let constraint = CONNECTION_COL_CONSTRAINTS.get(index)?;
+            let constraint = CONNECTION_COLS.get(index)?.constraint;
             if index == 0 && !self.capture_mode.load(Ordering::Relaxed) {
                 Some(Constraint::Length(0))
             } else {
-                Some(*constraint)
+                Some(constraint)
             }
         });
         let table = Table::new(rows, constraints)
