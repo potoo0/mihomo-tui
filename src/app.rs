@@ -51,7 +51,7 @@ impl App {
         // initialize global settings
         *ProxySetting::global().write().unwrap() = self.config.proxy_setting.clone();
         if let Some(connections) = self.config.ui.as_ref().and_then(|ui| ui.connections.as_ref()) {
-            *ConnectionsSetting::global().write().unwrap() = Arc::new(connections.into());
+            *ConnectionsSetting::global().write().unwrap() = Arc::new(connections.try_into()?);
         }
         // initialize root component
         self.root.init(Arc::clone(&self.api))?;

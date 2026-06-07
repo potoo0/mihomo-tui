@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 use serde::Deserialize;
 use url::Url;
 
-use crate::models::sort::{ProxySortField, SortDir, SortSpec};
+use crate::models::sort::{ProxySortField, SortDir};
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -40,11 +40,22 @@ pub struct UiConfig {
     pub proxy_provider_detail: Option<ProxyDetailUiConfig>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct ConnectionsUiConfig {
-    pub columns: Vec<usize>,
-    pub sort: Option<SortSpec>,
+    pub columns: Option<Vec<String>>,
+    pub sort: Option<ConnectionsSortConfig>,
+    #[serde(default)]
     pub source_ip_alias: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ConnectionsSortConfig {
+    pub field: String,
+
+    #[serde(default)]
+    pub dir: SortDir,
 }
 
 #[derive(Debug, Clone, Deserialize)]

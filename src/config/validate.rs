@@ -3,12 +3,99 @@ use std::num::NonZeroUsize;
 use anyhow::{Result, anyhow, bail};
 use url::Url;
 
-use crate::config::{Config, LatencyThreshold, ProxySetting};
+use crate::config::{
+    Config, ConnectionsSortConfig, ConnectionsUiConfig, LatencyThreshold, ProxySetting,
+};
+use crate::models::sort::SortSpec;
+use crate::store::connections::{ALIVE_COLUMN_INDEX, CONNECTION_COLS};
 
 impl Config {
     pub fn validate(&self) -> Result<()> {
         self.proxy_setting.validate()?;
+        if let Some(connections) = self.ui.as_ref().and_then(|ui| ui.connections.as_ref()) {
+            connections.validate()?;
+        }
         Ok(())
+    }
+}
+
+impl ConnectionsUiConfig {
+    pub fn validate(&self) -> Result<()> {
+        if let Some(columns) = &self.columns {
+            Self::parse_connections_columns(columns)?;
+        }
+        if let Some(sort) = &self.sort {
+            Self::parse_connections_sort(sort)?;
+        }
+        Ok(())
+    }
+
+    pub fn parse_connections_sort(raw: &ConnectionsSortConfig) -> Result<SortSpec> {
+        let sortable_cols = Self::sortable_connection_cols();
+        let Some(col) = Self::find_index_ignore_case(&sortable_cols, &raw.field) else {
+            bail!(
+                "`ui.connections.sort.field` must be one of [{}], got {:?}",
+                Self::join_connection_col_titles(&sortable_cols),
+                raw.field
+            );
+        };
+
+        Ok(SortSpec { col, dir: raw.dir })
+    }
+
+    pub fn parse_connections_columns(raw: &[String]) -> Result<Vec<usize>> {
+        let configurable_cols = Self::configurable_connection_cols();
+        if raw.is_empty() {
+            bail!(
+                "`ui.connections.columns` cannot be empty, must be one of [{}]",
+                Self::join_connection_col_titles(&configurable_cols)
+            );
+        }
+
+        let mut cols = Vec::with_capacity(raw.len());
+        for field in raw {
+            let Some(col) = Self::find_index_ignore_case(&configurable_cols, field) else {
+                bail!(
+                    "`ui.connections.columns` values must be one of [{}], got {:?}",
+                    Self::join_connection_col_titles(&configurable_cols),
+                    field
+                );
+            };
+
+            if cols.contains(&col) {
+                bail!("duplicate `ui.connections.columns` value: {:?}", field);
+            }
+            cols.push(col);
+        }
+
+        Ok(cols)
+    }
+
+    fn find_index_ignore_case(items: &[(usize, &'static str)], name: &str) -> Option<usize> {
+        items.iter().find(|(_, title)| title.eq_ignore_ascii_case(name)).map(|(idx, _)| *idx)
+    }
+
+    fn sortable_connection_cols() -> Vec<(usize, &'static str)> {
+        CONNECTION_COLS
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| *idx != ALIVE_COLUMN_INDEX)
+            .filter(|(_, def)| def.sortable)
+            .map(|(idx, def)| (idx, def.title))
+            .collect::<Vec<_>>()
+    }
+
+    fn configurable_connection_cols() -> Vec<(usize, &'static str)> {
+        CONNECTION_COLS
+            .iter()
+            .enumerate()
+            .filter(|(idx, _)| *idx != ALIVE_COLUMN_INDEX)
+            .map(|(idx, def)| (idx, def.title))
+            .collect::<Vec<_>>()
+    }
+
+    fn join_connection_col_titles(cols: &[(usize, &'static str)]) -> String {
+        cols.iter().map(|(_, title)| *title).collect::<Vec<_>>().join(", ")
     }
 }
 
