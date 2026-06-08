@@ -18,6 +18,7 @@ use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey, TableColDef, TextResolver};
 use crate::utils::row_filter::RowFilter;
 use crate::utils::symbols::dot;
+use crate::utils::time::format_time_from_now;
 
 pub struct Connections {
     matcher: Mutex<Matcher>,
@@ -120,9 +121,7 @@ impl Connections {
             .read()
             .unwrap()
             .iter()
-            .filter_map(|connection| {
-                connection.metadata.get("sourceIP").and_then(Value::as_str).map(str::trim)
-            })
+            .filter_map(|connection| connection.metadata_str("sourceIP"))
             .filter(|source_ip| !source_ip.is_empty())
             .map(ToOwned::to_owned)
             .collect::<Vec<_>>();
@@ -206,13 +205,11 @@ pub static CONNECTION_COLS: &[TableColDef<Connection>] = &[
                     Value::String(str) => Cow::Borrowed(str.as_str()),
                     _ => Cow::Borrowed(""),
                 };
-                if let Some(h) =
-                    c.metadata.get("host").and_then(Value::as_str).filter(|s| !s.is_empty())
-                {
+                if let Some(h) = c.metadata_str("host") {
                     return Cow::Owned(format!("{h}:{}", dst_port));
                 }
 
-                let dip = c.metadata.get("destinationIP").and_then(Value::as_str).unwrap_or("");
+                let dip = c.metadata_str("destinationIP").unwrap_or("");
                 let with_port = if dip.contains(':') {
                     // IPv6
                     format!("[{dip}]:{}", dst_port)
@@ -261,7 +258,7 @@ pub static CONNECTION_COLS: &[TableColDef<Connection>] = &[
             accessor: |c: &Connection| Cow::Owned(human_bytes(c.download_rate as f64, Some("/s"))),
             sort_key: Some(|c: &Connection| SortKey::U64(c.download_rate)),
         },
-        constraint: Constraint::Max(15),
+        constraint: Constraint::Max(12),
     },
     TableColDef {
         col: ColDef {
@@ -272,7 +269,7 @@ pub static CONNECTION_COLS: &[TableColDef<Connection>] = &[
             accessor: |c: &Connection| Cow::Owned(human_bytes(c.upload_rate as f64, Some("/s"))),
             sort_key: Some(|c: &Connection| SortKey::U64(c.upload_rate)),
         },
-        constraint: Constraint::Max(15),
+        constraint: Constraint::Max(12),
     },
     TableColDef {
         col: ColDef {
@@ -283,7 +280,7 @@ pub static CONNECTION_COLS: &[TableColDef<Connection>] = &[
             accessor: |c: &Connection| Cow::Owned(human_bytes(c.download as f64, None)),
             sort_key: Some(|c: &Connection| SortKey::U64(c.download)),
         },
-        constraint: Constraint::Max(15),
+        constraint: Constraint::Max(12),
     },
     TableColDef {
         col: ColDef {
@@ -294,7 +291,7 @@ pub static CONNECTION_COLS: &[TableColDef<Connection>] = &[
             accessor: |c: &Connection| Cow::Owned(human_bytes(c.upload as f64, None)),
             sort_key: Some(|c: &Connection| SortKey::U64(c.upload)),
         },
-        constraint: Constraint::Max(15),
+        constraint: Constraint::Max(12),
     },
     TableColDef {
         col: ColDef {
@@ -302,14 +299,135 @@ pub static CONNECTION_COLS: &[TableColDef<Connection>] = &[
             title: "SourceIP",
             filterable: true,
             sortable: true,
+            accessor: |c: &Connection| Cow::Borrowed(c.metadata_str("sourceIP").unwrap_or("-")),
+            sort_key: None,
+        },
+        constraint: Constraint::Max(20),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "type",
+            title: "Type",
+            filterable: true,
+            sortable: true,
             accessor: |c: &Connection| {
-                Cow::Borrowed(c.metadata["sourceIP"].as_str().unwrap_or("-"))
+                let r#type = c.metadata_str("type").unwrap_or("-");
+                let network = c.metadata_str("network").unwrap_or("-");
+                Cow::Owned(format!("{type}({network})"))
+            },
+            sort_key: None,
+        },
+        constraint: Constraint::Max(12),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "process",
+            title: "Process",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| {
+                Cow::Borrowed(
+                    c.metadata_str("process")
+                        .or_else(|| c.metadata_str("processPath").map(process_name))
+                        .unwrap_or("-"),
+                )
+            },
+            sort_key: None,
+        },
+        constraint: Constraint::Max(12),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "sniff_host",
+            title: "SniffHost",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| {
+                c.metadata_str("sniffHost").map(Cow::Borrowed).unwrap_or("-".into())
+            },
+            sort_key: None,
+        },
+        constraint: Constraint::Max(20),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "connect_time",
+            title: "ConnectTime",
+            filterable: false,
+            sortable: true,
+            accessor: |c: &Connection| {
+                c.start.map(format_time_from_now).map(Cow::Owned).unwrap_or("-".into())
+            },
+            sort_key: Some(|c: &Connection| {
+                let start =
+                    c.start.and_then(|dt| u64::try_from(dt.unix_timestamp()).ok()).unwrap_or(0);
+
+                SortKey::U64(u64::MAX - start)
+            }),
+        },
+        constraint: Constraint::Max(12),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "source_port",
+            title: "SourcePort",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| match &c.metadata["sourcePort"] {
+                Value::String(s) => Cow::Borrowed(s),
+                Value::Number(n) => Cow::Owned(n.to_string()),
+                _ => "-".into(),
+            },
+            sort_key: Some(|c: &Connection| match &c.metadata["sourcePort"] {
+                Value::String(s) => SortKey::U64(s.parse().unwrap_or(0)),
+                Value::Number(n) => SortKey::U64(n.as_u64().unwrap_or(0)),
+                _ => SortKey::U64(0),
+            }),
+        },
+        constraint: Constraint::Max(8),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "dest",
+            title: "Dest",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| {
+                Cow::Borrowed(
+                    c.metadata_str("remoteDestination")
+                        .or_else(|| c.metadata_str("destinationIP"))
+                        .or_else(|| c.metadata_str("host"))
+                        .unwrap_or("-"),
+                )
+            },
+            sort_key: None,
+        },
+        constraint: Constraint::Max(20),
+    },
+    TableColDef {
+        col: ColDef {
+            id: "inbound",
+            title: "Inbound",
+            filterable: true,
+            sortable: true,
+            accessor: |c: &Connection| {
+                Cow::Borrowed(
+                    c.metadata_str("inboundUser")
+                        .or_else(|| c.metadata_str("inboundIP"))
+                        .or_else(|| c.metadata_str("inboundName"))
+                        .or_else(|| c.metadata_str("type"))
+                        .unwrap_or("-"),
+                )
             },
             sort_key: None,
         },
         constraint: Constraint::Max(20),
     },
 ];
+
+fn process_name(process_path: &str) -> &str {
+    process_path.rsplit(['/', '\\']).next().unwrap_or(process_path)
+}
 
 const fn find_connection_index_by_id(id: &str) -> usize {
     let mut i = 0;
@@ -343,6 +461,7 @@ pub const DEFAULT_CONNECTION_COL_INDICES: &[usize] = &[
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::Ordering as CmpOrdering;
     use std::collections::HashMap;
     use std::num::NonZeroUsize;
     use std::sync::atomic::AtomicBool;
@@ -350,6 +469,7 @@ mod tests {
 
     use ringbuffer::{AllocRingBuffer, RingBuffer};
     use serde_json::json;
+    use time::OffsetDateTime;
 
     use super::*;
     use crate::models::sort::{SortDir, SortSpec};
@@ -368,7 +488,7 @@ mod tests {
             metadata,
             upload: 0,
             download: 0,
-            start: String::new(),
+            start: None,
             chains: Vec::new(),
             rule: String::new(),
             rule_payload: String::new(),
@@ -383,6 +503,10 @@ mod tests {
             .iter()
             .position(|col| col.col.id == id)
             .unwrap_or_else(|| panic!("connection column {id:?} should exist"))
+    }
+
+    fn connection_col(id: &str) -> &'static ColDef<Connection> {
+        &CONNECTION_COLS[connection_col_index(id)].col
     }
 
     #[test]
@@ -526,5 +650,31 @@ mod tests {
             setting.query_state = QueryState::new(columns.len());
             setting.source_ip_alias.clear();
         });
+    }
+
+    #[test]
+    fn connect_time_sorts_by_elapsed_duration() {
+        let mut newer = connection("newer", None);
+        newer.start = Some(OffsetDateTime::from_unix_timestamp(200).unwrap());
+        let mut older = connection("older", None);
+        older.start = Some(OffsetDateTime::from_unix_timestamp(100).unwrap());
+
+        let col = connection_col("connect_time");
+
+        assert_eq!(col.ordering(&newer, &older, SortDir::Asc), CmpOrdering::Less);
+        assert_eq!(col.ordering(&newer, &older, SortDir::Desc), CmpOrdering::Greater);
+    }
+
+    #[test]
+    fn source_port_sorts_numerically() {
+        let mut high = connection("high", None);
+        high.metadata = json!({ "sourcePort": "10000" });
+        let mut low = connection("low", None);
+        low.metadata = json!({ "sourcePort": 443 });
+
+        let col = connection_col("source_port");
+
+        assert_eq!(col.ordering(&low, &high, SortDir::Asc), CmpOrdering::Less);
+        assert_eq!(col.ordering(&low, &high, SortDir::Desc), CmpOrdering::Greater);
     }
 }

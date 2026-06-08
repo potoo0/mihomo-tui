@@ -27,6 +27,26 @@ pub fn format_datetime(dt: OffsetDateTime) -> Option<Box<str>> {
     dt.format(&DATETIME_FMT).ok().map(String::into_boxed_str)
 }
 
+/// Format OffsetDateTime as a compact elapsed time from now, such as `1s`, `59s`, or `1m`
+///
+/// # Arguments
+///
+/// * `dt` - OffsetDateTime
+///
+/// # Returns
+///
+/// * `0s` if the value is in the future
+pub fn format_time_from_now(dt: OffsetDateTime) -> String {
+    let secs = (OffsetDateTime::now_utc() - dt).whole_seconds().max(0);
+
+    match secs {
+        0..=59 => format!("{secs}s"),
+        60..=3_599 => format!("{}m", secs / 60),
+        3_600..=86_399 => format!("{}h", secs / 3_600),
+        _ => format!("{}d", secs / 86_400),
+    }
+}
+
 /// Format unix timestamp as `2006-01-02`
 ///
 /// # Arguments
