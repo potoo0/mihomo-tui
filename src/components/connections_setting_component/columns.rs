@@ -5,12 +5,14 @@ use ratatui::layout::Rect;
 use ratatui::prelude::{Color, Line, Modifier, Span, Style};
 use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 
-use super::{Direction, KeyOutcome, SettingPane, offset_index};
+use super::{Direction, KeyOutcome, SettingPane};
 use crate::store::connections::{
     ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES,
 };
 use crate::utils::symbols::arrow;
 use crate::widgets::shortcut::{Fragment, Shortcut};
+
+const COLUMN_PAGE_STEP: usize = 4;
 
 #[derive(Debug, Clone)]
 struct ColumnSettingItem {
@@ -53,7 +55,15 @@ impl SettingPane for ColumnsSettingPane {
         vec![
             Shortcut::new(vec![
                 Fragment::hl(arrow::LEFT),
+                Fragment::raw("/"),
+                Fragment::hl("PgUp"),
+                Fragment::raw("/"),
+                Fragment::hl("g"),
                 Fragment::raw(" nav "),
+                Fragment::hl("G"),
+                Fragment::raw("/"),
+                Fragment::hl("PgDn"),
+                Fragment::raw("/"),
                 Fragment::hl(arrow::RIGHT),
             ]),
             Shortcut::new(vec![
@@ -74,11 +84,15 @@ impl SettingPane for ColumnsSettingPane {
                 self.reorder_selected_column(Direction::Next)
             }
             KeyCode::Left if key.modifiers == KeyModifiers::NONE => {
-                self.move_selection(Direction::Prev)
+                self.move_selection(1, Direction::Prev)
             }
             KeyCode::Right if key.modifiers == KeyModifiers::NONE => {
-                self.move_selection(Direction::Next)
+                self.move_selection(1, Direction::Next)
             }
+            KeyCode::PageUp => self.move_selection(COLUMN_PAGE_STEP, Direction::Prev),
+            KeyCode::PageDown => self.move_selection(COLUMN_PAGE_STEP, Direction::Next),
+            KeyCode::Char('g') => self.jump_selection_to(0),
+            KeyCode::Char('G') => self.jump_selection_to(self.items.len().saturating_sub(1)),
             KeyCode::Char(' ') => self.toggle_selected_column(),
             _ => return KeyOutcome::Ignored,
         };
@@ -100,13 +114,28 @@ impl SettingPane for ColumnsSettingPane {
 }
 
 impl ColumnsSettingPane {
-    fn move_selection(&mut self, direction: Direction) {
+    fn move_selection(&mut self, step: usize, direction: Direction) {
         let len = self.items.len();
         if len == 0 {
             self.selected = 0;
             return;
         }
-        self.selected = offset_index(self.selected, len, direction);
+
+        self.selected = match direction {
+            Direction::Prev => self.selected.saturating_sub(step),
+            Direction::Next => self.selected.saturating_add(step).min(len - 1),
+        };
+        self.clear_error();
+    }
+
+    fn jump_selection_to(&mut self, index: usize) {
+        let len = self.items.len();
+        if len == 0 {
+            self.selected = 0;
+            return;
+        }
+
+        self.selected = index.min(len - 1);
         self.clear_error();
     }
 
@@ -131,7 +160,10 @@ impl ColumnsSettingPane {
             return;
         }
 
-        let next = offset_index(self.selected, self.items.len(), direction);
+        let next = match direction {
+            Direction::Prev => self.selected.saturating_sub(1),
+            Direction::Next => self.selected.saturating_add(1).min(self.items.len() - 1),
+        };
         self.items.swap(self.selected, next);
         self.selected = next;
         self.clear_error();
@@ -148,28 +180,25 @@ impl ColumnsSettingPane {
         frame.render_widget(block, area);
 
         let mut tokens = Vec::with_capacity(self.items.len() * 2);
+        let last_index = self.items.len().saturating_sub(1);
         for (index, item) in self.items.iter().enumerate() {
-            tokens.push(Span::styled(
-                format!(" {} ", item.title),
-                self.token_style(item.selected, index, active),
-            ));
-            tokens.push(Span::raw(" "));
+            let selected = self.selected == index && active;
+            tokens.push(Span::styled(item.title, self.token_style(item.selected, selected)));
+            if index != last_index {
+                tokens.push(Span::raw(" "));
+            }
         }
         frame.render_widget(Paragraph::new(Line::from(tokens)).wrap(Wrap { trim: false }), inner);
     }
 
-    fn token_style(&self, enabled: bool, index: usize, pane_active: bool) -> Style {
+    fn token_style(&self, enabled: bool, selected: bool) -> Style {
         let style = if enabled {
             Style::default().add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::DarkGray)
         };
 
-        if pane_active && self.selected == index {
-            style.fg(Color::Cyan).add_modifier(Modifier::REVERSED)
-        } else {
-            style
-        }
+        if selected { style.fg(Color::Cyan).add_modifier(Modifier::REVERSED) } else { style }
     }
 }
 
@@ -257,5 +286,87 @@ mod tests {
         );
         assert_eq!(pane.selected_column_indices()[..3], [2, 1, 3]);
         assert_eq!(pane.selected, 1);
+    }
+
+    #[test]
+    fn columns_g_and_shift_g_jump_to_first_and_last_column() {
+        let mut pane = ColumnsSettingPane::default();
+        pane.load(&[1, 2, 3]);
+        pane.selected = 2;
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, 0);
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Char('G'), KeyModifiers::NONE)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, pane.items.len() - 1);
+    }
+
+    #[test]
+    fn columns_page_up_and_page_down_move_by_four_with_bounds() {
+        let mut pane = ColumnsSettingPane::default();
+        pane.load(&[1, 2, 3]);
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, COLUMN_PAGE_STEP.min(pane.items.len() - 1));
+
+        pane.selected = pane.items.len().saturating_sub(2);
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, pane.items.len() - 1);
+
+        pane.selected = COLUMN_PAGE_STEP + 1;
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, 1);
+
+        pane.selected = 1;
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, 0);
+    }
+
+    #[test]
+    fn columns_fast_navigation_accepts_modified_keys() {
+        let mut pane = ColumnsSettingPane::default();
+        pane.load(&[1, 2, 3]);
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, 0);
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Char('G'), KeyModifiers::CONTROL)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, pane.items.len() - 1);
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::PageUp, KeyModifiers::SHIFT)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, (pane.items.len() - 1).saturating_sub(COLUMN_PAGE_STEP));
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::PageDown, KeyModifiers::SHIFT)),
+            KeyOutcome::Consumed
+        );
+        assert_eq!(pane.selected, pane.items.len() - 1);
     }
 }

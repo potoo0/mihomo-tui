@@ -58,15 +58,6 @@ pub(super) enum Direction {
     Next,
 }
 
-impl Direction {
-    fn offset(self) -> isize {
-        match self {
-            Self::Prev => -1,
-            Self::Next => 1,
-        }
-    }
-}
-
 pub(super) trait SettingPane {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![]
@@ -278,9 +269,4 @@ impl Component for ConnectionsSettingComponent {
 
         Ok(())
     }
-}
-
-pub(super) fn offset_index(current: usize, len: usize, direction: Direction) -> usize {
-    let max = len.saturating_sub(1) as isize;
-    (current as isize + direction.offset()).clamp(0, max) as usize
 }
