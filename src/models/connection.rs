@@ -3,6 +3,7 @@ use std::sync::atomic::AtomicBool;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use time::OffsetDateTime;
 
 use crate::utils::byte_size::ByteSize;
 
@@ -41,7 +42,9 @@ pub struct Connection {
     pub metadata: Value,
     pub upload: u64,
     pub download: u64,
-    pub start: String,
+    /// start time in RFC3339Nano format, e.g. "2006-01-02T15:04:05.999999999Z07:00"
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub start: Option<OffsetDateTime>,
     pub chains: Vec<String>,
     pub rule: String,
     pub rule_payload: String,
@@ -53,4 +56,10 @@ pub struct Connection {
     pub upload_rate: u64,
     #[serde(skip)]
     pub download_rate: u64,
+}
+
+impl Connection {
+    pub fn metadata_str(&self, key: &str) -> Option<&str> {
+        self.metadata.get(key)?.as_str().map(str::trim).filter(|s| !s.is_empty())
+    }
 }
