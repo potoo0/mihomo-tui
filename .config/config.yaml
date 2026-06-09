@@ -7,6 +7,9 @@ mihomo-api: http://127.0.0.1:9093
 # Path to mihomo config JSON schema file, Optional, default is builtin core-config.schema.json
 #mihomo-config-schema:
 
+# GitHub repository used to check mihomo core releases.
+mihomo-repo: MetaCubeX/mihomo
+
 # Log file, Optional, write log only if exists, linux example: /tmp/mihomo-tui.log
 log-file: mihomo-tui.log
 

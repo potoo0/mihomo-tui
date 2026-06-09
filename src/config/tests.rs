@@ -21,6 +21,7 @@ fn test_config_default() {
     let config = load(None).unwrap();
     assert_eq!(config.mihomo_api, default_config.mihomo_api);
     assert_eq!(config.mihomo_secret, default_config.mihomo_secret);
+    assert_eq!(config.mihomo_repo, default_config.mihomo_repo);
     assert_eq!(config.log_file, default_config.log_file);
     assert_eq!(config.log_level, default_config.log_level);
     assert!(config.ui.is_some());
@@ -59,8 +60,25 @@ log-level: "info"
     let config = load(Some(cfg_path.0.clone())).unwrap();
     assert_eq!(config.mihomo_api, Url::parse("http://localhost").unwrap());
     assert_eq!(config.mihomo_secret, Some("secret".to_owned()));
+    assert_eq!(config.mihomo_repo, default_mihomo_repo());
     assert_eq!(config.log_file, Some("/tmp/log.log".to_owned()));
     assert_eq!(config.log_level, Some("info".to_owned()));
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_custom_mihomo_repo() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+mihomo-repo: "example/mihomo"
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+    assert_eq!(config.mihomo_repo, "example/mihomo");
 
     drop(cfg_path);
 }

@@ -12,6 +12,8 @@ pub struct Config {
     pub mihomo_api: Url,
     pub mihomo_secret: Option<String>,
     pub mihomo_config_schema: Option<String>,
+    #[serde(default = "default_mihomo_repo")]
+    pub mihomo_repo: String,
 
     pub log_file: Option<String>,
 
@@ -147,4 +149,8 @@ impl Default for OverviewBufferConfig {
 
 fn default_proxy_detail_sort_dir() -> SortDir {
     SortDir::Asc
+}
+
+pub fn default_mihomo_repo() -> String {
+    "MetaCubeX/mihomo".to_owned()
 }
