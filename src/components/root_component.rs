@@ -324,7 +324,10 @@ impl Component for RootComponent {
     }
 
     fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
-        self.config = Some(config);
+        self.config = Some(Arc::clone(&config));
+        for component in self.components.values_mut() {
+            component.register_config_handler(Arc::clone(&config))?;
+        }
 
         Ok(())
     }
