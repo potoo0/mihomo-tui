@@ -6,9 +6,12 @@ use url::Url;
 use crate::config::Config;
 
 mod endpoints;
+mod github;
 mod stream;
 #[cfg(all(test, feature = "local-api-test"))]
 mod tests;
+
+pub use github::GithubApi;
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
