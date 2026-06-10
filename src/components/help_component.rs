@@ -94,6 +94,8 @@ impl HelpComponent {
             HelpRow::entry("Left, Right", "Columns:          navigate columns"),
             HelpRow::entry("Ctrl+Left, Ctrl+Right", "Columns:          move selected column"),
             HelpRow::entry("Space", "Columns:          toggle selected column"),
+            HelpRow::entry("a", "Columns:          select all columns"),
+            HelpRow::entry("i", "Columns:          invert selected columns"),
             HelpRow::entry("Up, Down", "Source IP Alias:  navigate source IP aliases"),
             // proxies / proxy detail
             HelpRow::Empty,

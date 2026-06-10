@@ -73,6 +73,8 @@ impl SettingPane for ColumnsSettingPane {
                 Fragment::hl(concatcp!("C-", arrow::RIGHT)),
             ]),
             Shortcut::new(vec![Fragment::raw("toggle "), Fragment::hl("Space")]),
+            Shortcut::from("all", 0).unwrap(),
+            Shortcut::from("invert", 0).unwrap(),
         ]
     }
 
@@ -92,9 +94,13 @@ impl SettingPane for ColumnsSettingPane {
             }
             KeyCode::PageUp => self.move_selection(COLUMN_PAGE_STEP, Direction::Prev),
             KeyCode::PageDown => self.move_selection(COLUMN_PAGE_STEP, Direction::Next),
-            KeyCode::Char('g') => self.jump_selection_to(0),
-            KeyCode::Char('G') => self.jump_selection_to(self.items.len().saturating_sub(1)),
+            KeyCode::Char('g') | KeyCode::Home => self.jump_selection_to(0),
+            KeyCode::Char('G') | KeyCode::End => {
+                self.jump_selection_to(self.items.len().saturating_sub(1))
+            }
             KeyCode::Char(' ') => self.toggle_selected_column(),
+            KeyCode::Char('a') => self.select_all_columns(),
+            KeyCode::Char('i') => self.invert_selected_columns(),
             _ => return KeyOutcome::Ignored,
         };
 
@@ -152,6 +158,23 @@ impl ColumnsSettingPane {
         }
 
         item.selected = !item.selected;
+        self.clear_error();
+    }
+
+    fn select_all_columns(&mut self) {
+        for item in &mut self.items {
+            item.selected = true;
+        }
+        self.clear_error();
+    }
+
+    fn invert_selected_columns(&mut self) {
+        for item in &mut self.items {
+            item.selected = !item.selected;
+        }
+        if let Some(item) = self.items.get_mut(self.selected) {
+            item.selected = true;
+        }
         self.clear_error();
     }
 
@@ -306,6 +329,40 @@ mod tests {
             KeyOutcome::Consumed
         );
         assert_eq!(pane.selected, pane.items.len() - 1);
+    }
+
+    #[test]
+    fn columns_select_all_marks_every_column_selected() {
+        let mut pane = ColumnsSettingPane::default();
+        pane.load(&[1, 2, 3]);
+        for item in pane.items.iter_mut().skip(1) {
+            item.selected = false;
+        }
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE)),
+            KeyOutcome::Consumed
+        );
+
+        assert!(pane.items.iter().all(|item| item.selected));
+        assert_eq!(pane.error(), None);
+    }
+
+    #[test]
+    fn columns_invert_keeps_current_column_selected() {
+        let mut pane = ColumnsSettingPane::default();
+        pane.load(&[1, 2, 3]);
+        pane.selected = 1;
+
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE)),
+            KeyOutcome::Consumed
+        );
+
+        assert!(!pane.items[0].selected);
+        assert!(pane.items[1].selected);
+        assert!(!pane.items[2].selected);
+        assert_eq!(pane.error(), None);
     }
 
     #[test]
