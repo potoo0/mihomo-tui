@@ -25,20 +25,20 @@ struct ColumnSettingItem {
 #[derive(Debug, Default)]
 pub(super) struct ColumnsSettingPane {
     items: Vec<ColumnSettingItem>,
-    selected: usize,
+    focused: usize,
     error: Option<String>,
 }
 
 impl ColumnsSettingPane {
     pub(super) fn load(&mut self, selected_columns: &[usize]) {
         self.items = column_items_from_selected(selected_columns);
-        self.selected = self.selected.min(self.items.len().saturating_sub(1));
+        self.focused = self.focused.min(self.items.len().saturating_sub(1));
         self.error = None;
     }
 
     pub(super) fn reset(&mut self) {
         self.items.clear();
-        self.selected = 0;
+        self.focused = 0;
         self.error = None;
     }
 
@@ -124,13 +124,13 @@ impl ColumnsSettingPane {
     fn move_selection(&mut self, step: usize, direction: Direction) {
         let len = self.items.len();
         if len == 0 {
-            self.selected = 0;
+            self.focused = 0;
             return;
         }
 
-        self.selected = match direction {
-            Direction::Prev => self.selected.saturating_sub(step),
-            Direction::Next => self.selected.saturating_add(step).min(len - 1),
+        self.focused = match direction {
+            Direction::Prev => self.focused.saturating_sub(step),
+            Direction::Next => self.focused.saturating_add(step).min(len - 1),
         };
         self.clear_error();
     }
@@ -138,17 +138,17 @@ impl ColumnsSettingPane {
     fn jump_selection_to(&mut self, index: usize) {
         let len = self.items.len();
         if len == 0 {
-            self.selected = 0;
+            self.focused = 0;
             return;
         }
 
-        self.selected = index.min(len - 1);
+        self.focused = index.min(len - 1);
         self.clear_error();
     }
 
     fn toggle_selected_column(&mut self) {
         let selected_count = self.items.iter().filter(|item| item.selected).count();
-        let Some(item) = self.items.get_mut(self.selected) else {
+        let Some(item) = self.items.get_mut(self.focused) else {
             return;
         };
 
@@ -172,7 +172,7 @@ impl ColumnsSettingPane {
         for item in &mut self.items {
             item.selected = !item.selected;
         }
-        if let Some(item) = self.items.get_mut(self.selected) {
+        if let Some(item) = self.items.get_mut(self.focused) {
             item.selected = true;
         }
         self.clear_error();
@@ -180,16 +180,16 @@ impl ColumnsSettingPane {
 
     fn reorder_selected_column(&mut self, direction: Direction) {
         if self.items.is_empty() {
-            self.selected = 0;
+            self.focused = 0;
             return;
         }
 
         let next = match direction {
-            Direction::Prev => self.selected.saturating_sub(1),
-            Direction::Next => self.selected.saturating_add(1).min(self.items.len() - 1),
+            Direction::Prev => self.focused.saturating_sub(1),
+            Direction::Next => self.focused.saturating_add(1).min(self.items.len() - 1),
         };
-        self.items.swap(self.selected, next);
-        self.selected = next;
+        self.items.swap(self.focused, next);
+        self.focused = next;
         self.clear_error();
     }
 }
@@ -206,8 +206,8 @@ impl ColumnsSettingPane {
         let mut tokens = Vec::with_capacity(self.items.len() * 2);
         let last_index = self.items.len().saturating_sub(1);
         for (index, item) in self.items.iter().enumerate() {
-            let selected = self.selected == index && active;
-            tokens.push(Span::styled(item.title, self.token_style(item.selected, selected)));
+            let focused = self.focused == index && active;
+            tokens.push(Span::styled(item.title, self.token_style(item.selected, focused)));
             if index != last_index {
                 tokens.push(Span::raw(" "));
             }
@@ -215,14 +215,14 @@ impl ColumnsSettingPane {
         frame.render_widget(Paragraph::new(Line::from(tokens)).wrap(Wrap { trim: false }), inner);
     }
 
-    fn token_style(&self, enabled: bool, selected: bool) -> Style {
+    fn token_style(&self, enabled: bool, focused: bool) -> Style {
         let style = if enabled {
             Style::default().add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::DarkGray)
         };
 
-        if selected { style.fg(Color::Cyan).add_modifier(Modifier::REVERSED) } else { style }
+        if focused { style.fg(Color::Cyan).add_modifier(Modifier::REVERSED) } else { style }
     }
 }
 
@@ -290,7 +290,7 @@ mod tests {
         pane.reorder_selected_column(Direction::Next);
 
         assert_eq!(pane.selected_column_indices()[..3], [2, 1, 3]);
-        assert_eq!(pane.selected, 1);
+        assert_eq!(pane.focused, 1);
     }
 
     #[test]
@@ -309,26 +309,26 @@ mod tests {
             KeyOutcome::Consumed
         );
         assert_eq!(pane.selected_column_indices()[..3], [2, 1, 3]);
-        assert_eq!(pane.selected, 1);
+        assert_eq!(pane.focused, 1);
     }
 
     #[test]
     fn columns_g_and_shift_g_jump_to_first_and_last_column() {
         let mut pane = ColumnsSettingPane::default();
         pane.load(&[1, 2, 3]);
-        pane.selected = 2;
+        pane.focused = 2;
 
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, 0);
+        assert_eq!(pane.focused, 0);
 
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::Char('G'), KeyModifiers::NONE)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, pane.items.len() - 1);
+        assert_eq!(pane.focused, pane.items.len() - 1);
     }
 
     #[test]
@@ -352,7 +352,7 @@ mod tests {
     fn columns_invert_keeps_current_column_selected() {
         let mut pane = ColumnsSettingPane::default();
         pane.load(&[1, 2, 3]);
-        pane.selected = 1;
+        pane.focused = 1;
 
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE)),
@@ -374,28 +374,28 @@ mod tests {
             pane.handle_key_event(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, COLUMN_PAGE_STEP.min(pane.items.len() - 1));
+        assert_eq!(pane.focused, COLUMN_PAGE_STEP.min(pane.items.len() - 1));
 
-        pane.selected = pane.items.len().saturating_sub(2);
+        pane.focused = pane.items.len().saturating_sub(2);
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::PageDown, KeyModifiers::NONE)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, pane.items.len() - 1);
+        assert_eq!(pane.focused, pane.items.len() - 1);
 
-        pane.selected = COLUMN_PAGE_STEP + 1;
+        pane.focused = COLUMN_PAGE_STEP + 1;
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, 1);
+        assert_eq!(pane.focused, 1);
 
-        pane.selected = 1;
+        pane.focused = 1;
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, 0);
+        assert_eq!(pane.focused, 0);
     }
 
     #[test]
@@ -407,24 +407,24 @@ mod tests {
             pane.handle_key_event(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, 0);
+        assert_eq!(pane.focused, 0);
 
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::Char('G'), KeyModifiers::CONTROL)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, pane.items.len() - 1);
+        assert_eq!(pane.focused, pane.items.len() - 1);
 
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::PageUp, KeyModifiers::SHIFT)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, (pane.items.len() - 1).saturating_sub(COLUMN_PAGE_STEP));
+        assert_eq!(pane.focused, (pane.items.len() - 1).saturating_sub(COLUMN_PAGE_STEP));
 
         assert_eq!(
             pane.handle_key_event(KeyEvent::new(KeyCode::PageDown, KeyModifiers::SHIFT)),
             KeyOutcome::Consumed
         );
-        assert_eq!(pane.selected, pane.items.len() - 1);
+        assert_eq!(pane.focused, pane.items.len() - 1);
     }
 }
