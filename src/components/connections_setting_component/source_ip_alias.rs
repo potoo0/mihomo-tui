@@ -31,7 +31,7 @@ impl SourceIpAliasSettingPane {
         self.source_ips = source_ips;
         self.aliases = aliases.clone();
         self.sync_navigator_length(0);
-        self.load_selected_alias();
+        self.load_focused_alias();
     }
 
     pub(super) fn reset(&mut self) {
@@ -109,7 +109,7 @@ impl SourceIpAliasSettingPane {
         }
 
         if self.navigator.focused != before {
-            self.load_selected_alias();
+            self.load_focused_alias();
         }
         KeyOutcome::Consumed
     }
@@ -128,12 +128,12 @@ impl SourceIpAliasSettingPane {
         }
     }
 
-    fn selected_source_ip(&self) -> Option<&str> {
+    fn focused_source_ip(&self) -> Option<&str> {
         self.navigator.focused.and_then(|idx| self.source_ips.get(idx)).map(String::as_str)
     }
 
     fn save_alias_input(&mut self) {
-        let Some(source_ip) = self.selected_source_ip().map(str::to_string) else {
+        let Some(source_ip) = self.focused_source_ip().map(str::to_string) else {
             return;
         };
 
@@ -145,9 +145,9 @@ impl SourceIpAliasSettingPane {
         }
     }
 
-    fn load_selected_alias(&mut self) {
+    fn load_focused_alias(&mut self) {
         let alias = self
-            .selected_source_ip()
+            .focused_source_ip()
             .and_then(|source_ip| self.aliases.get(source_ip))
             .cloned()
             .unwrap_or_default();
@@ -157,12 +157,12 @@ impl SourceIpAliasSettingPane {
     fn visible_range(&mut self, height: usize) -> (usize, usize) {
         self.sync_navigator_length(height);
 
-        if let Some(selected) = self.navigator.focused {
+        if let Some(focused) = self.navigator.focused {
             let start = self.navigator.scroller.pos();
             let end = self.navigator.scroller.end_pos();
 
-            if !(start..end).contains(&selected) {
-                self.navigator.focus(selected);
+            if !(start..end).contains(&focused) {
+                self.navigator.focus(focused);
             }
         }
 
@@ -201,8 +201,8 @@ impl SourceIpAliasSettingPane {
             .enumerate()
             .map(|(offset, source_ip)| {
                 let idx = start + offset;
-                let selected = self.navigator.focused == Some(idx);
-                let editing = active && selected;
+                let focused = self.navigator.focused == Some(idx);
+                let editing = active && focused;
                 let alias = if editing {
                     self.alias_input.value()
                 } else {
@@ -214,7 +214,7 @@ impl SourceIpAliasSettingPane {
                     Style::default()
                 };
                 Line::from(vec![
-                    Span::styled(if selected { "> " } else { "  " }, Color::Cyan),
+                    Span::styled(if focused { "> " } else { "  " }, Color::Cyan),
                     Span::raw(pad(source_ip, source_width)),
                     Span::styled(alias, alias_style),
                 ])
@@ -222,10 +222,10 @@ impl SourceIpAliasSettingPane {
             .collect();
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), area);
 
-        if active && let Some(selected) = self.navigator.focused {
+        if active && let Some(focused) = self.navigator.focused {
             let source_width = (area.width / 2).saturating_sub(3);
             let cursor_x = area.x + 2 + source_width + self.alias_input.visual_cursor() as u16;
-            let cursor_y = area.y + (selected - start) as u16;
+            let cursor_y = area.y + (focused - start) as u16;
             frame.set_cursor_position((cursor_x, cursor_y));
         }
     }
@@ -255,7 +255,7 @@ mod tests {
             &aliases(&[("10.0.0.1", "phone"), ("10.0.0.9", "stale")]),
         );
 
-        assert_eq!(pane.selected_source_ip(), Some("10.0.0.1"));
+        assert_eq!(pane.focused_source_ip(), Some("10.0.0.1"));
         assert_eq!(pane.alias_input.value(), "phone");
         assert_eq!(
             pane.source_ips,
@@ -280,7 +280,7 @@ mod tests {
     }
 
     #[test]
-    fn alias_selection_saves_old_input_and_loads_new_alias() {
+    fn alias_focus_change_saves_old_input_and_loads_new_alias() {
         let mut pane = SourceIpAliasSettingPane::default();
         pane.load(vec!["10.0.0.1".into(), "10.0.0.2".into()], &aliases(&[("10.0.0.2", "desktop")]));
 
@@ -289,7 +289,7 @@ mod tests {
 
         assert_eq!(pane.aliases.get("10.0.0.1").map(String::as_str), Some("phone"));
         assert_eq!(pane.alias_input.value(), "desktop");
-        assert_eq!(pane.selected_source_ip(), Some("10.0.0.2"));
+        assert_eq!(pane.focused_source_ip(), Some("10.0.0.2"));
     }
 
     #[test]
