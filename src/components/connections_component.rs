@@ -190,21 +190,40 @@ impl ConnectionsComponent {
                     .height(ROW_HEIGHT as u16)
                 })
                 .collect();
-        let constraints = setting.columns.iter().filter_map(|&index| {
-            let constraint = CONNECTION_COLS.get(index)?.constraint;
-            if index == 0 && !self.capture_mode.load(Ordering::Relaxed) {
-                Some(Constraint::Length(0))
-            } else {
-                Some(constraint)
-            }
-        });
-        let table = Table::new(rows, constraints)
+        let table = Table::new(rows, self.table_constraints(&setting))
             .block(block)
             .header(header)
             .column_spacing(2)
             .row_highlight_style(selected_row_style);
 
         frame.render_stateful_widget(table, area, &mut self.table_state);
+    }
+
+    fn table_constraints(&self, setting: &ConnectionsSetting) -> Vec<Constraint> {
+        let hidden_alive = !self.capture_mode.load(Ordering::Relaxed);
+        let mut constraints: Vec<_> = setting
+            .columns
+            .iter()
+            .filter_map(|&index| {
+                if index == 0 && hidden_alive {
+                    Some(Constraint::Length(0))
+                } else {
+                    Some(CONNECTION_COLS.get(index)?.constraint)
+                }
+            })
+            .collect();
+
+        // When the leading alive column is hidden,
+        // the next visible column becomes the first layout segment.
+        // A leading `Max` constraint has no lower bound and may be solved to width 0,
+        // so turn it into `Length(max)` to keep it visible.
+        if let [Constraint::Length(0), second, ..] = constraints.as_mut_slice()
+            && let Constraint::Max(max) = *second
+        {
+            *second = Constraint::Length(max);
+        }
+
+        constraints
     }
 
     fn live_mode(&mut self, live_mode: bool) {
