@@ -260,7 +260,7 @@ impl Component for ProxyProviderDetailComponent {
         let Some(provider_name) = self.provider_name.clone() else {
             return Ok(None);
         };
-        if self.navigator.handle_key_event(true, key) {
+        if self.navigator.handle_key_event(true, key).is_consumed() {
             return Ok(None);
         }
         match key.code {

@@ -4,6 +4,7 @@ use ratatui::layout::Rect;
 use ratatui::symbols::line;
 use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
 
+use crate::utils::input::KeyOutcome;
 use crate::utils::symbols::arrow;
 
 #[derive(Debug, Clone)]
@@ -91,8 +92,8 @@ impl Scroller {
     ///
     /// # Returns
     ///
-    /// - `true` if the key was handled, `false` otherwise
-    pub fn handle_key_event(&mut self, key: KeyEvent) -> bool {
+    /// - `KeyOutcome::Consumed` if the key was handled
+    pub fn handle_key_event(&mut self, key: KeyEvent) -> KeyOutcome {
         match key.code {
             KeyCode::Char('g') => self.first(),
             KeyCode::Char('G') => self.last(),
@@ -100,10 +101,10 @@ impl Scroller {
             KeyCode::Char('k') | KeyCode::Up => self.prev(),
             KeyCode::PageDown | KeyCode::Char(' ') => self.page_down(),
             KeyCode::PageUp => self.page_up(),
-            _ => return false,
+            _ => return KeyOutcome::Ignored,
         }
 
-        true
+        KeyOutcome::Consumed
     }
 
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {

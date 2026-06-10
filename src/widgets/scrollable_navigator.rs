@@ -4,6 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
+use crate::utils::input::KeyOutcome;
 use crate::widgets::scrollbar::Scroller;
 
 #[derive(Debug, Default, Clone)]
@@ -189,8 +190,8 @@ impl ScrollableNavigator {
     ///
     /// # Returns
     ///
-    /// - `true` if the key was handled, `false` otherwise
-    pub fn handle_key_event(&mut self, horizontal: bool, key: KeyEvent) -> bool {
+    /// - `KeyOutcome::Consumed` if the key was handled
+    pub fn handle_key_event(&mut self, horizontal: bool, key: KeyEvent) -> KeyOutcome {
         match key.code {
             KeyCode::Char('g') => self.first(),
             KeyCode::Char('G') => self.last(),
@@ -200,10 +201,10 @@ impl ScrollableNavigator {
             KeyCode::Char('l') | KeyCode::Right if horizontal => self.next(1),
             KeyCode::PageDown | KeyCode::Char(' ') => self.page_down(),
             KeyCode::PageUp => self.page_up(),
-            _ => return false,
+            _ => return KeyOutcome::Ignored,
         }
 
-        true
+        KeyOutcome::Consumed
     }
 
     #[inline]
