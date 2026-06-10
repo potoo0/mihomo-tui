@@ -266,7 +266,7 @@ impl Component for LogsComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        if self.navigator.handle_key_event(false, key) {
+        if self.navigator.handle_key_event(false, key).is_consumed() {
             self.live_mode(false);
             return Ok(None);
         }

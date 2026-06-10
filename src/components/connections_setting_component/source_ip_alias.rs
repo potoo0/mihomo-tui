@@ -7,7 +7,8 @@ use ratatui::prelude::{Color, Line, Modifier, Span, Style};
 use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use tui_input::Input;
 
-use super::{KeyOutcome, SettingPane};
+use super::SettingPane;
+use crate::utils::input::KeyOutcome;
 use crate::utils::symbols::arrow;
 use crate::utils::tui_input::input_request;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -103,7 +104,7 @@ impl SourceIpAliasSettingPane {
         let before = self.navigator.focused;
         self.save_alias_input();
 
-        if !self.navigator.handle_key_event(false, key) {
+        if !self.navigator.handle_key_event(false, key).is_consumed() {
             return KeyOutcome::Ignored;
         }
 

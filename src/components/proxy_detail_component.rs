@@ -352,7 +352,7 @@ impl Component for ProxyDetailComponent {
         let Some(proxy) = self.proxy_name.as_ref().and_then(|n| Proxies::get_by_name(n)) else {
             return Ok(None);
         };
-        if self.navigator.handle_key_event(true, key) {
+        if self.navigator.handle_key_event(true, key).is_consumed() {
             return Ok(None);
         }
         match key.code {

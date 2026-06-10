@@ -17,6 +17,7 @@ use crate::components::{Component, ComponentId};
 use crate::models::sort::SortSpec;
 use crate::store::connections::with_alive_column;
 use crate::store::connections_setting::ConnectionsSetting;
+use crate::utils::input::KeyOutcome;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
@@ -37,18 +38,6 @@ impl ActivePane {
 
     fn prev(self) -> Self {
         self.next()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum KeyOutcome {
-    Consumed,
-    Ignored,
-}
-
-impl KeyOutcome {
-    fn is_consumed(self) -> bool {
-        self == Self::Consumed
     }
 }
 
@@ -223,8 +212,7 @@ impl Component for ConnectionsSettingComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        let pane_outcome = self.active_setting_pane_mut().handle_key_event(key);
-        if pane_outcome.is_consumed() {
+        if self.active_setting_pane_mut().handle_key_event(key).is_consumed() {
             return Ok(None);
         }
 

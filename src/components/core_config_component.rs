@@ -478,7 +478,7 @@ impl Component for CoreConfigComponent {
 
         match self.active_pane {
             ActivePane::Editor => {
-                if self.scroller.handle_key_event(key) {
+                if self.scroller.handle_key_event(key).is_consumed() {
                     return Ok(None);
                 }
 

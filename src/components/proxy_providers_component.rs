@@ -307,7 +307,7 @@ impl Component for ProxyProvidersComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        if self.navigator.handle_key_event(true, key) {
+        if self.navigator.handle_key_event(true, key).is_consumed() {
             return Ok(None);
         }
         match key.code {

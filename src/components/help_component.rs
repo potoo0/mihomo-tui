@@ -178,7 +178,7 @@ impl Component for HelpComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        if self.scroller.handle_key_event(key) {
+        if self.scroller.handle_key_event(key).is_consumed() {
             return Ok(None);
         }
         match key.code {

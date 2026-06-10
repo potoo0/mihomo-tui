@@ -5,10 +5,11 @@ use ratatui::layout::Rect;
 use ratatui::prelude::{Color, Line, Modifier, Span, Style};
 use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 
-use super::{Direction, KeyOutcome, SettingPane};
+use super::{Direction, SettingPane};
 use crate::store::connections::{
     ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES,
 };
+use crate::utils::input::KeyOutcome;
 use crate::utils::symbols::arrow;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
