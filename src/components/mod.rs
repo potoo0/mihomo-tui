@@ -19,6 +19,7 @@ mod proxy_setting_component;
 pub mod root_component;
 mod rule_providers_component;
 mod rules_component;
+mod updates_component;
 
 use std::sync::Arc;
 
@@ -55,6 +56,7 @@ pub enum ComponentId {
     Root,
     Header,
     Footer,
+    Updates,
     #[default]
     Overview,
     ConnectionDetail,

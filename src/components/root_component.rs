@@ -37,10 +37,12 @@ use crate::components::proxy_providers_component::ProxyProvidersComponent;
 use crate::components::proxy_setting_component::ProxySettingComponent;
 use crate::components::rule_providers_component::RuleProvidersComponent;
 use crate::components::rules_component::RulesComponent;
+use crate::components::updates_component::UpdatesComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::config::Config;
 use crate::models::{Connection, ConnectionStats};
 use crate::utils::text_ui::top_title_line;
+use crate::version_update::SharedVersionUpdateState;
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
 const MIN_AREA: (u16, u16) = (100, 18);
@@ -51,6 +53,7 @@ pub struct RootComponent {
     api: Option<Arc<Api>>,
     config: Option<Arc<Config>>,
     action_tx: Option<UnboundedSender<Action>>,
+    update_state: SharedVersionUpdateState,
 
     current_tab: ComponentId,
     idle_tabs: HashMap<ComponentId, u16>,
@@ -71,8 +74,11 @@ pub struct RootComponent {
 
 impl RootComponent {
     pub fn new() -> Self {
-        let components: Vec<Box<dyn Component>> =
-            vec![Box::new(HeaderComponent::new()), Box::new(FooterComponent::default())];
+        let update_state = SharedVersionUpdateState::default();
+        let components: Vec<Box<dyn Component>> = vec![
+            Box::new(HeaderComponent::new(update_state.clone())),
+            Box::new(FooterComponent::default()),
+        ];
         let components = components.into_iter().map(|c| (c.id(), c)).collect::<HashMap<_, _>>();
         let (stats_tx, stats_rx) = watch::channel(None);
         let (conns_tx, conns_rx) = mpsc::channel(2);
@@ -87,6 +93,7 @@ impl RootComponent {
             msg_box: Default::default(),
             components,
             action_tx: Default::default(),
+            update_state,
 
             conn_token: Default::default(),
             stats_tx,
@@ -129,6 +136,7 @@ impl RootComponent {
                 ComponentId::Rules => Box::new(RulesComponent::default()),
                 ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
                 ComponentId::Config => Box::new(CoreConfigComponent::default()),
+                ComponentId::Updates => Box::new(UpdatesComponent::new(self.update_state.clone())),
                 ComponentId::Help => Box::new(HelpComponent::default()),
                 ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
                 ComponentId::ConnectionBatchTerminate => {
@@ -289,6 +297,14 @@ impl RootComponent {
                     }
                     return Some(Action::Tick);
                 }
+                KeyCode::Char('u')
+                    if key.modifiers == KeyModifiers::CONTROL
+                        && self.popup.is_none()
+                        && self.focused.is_none()
+                        && self.msg_box.is_none() =>
+                {
+                    return Some(Action::AppUpdateRequest);
+                }
                 _ => {}
             }
         }
@@ -373,7 +389,13 @@ impl Component for RootComponent {
             Action::Quit => self.stop_conn(),
             Action::Tick => self.on_tick(),
             Action::Error(err) => {
-                self.msg_box = Some(MsgBoxComponent::error(err.title, err.message));
+                self.msg_box =
+                    Some(MsgBoxComponent::error(err.title, err.message, err.msg_box_size));
+                return Ok(None);
+            }
+            Action::Info(info) => {
+                self.msg_box =
+                    Some(MsgBoxComponent::info(info.title, info.message, info.msg_box_size));
                 return Ok(None);
             }
             Action::TabSwitch(to) => {
@@ -384,6 +406,7 @@ impl Component for RootComponent {
                 let shortcuts = self.get_or_init(self.current_tab).shortcuts();
                 action_tx.send(Action::Shortcuts(shortcuts))?;
             }
+            Action::AppUpdateRequest => self.open_popup(ComponentId::Updates)?,
             Action::Help => self.open_popup(ComponentId::Help)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
             Action::ConnectionsSetting(_) => self.open_popup(ComponentId::ConnectionsSetting)?,

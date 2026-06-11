@@ -1,14 +1,16 @@
-use clap::{CommandFactory, FromArgMatches, ValueHint};
+use std::{env, thread};
 
-use crate::config::get_config_path;
+use anyhow::{Context, anyhow};
+
+use crate::version_update::RestartOutcome;
 
 mod action;
 mod api;
 mod app;
+mod app_message;
 mod cli;
 mod components;
 mod config;
-mod error;
 mod logging;
 mod models;
 mod palette;
@@ -16,18 +18,42 @@ mod panic;
 mod store;
 mod tui;
 mod utils;
+mod version_update;
 mod widgets;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     panic::init()?;
 
-    // Enhance the help message for the config argument
-    let def = get_config_path();
-    let help = format!("Path to config file (default: {})", def.display());
-    let cmd = cli::Args::command()
-        .mut_arg("config", |a| a.help(help).value_hint(ValueHint::FilePath).next_line_help(true));
-    let args = cli::Args::from_arg_matches(&cmd.get_matches())?;
+    let args = cli::parse_args()?;
+    if args.update {
+        let exe_path = env::current_exe().context("get current exe path")?;
+        match thread::spawn(version_update::update_app)
+            .join()
+            .map_err(|_| anyhow!("app self update thread panicked"))?
+        {
+            Ok(self_update::Status::UpToDate(version)) => {
+                println!("app is already up to date ({version}).");
+            }
+            Ok(self_update::Status::Updated(version)) => {
+                println!("app updated to {version}.");
+                return match version_update::restart_app(&exe_path)? {
+                    RestartOutcome::Restarted => Ok(()),
+                    RestartOutcome::Unsupported => {
+                        println!(
+                            "Auto restart is not supported on Windows. \
+                             Please restart to use the new version."
+                        );
+                        Ok(())
+                    }
+                };
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "app self update failed");
+                anyhow::bail!("failed to update app: {e}");
+            }
+        }
+    }
 
     let config = config::load(args.config)?;
     logging::init(&config)?;
@@ -37,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::error!("Failed to get version from API: {:?}", e);
         anyhow::bail!("`mihomo-api` unavailable, exiting: {:?}", e);
     }
+
     let mut app = app::App::new(config, api)?;
     app.run().await?;
 

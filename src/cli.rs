@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches, Parser, ValueHint};
+
+use crate::config::get_config_path;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -15,4 +17,19 @@ pub struct Args {
     /// Path to config file, leave empty to use default path
     #[arg(short, long, value_name = "CONFIG_FILE")]
     pub config: Option<PathBuf>,
+
+    /// Self-update before starting
+    #[arg(long)]
+    pub update: bool,
+}
+
+pub fn parse_args() -> anyhow::Result<Args> {
+    // Enhance the help message for the config argument
+    let def = get_config_path();
+    let help = format!("Path to config file (default: {})", def.display());
+
+    let cmd = Args::command()
+        .mut_arg("config", |a| a.help(help).value_hint(ValueHint::FilePath).next_line_help(true));
+
+    Ok(Args::from_arg_matches(&cmd.get_matches())?)
 }

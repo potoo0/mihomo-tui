@@ -5,6 +5,7 @@ use ratatui::layout::{Margin, Rect};
 use ratatui::prelude::{Color, Line, Span, Style};
 use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap};
 
+use crate::app_message::MsgBoxSize;
 use crate::utils::symbols::dot;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, popup_area};
 
@@ -13,15 +14,35 @@ pub struct MsgBoxComponent {
     pub icon_style: Style,
     pub title: &'static str,
     pub content: Box<str>,
+    pub size: MsgBoxSize,
 }
 
 impl MsgBoxComponent {
-    pub fn error(title: &'static str, content: impl Into<Box<str>>) -> Self {
+    pub fn info(
+        title: &'static str,
+        content: impl Into<Box<str>>,
+        size: Option<MsgBoxSize>,
+    ) -> Self {
+        Self {
+            icon: dot::GREEN_LARGE,
+            icon_style: Style::default().fg(Color::Green),
+            title,
+            content: content.into(),
+            size: size.unwrap_or_default(),
+        }
+    }
+
+    pub fn error(
+        title: &'static str,
+        content: impl Into<Box<str>>,
+        size: Option<MsgBoxSize>,
+    ) -> Self {
         Self {
             icon: dot::RED_LARGE,
             icon_style: Style::default().fg(Color::Red),
             title,
             content: content.into(),
+            size: size.unwrap_or_default(),
         }
     }
 
@@ -31,7 +52,7 @@ impl MsgBoxComponent {
     }
 
     pub fn draw(&self, frame: &mut Frame, area: Rect) -> Result<()> {
-        let area = popup_area(area, 80, 75);
+        let area = popup_area(area, self.size.percent_x, self.size.percent_y);
         frame.render_widget(Clear, area); // clears out the background
 
         // content

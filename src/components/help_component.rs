@@ -12,7 +12,7 @@ use crate::config::get_config_path;
 use crate::widgets::scrollbar::Scroller;
 
 const REPOSITORY_URL: &str =
-    concat!("https://github.com/potoo0/mihomo-tui/tree/v", env!("CARGO_PKG_VERSION"));
+    concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/v", env!("CARGO_PKG_VERSION"));
 
 #[derive(Debug, Default)]
 pub struct HelpComponent {
@@ -59,6 +59,7 @@ impl HelpComponent {
             HelpRow::entry("Esc", "cancel / back / live toggle"),
             HelpRow::entry("Enter", "confirm / open detail"),
             HelpRow::entry("Ctrl+l", "clear idle tabs"),
+            HelpRow::entry("Ctrl+u", "open updates"),
             // filter / proxy setting input keys
             HelpRow::Empty,
             HelpRow::key_title("input box"),

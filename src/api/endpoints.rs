@@ -379,6 +379,24 @@ impl Api {
         Ok(())
     }
 
+    pub async fn upgrade_core(&self) -> Result<()> {
+        let resp = self
+            .client
+            .post(self.api.join("/upgrade")?)
+            .send()
+            .await
+            .context("Fail to send `POST /upgrade` request")?;
+
+        let _ = Self::check_status(resp)
+            .await
+            .context("Fail to request `POST /upgrade`")?
+            .bytes()
+            .await
+            .context("Fail to read response of `POST /upgrade`")?;
+
+        Ok(())
+    }
+
     pub async fn flush_fake_ip_cache(&self) -> Result<()> {
         let resp = self
             .client

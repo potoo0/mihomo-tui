@@ -20,6 +20,27 @@ impl Fragment {
     pub fn hl<S: Into<Box<str>>>(s: S) -> Self {
         Self::Hl(s.into())
     }
+
+    pub fn into_span<'a>(self, hl_style: Option<Style>) -> Span<'a> {
+        match self {
+            Self::Raw(s) if !s.is_empty() => Span::raw(s.into_string()),
+            Self::Hl(s) if !s.is_empty() => Span::styled(
+                s.into_string(),
+                hl_style.unwrap_or(Style::default().fg(DEFAULT_HL_COLOR)),
+            ),
+            _ => Span::raw(""),
+        }
+    }
+
+    pub fn span(&'_ self, hl_style: Option<Style>) -> Span<'_> {
+        match self {
+            Self::Raw(s) if !s.is_empty() => Span::raw(s.as_ref()),
+            Self::Hl(s) if !s.is_empty() => {
+                Span::styled(s.as_ref(), hl_style.unwrap_or(Style::default().fg(DEFAULT_HL_COLOR)))
+            }
+            _ => Span::raw(""),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,27 +91,11 @@ impl Shortcut {
     }
 
     pub fn into_spans<'a>(self, hl_style: Option<Style>) -> Vec<Span<'a>> {
-        let hl_style = hl_style.unwrap_or(Style::default().fg(DEFAULT_HL_COLOR));
-        self.parts
-            .into_iter()
-            .map(|v| match v {
-                Fragment::Raw(s) if !s.is_empty() => Span::raw(s.into_string()),
-                Fragment::Hl(s) if !s.is_empty() => Span::styled(s.into_string(), hl_style),
-                _ => Span::raw(""),
-            })
-            .collect()
+        self.parts.into_iter().map(|v| v.into_span(hl_style)).collect()
     }
 
     pub fn spans(&'_ self, hl_style: Option<Style>) -> Vec<Span<'_>> {
-        let hl_style = hl_style.unwrap_or(Style::default().fg(DEFAULT_HL_COLOR));
-        self.parts
-            .iter()
-            .map(|v| match v {
-                Fragment::Raw(s) if !s.is_empty() => Span::raw(s.as_ref()),
-                Fragment::Hl(s) if !s.is_empty() => Span::styled(s.as_ref(), hl_style),
-                _ => Span::raw(""),
-            })
-            .collect()
+        self.parts.iter().map(|v| v.span(hl_style)).collect()
     }
 }
 

@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::app_message::AppMessage;
 use crate::components::ComponentId;
-use crate::error::UserError;
-use crate::models::Connection;
+use crate::models::{Connection, Version};
 use crate::widgets::shortcut::Shortcut;
 
 #[derive(Debug, Clone)]
@@ -18,7 +18,12 @@ pub enum Action {
     Focus(ComponentId),
     Unfocus,
     ClearScreen,
-    Error(UserError),
+    Info(AppMessage),
+    Error(AppMessage),
+    AppUpdateRequest,
+    SelfUpdate(bool),
+    RefreshVersion,
+    CoreVersionUpdated(Version),
     /// Spawn an external editor to edit a file. args: `(editor command, file path)`
     SpawnExternalEditor(String, PathBuf),
     Help,
