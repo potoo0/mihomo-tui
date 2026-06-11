@@ -1,7 +1,9 @@
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
+use std::{env, thread};
 
-use anyhow::Result;
+use anyhow::{Context, Result, anyhow};
 use ratatui::layout::Rect;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
@@ -9,12 +11,15 @@ use tracing::{error, info, trace};
 
 use crate::action::Action;
 use crate::api::Api;
+use crate::app_message::AppMessage;
 use crate::components::root_component::RootComponent;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::store::proxy_setting::ProxySetting;
 use crate::tui::{Event, Tui};
+use crate::version_update;
+use crate::version_update::RestartOutcome;
 
 pub struct App {
     config: Arc<Config>,
@@ -112,44 +117,105 @@ impl App {
                 Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
                 Action::Render => self.render(tui)?,
                 Action::SpawnExternalEditor(ref editor, ref filepath) => {
-                    tui.exit()?;
-
-                    info!("Spawning external editor `{}` for file `{:?}`...", editor, filepath);
-                    // print to stdout, so that user can see it in terminal
-                    println!("Spawning external editor `{}` for file `{:?}`...", editor, filepath);
-                    match Command::new(editor.as_str()).arg(filepath).status() {
-                        Ok(status) => {
-                            if !status.success() {
-                                error!(
-                                    editor = editor,
-                                    status_code = ?status.code(),
-                                    "Editor exited with non-zero status"
-                                );
-                                let msg = format!(
-                                    "Editor `{}` exited with non-zero status: {}",
-                                    editor, status
-                                );
-                                self.action_tx.send(Action::Error(
-                                    ("Spawning external editor", msg).into(),
-                                ))?;
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to spawn editor `{}`: {}", editor, e);
-                            self.action_tx
-                                .send(Action::Error(("Spawning external editor", e).into()))?;
-                        }
-                    }
-
-                    tui.enter()?;
-                    tui.terminal.clear()?;
+                    self.handle_spawn_external_editor(tui, editor, filepath)?
                 }
+                Action::SelfUpdate(restart) => self.handle_self_update(tui, restart)?,
                 _ => {}
             }
             if let Some(action) = self.root.update(action.clone())? {
                 self.action_tx.send(action)?
             };
         }
+        Ok(())
+    }
+
+    fn handle_self_update(&mut self, tui: &mut Tui, restart: bool) -> Result<()> {
+        let exe_path = env::current_exe().context("get current exe path")?;
+        tui.exit()?;
+
+        let action = match thread::spawn(version_update::update_app)
+            .join()
+            .map_err(|_| anyhow!("app self update thread panicked"))?
+        {
+            Ok(self_update::Status::UpToDate(version)) => Action::Info(
+                AppMessage::from(("Update app", format!("app is already up to date ({version}).")))
+                    .msg_box_size(45, 30),
+            ),
+            Ok(self_update::Status::Updated(version)) if restart => {
+                info!(version, "app updated, trying to restart...");
+                println!("app updated to {version}. Trying to restart...");
+                match version_update::restart_app(&exe_path)? {
+                    RestartOutcome::Restarted => return Ok(()),
+                    RestartOutcome::Unsupported => Action::Info(
+                        AppMessage::from((
+                            "Update app",
+                            format!(
+                                "app updated to {version}. \
+                                 Auto restart is not supported on Windows. \
+                                 Please restart to use the new version."
+                            ),
+                        ))
+                        .msg_box_size(45, 30),
+                    ),
+                }
+            }
+            Ok(self_update::Status::Updated(version)) => {
+                println!("app updated to {version}. Please restart to use the new version.");
+                Action::Info(
+                    AppMessage::from((
+                        "Update app",
+                        format!("app updated to {version}. Please restart to use the new version."),
+                    ))
+                    .msg_box_size(45, 30),
+                )
+            }
+            Err(e) => {
+                error!(error = ?e, "app self update failed");
+                Action::Error(("Update app", e).into())
+            }
+        };
+
+        tui.enter()?;
+        tui.terminal.clear()?;
+        self.action_tx.send(action)?;
+        self.action_tx.send(Action::RefreshVersion)?;
+
+        Ok(())
+    }
+
+    fn handle_spawn_external_editor(
+        &self,
+        tui: &mut Tui,
+        editor: &str,
+        filepath: &PathBuf,
+    ) -> Result<()> {
+        tui.exit()?;
+
+        info!("Spawning external editor `{}` for file `{:?}`...", editor, filepath);
+        // print to stdout, so that user can see it in terminal
+        println!("Spawning external editor `{}` for file `{:?}`...", editor, filepath);
+        match Command::new(editor).arg(filepath).status() {
+            Ok(status) => {
+                if !status.success() {
+                    error!(
+                        editor = editor,
+                        status_code = ?status.code(),
+                        "Editor exited with non-zero status"
+                    );
+                    let msg =
+                        format!("Editor `{}` exited with non-zero status: {}", editor, status);
+                    self.action_tx.send(Action::Error(("Spawning external editor", msg).into()))?;
+                }
+            }
+            Err(e) => {
+                error!("Failed to spawn editor `{}`: {}", editor, e);
+                self.action_tx.send(Action::Error(("Spawning external editor", e).into()))?;
+            }
+        }
+
+        tui.enter()?;
+        tui.terminal.clear()?;
+
         Ok(())
     }
 
