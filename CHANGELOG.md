@@ -1,4 +1,39 @@
 
+## 0.4.3 - 2026-06-13
+
+### Features
+
+- **Connections**
+  - Add **Connections Settings** for configuring visible columns and source IP aliases, with support for loading settings from the config file.
+  - Add more optional columns, including `Type`, `Process`, and `ConnectTime`.
+  - Add source IP aliases for connection display.
+- **Config**
+  - Persist runtime UI settings in a sidecar runtime configuration file.
+  - Add `mihomo-repo` configuration for checking mihomo core releases.
+  - Add DNS query dialog from the config view.
+- **Updates**
+  - Add GitHub release update markers in the header.
+  - Add update flow for both `mihomo-tui` and mihomo core releases.
+- **API**
+  - Reconnect websocket streams automatically after disconnects.
+
+### Bug Fixes
+
+- **Connections**: Keep the leading max-width column visible when rendering narrow tables.
+- **Android**: Pin `reqwest` to avoid a rustls certificate verifier panic.
+
+### Refactors
+
+- Introduce reusable table column definitions.
+- Share `KeyOutcome` across key handlers.
+- Compact navigation shortcut hints.
+
+### Chores
+
+- Add manual build workflow.
+- Replace `serde_yaml_ng` with `yaml_serde`.
+- Bump dependency versions.
+
 ## 0.4.2 - 2026-05-24
 
 ### Bug Fixes
