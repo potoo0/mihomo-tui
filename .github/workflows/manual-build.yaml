@@ -1,0 +1,51 @@
+name: Manual Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: "GitHub runner label, for example ubuntu-latest"
+        required: true
+        type: string
+      target:
+        description: "Rust target triple, for example x86_64-unknown-linux-gnu"
+        required: true
+        type: string
+      features:
+        description: "Extra cargo args/features"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.os }}-${{ inputs.target }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build - ${{ inputs.target }}
+    runs-on: ${{ inputs.os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v1
+        with:
+          cross-version: 65fe72b0cdb1e7e0cc0652517498d4389cc8f5cf
+          target: ${{ inputs.target }}
+          args: "--locked --release ${{ inputs.features }}"
+          strip: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mihomo-tui-${{ inputs.target }}
+          path: |
+            target/${{ inputs.target }}/release/mihomo-tui
+            target/${{ inputs.target }}/release/mihomo-tui.exe
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
