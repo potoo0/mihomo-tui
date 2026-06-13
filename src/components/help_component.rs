@@ -143,10 +143,18 @@ impl HelpComponent {
             // `config` key bindings
             HelpRow::Empty,
             HelpRow::key_title("# Config (Cfg)"),
-            HelpRow::entry("Shift+Tab, Tab", "submit editor content or execute focused action"),
+            HelpRow::entry("Shift+Tab, Tab", "move focus between editor and actions"),
             HelpRow::entry("Enter", "execute focused action / confirm"),
             HelpRow::entry("e", "open config in external editor ($EDITOR → vim → vi)"),
             HelpRow::entry("d", "discard changes and reload config"),
+            HelpRow::entry("n", "open DNS query dialog"),
+            // dns query dialog
+            HelpRow::Empty,
+            HelpRow::key_title("## DNS Query"),
+            HelpRow::entry("Shift+Tab, Tab", "navigate query fields"),
+            HelpRow::entry("Enter", "query DNS records"),
+            HelpRow::entry("Left, Right", "select DNS record type"),
+            HelpRow::entry("k / Up, j / Down", "scroll answers"),
             HelpRow::Empty,
             HelpRow::Empty,
         ]

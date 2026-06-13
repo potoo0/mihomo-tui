@@ -4,6 +4,7 @@ mod connection_terminate_component;
 mod connections_component;
 mod connections_setting_component;
 mod core_config_component;
+mod dns_query_component;
 mod filter_component;
 mod footer_component;
 mod header_component;
@@ -73,6 +74,7 @@ pub enum ComponentId {
     Rules,
     RuleProviders,
     Config,
+    DnsQuery,
     Filter,
 }
 

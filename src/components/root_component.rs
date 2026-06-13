@@ -23,6 +23,7 @@ use crate::components::connection_terminate_component::ConnectionTerminateCompon
 use crate::components::connections_component::ConnectionsComponent;
 use crate::components::connections_setting_component::ConnectionsSettingComponent;
 use crate::components::core_config_component::CoreConfigComponent;
+use crate::components::dns_query_component::DnsQueryComponent;
 use crate::components::filter_component::FilterComponent;
 use crate::components::footer_component::FooterComponent;
 use crate::components::header_component::HeaderComponent;
@@ -146,6 +147,7 @@ impl RootComponent {
                     Box::new(ConnectionTerminateComponent::default())
                 }
                 ComponentId::Filter => Box::new(FilterComponent::default()),
+                ComponentId::DnsQuery => Box::new(DnsQueryComponent::default()),
                 _ => panic!("unsupported component `{:?}`", id),
             };
             debug!("Initializing component `{:?}`", id);
@@ -419,6 +421,7 @@ impl Component for RootComponent {
             Action::ConnectionBatchTerminateRequest(_) => {
                 self.open_popup(ComponentId::ConnectionBatchTerminate)?
             }
+            Action::DnsQuery => self.open_popup(ComponentId::DnsQuery)?,
             Action::Focus(focused) => self.focused = Some(focused),
             Action::Unfocus => {
                 self.focused = None;

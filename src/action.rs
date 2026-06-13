@@ -42,4 +42,5 @@ pub enum Action {
     ProxySetting,
     ProxySettingChanged,
     ProxyProviderDetail(String),
+    DnsQuery,
 }

@@ -5,12 +5,22 @@ use futures_util::{StreamExt, future, pin_mut};
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
+use tracing::{debug, info};
 
 use super::*;
 use crate::config::load as load_config;
 use crate::models::LogLevel;
+use crate::models::dns::{DnsQueryRequest, DnsRecordType};
 use crate::utils::test::init_logger;
+
+#[tokio::test]
+async fn test_query_dns() {
+    init_logger();
+    let api = init_api();
+    let req = DnsQueryRequest { name: "google.com".to_string(), r#type: DnsRecordType::Aaaa };
+    let response = api.query_dns(&req).await.unwrap();
+    info!("{:#?}", response);
+}
 
 #[tokio::test]
 async fn test_update_core_config() {

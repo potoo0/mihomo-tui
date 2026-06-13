@@ -22,6 +22,7 @@ use crate::components::{Component, ComponentId};
 use crate::config::Config;
 use crate::models::CoreConfig;
 use crate::utils::editor::resolve_editor;
+use crate::utils::input::KeyOutcome;
 use crate::utils::json5_formatter::{Json5Formatter, collect_paths, extract_comments};
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{dashed_title_line, top_title_line};
@@ -297,26 +298,30 @@ impl CoreConfigComponent {
         Ok(())
     }
 
-    fn handle_pane_switch(&mut self, key: KeyEvent) -> bool {
+    fn handle_global_key_event(&mut self, key: KeyEvent) -> KeyOutcome {
         let is_editor = matches!(self.active_pane, ActivePane::Editor);
 
-        let switched = match key.code {
+        let (switched, key_out) = match key.code {
             KeyCode::Tab => {
                 self.active_pane = self.active_pane.next(ACTIONS.len());
-                true
+                (true, KeyOutcome::Consumed)
             }
             KeyCode::BackTab => {
                 self.active_pane = self.active_pane.prev(ACTIONS.len());
-                true
+                (true, KeyOutcome::Consumed)
             }
-            _ => false,
+            KeyCode::Char('n') => {
+                let _ = self.action_tx.as_ref().unwrap().send(Action::DnsQuery);
+                (false, KeyOutcome::Consumed)
+            }
+            _ => (false, KeyOutcome::Ignored),
         };
 
         // update shortcuts if pane switched between editor and action
         if switched && is_editor != matches!(self.active_pane, ActivePane::Editor) {
-            self.action_tx.as_ref().unwrap().send(Action::Shortcuts(self.shortcuts())).unwrap();
+            let _ = self.action_tx.as_ref().unwrap().send(Action::Shortcuts(self.shortcuts()));
         }
-        switched
+        key_out
     }
 
     fn render_edit_hints(&mut self, frame: &mut Frame, area: Rect) {
@@ -437,6 +442,7 @@ impl Component for CoreConfigComponent {
                     Shortcut::from("edit", 0).unwrap(),
                     Shortcut::from("discard", 0).unwrap(),
                     Shortcut::new(vec![Fragment::raw("submit "), Fragment::hl("↵")]),
+                    Shortcut::from("dns", 1).unwrap(),
                 ]
             }
             ActivePane::Action(_) => {
@@ -447,6 +453,7 @@ impl Component for CoreConfigComponent {
                         Fragment::hl("⇥"),
                     ]),
                     Shortcut::new(vec![Fragment::raw("execute "), Fragment::hl("↵")]),
+                    Shortcut::from("dns", 1).unwrap(),
                 ]
             }
         }
@@ -472,7 +479,7 @@ impl Component for CoreConfigComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        if self.handle_pane_switch(key) {
+        if self.handle_global_key_event(key).is_consumed() {
             return Ok(None);
         }
 

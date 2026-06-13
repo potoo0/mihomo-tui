@@ -7,6 +7,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::Api;
+use crate::models::dns::{DnsQueryRequest, DnsQueryResponse};
 use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
 use crate::models::{ConnectionsWrapper, CoreConfig, Rule, RuleProvider, Version};
@@ -449,5 +450,24 @@ impl Api {
             .context("Fail to read response of `POST /configs/geo`")?;
 
         Ok(())
+    }
+
+    pub async fn query_dns(&self, req: &DnsQueryRequest) -> Result<DnsQueryResponse> {
+        let resp = self
+            .client
+            .get(self.api.join("/dns/query")?)
+            .query(req)
+            .send()
+            .await
+            .context("Fail to send `GET /dns/query`")?;
+
+        let body = Self::check_status(resp)
+            .await
+            .context("Fail to request `GET /dns/query`")?
+            .json::<DnsQueryResponse>()
+            .await
+            .context("Fail to parse response of `GET /dns/query`")?;
+
+        Ok(body)
     }
 }

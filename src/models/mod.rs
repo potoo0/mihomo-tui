@@ -1,5 +1,6 @@
 mod connection;
 mod core_config;
+pub mod dns;
 mod log;
 mod memory;
 pub mod proxy;
