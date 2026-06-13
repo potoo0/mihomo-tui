@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use anyhow::{Result, anyhow, bail};
 use serde::de::Error as _;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::LatencyThreshold;
 
@@ -42,5 +42,14 @@ impl<'de> Deserialize<'de> for LatencyThreshold {
     {
         let value = String::deserialize(deserializer)?;
         value.parse().map_err(D::Error::custom)
+    }
+}
+
+impl Serialize for LatencyThreshold {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
     }
 }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::models::sort::{ProxySortField, SortDir};
@@ -34,24 +34,29 @@ pub struct Config {
     pub buffer: BufferConfig,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct UiConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub connections: Option<ConnectionsUiConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_detail: Option<ProxyDetailUiConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_provider_detail: Option<ProxyDetailUiConfig>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConnectionsUiConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub columns: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sort: Option<ConnectionsSortConfig>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub source_ip_alias: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConnectionsSortConfig {
     pub field: String,
@@ -60,13 +65,14 @@ pub struct ConnectionsSortConfig {
     pub dir: SortDir,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProxyDetailUiConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sort: Option<ProxySortConfig>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProxySortConfig {
     pub field: ProxySortField,
@@ -75,7 +81,7 @@ pub struct ProxySortConfig {
     pub dir: SortDir,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", default)]
 pub struct ProxySetting {
     pub test_url: String,

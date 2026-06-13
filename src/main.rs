@@ -55,16 +55,22 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let config = config::load(args.config)?;
-    logging::init(&config)?;
+    let mut loaded_config = config::load(args.config)?;
+    logging::init(&loaded_config)?;
+    loaded_config.try_apply_runtime();
+    tracing::info!(
+        config_path = %loaded_config.config_path.display(),
+        runtime_path = %loaded_config.runtime_path.display(),
+        "Loaded app configuration"
+    );
 
-    let api = api::Api::new(&config)?;
+    let api = api::Api::new(&loaded_config)?;
     if let Err(e) = api.get_version().await {
         tracing::error!("Failed to get version from API: {:?}", e);
         anyhow::bail!("`mihomo-api` unavailable, exiting: {:?}", e);
     }
 
-    let mut app = app::App::new(config, api)?;
+    let mut app = app::App::new(loaded_config.config, loaded_config.runtime_path, api)?;
     app.run().await?;
 
     Ok(())

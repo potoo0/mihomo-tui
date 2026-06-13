@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
-use crate::config::ConnectionsUiConfig;
+use crate::config::{ConnectionsSortConfig, ConnectionsUiConfig};
 use crate::models::sort::SortSpec;
-use crate::store::connections::{DEFAULT_CONNECTION_COL_INDICES, with_alive_column};
+use crate::store::connections::{
+    ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES, with_alive_column,
+};
 use crate::store::query::QueryState;
 
 pub static GLOBAL_CONNECTION_SETTING: OnceLock<RwLock<Arc<ConnectionsSetting>>> = OnceLock::new();
@@ -68,5 +70,51 @@ impl TryFrom<&ConnectionsUiConfig> for ConnectionsSetting {
             });
         let query_state = QueryState { pattern: None, sort, max_cols: columns.len() };
         Ok(Self { columns, query_state, source_ip_alias: value.source_ip_alias.clone() })
+    }
+}
+
+impl TryFrom<&ConnectionsSetting> for ConnectionsUiConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &ConnectionsSetting) -> Result<Self> {
+        let columns = value
+            .columns
+            .iter()
+            .copied()
+            .filter(|&idx| idx != ALIVE_COLUMN_INDEX)
+            .map(|idx| {
+                CONNECTION_COLS
+                    .get(idx)
+                    .map(|def| def.col.title.to_owned())
+                    .ok_or_else(|| anyhow!("connection column index {idx} does not exist"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let sort = match value.query_state.sort {
+            None => None,
+            Some(sort) => {
+                let runtime_col =
+                    value.columns.get(sort.col).cloned().ok_or_else(|| {
+                        anyhow!("connection sort column {} does not exist", sort.col)
+                    })?;
+                if runtime_col == ALIVE_COLUMN_INDEX {
+                    None
+                } else {
+                    let field = CONNECTION_COLS
+                        .get(runtime_col)
+                        .map(|def| def.col.title.to_owned())
+                        .ok_or_else(|| {
+                            anyhow!("connection column index {runtime_col} does not exist")
+                        })?;
+                    Some(ConnectionsSortConfig { field, dir: sort.dir })
+                }
+            }
+        };
+
+        Ok(ConnectionsUiConfig {
+            columns: Some(columns),
+            sort,
+            source_ip_alias: value.source_ip_alias.clone(),
+        })
     }
 }

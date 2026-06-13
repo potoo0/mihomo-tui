@@ -14,7 +14,7 @@ use crate::api::Api;
 use crate::app_message::AppMessage;
 use crate::components::root_component::RootComponent;
 use crate::components::{Component, ComponentId};
-use crate::config::Config;
+use crate::config::{Config, runtime};
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::store::proxy_setting::ProxySetting;
 use crate::tui::{Event, Tui};
@@ -23,6 +23,7 @@ use crate::version_update::RestartOutcome;
 
 pub struct App {
     config: Arc<Config>,
+    runtime_path: PathBuf,
     api: Arc<Api>,
     token: CancellationToken,
     root: RootComponent,
@@ -34,10 +35,11 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: Config, api: Api) -> Result<Self> {
+    pub fn new(config: Config, runtime_path: PathBuf, api: Api) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         Ok(Self {
             config: Arc::new(config),
+            runtime_path,
             api: Arc::new(api),
             token: CancellationToken::new(),
             root: RootComponent::new(),
@@ -119,6 +121,14 @@ impl App {
                 Action::SpawnExternalEditor(ref editor, ref filepath) => {
                     self.handle_spawn_external_editor(tui, editor, filepath)?
                 }
+                Action::ConnectionsSettingChanged | Action::ProxySettingChanged => {
+                    if let Err(e) = self.save_runtime_config() {
+                        error!(error = ?e, "Failed to save runtime config");
+                        self.action_tx.send(Action::Error(
+                            AppMessage::from(("Save runtime config", e)).msg_box_size(60, 30),
+                        ))?;
+                    }
+                }
                 Action::SelfUpdate(restart) => self.handle_self_update(tui, restart)?,
                 _ => {}
             }
@@ -127,6 +137,12 @@ impl App {
             };
         }
         Ok(())
+    }
+
+    fn save_runtime_config(&self) -> Result<()> {
+        let connections = ConnectionsSetting::snapshot();
+        let proxy_setting = ProxySetting::global().read().unwrap().clone();
+        runtime::save(&self.runtime_path, &connections, &proxy_setting)
     }
 
     fn handle_self_update(&mut self, tui: &mut Tui, restart: bool) -> Result<()> {

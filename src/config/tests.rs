@@ -4,8 +4,11 @@ use url::Url;
 
 use super::*;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
-use crate::store::connections::{CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES};
+use crate::store::connections::{
+    ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES,
+};
 use crate::store::connections_setting::ConnectionsSetting;
+use crate::store::query::QueryState;
 
 fn connection_col_index(title: &str) -> usize {
     CONNECTION_COLS
@@ -57,13 +60,126 @@ log-level: "info"
 "#;
     fs::write(&cfg_path.0, custom_config).unwrap();
 
-    let config = load(Some(cfg_path.0.clone())).unwrap();
+    let mut config = load(Some(cfg_path.0.clone())).unwrap();
+    config.try_apply_runtime();
+
     assert_eq!(config.mihomo_api, Url::parse("http://localhost").unwrap());
     assert_eq!(config.mihomo_secret, Some("secret".to_owned()));
     assert_eq!(config.mihomo_repo, default_mihomo_repo());
     assert_eq!(config.log_file, Some("/tmp/log.log".to_owned()));
     assert_eq!(config.log_level, Some("info".to_owned()));
 
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_runtime_sidecar_overrides_runtime_fields() {
+    let cfg_path = TempFile::new(temp_config_path());
+    let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["Host"]
+proxy-setting:
+  test-url: https://example.com/base
+  test-timeout: 1000
+  latency-threshold: "500,1000"
+  auto-terminate-connections: false
+"#;
+    let runtime_config = r#"
+$schema-version: 1
+ui:
+  connections:
+    columns: ["Rule", "SourceIP"]
+    sort: { field: "SourceIP", dir: "desc" }
+    source-ip-alias:
+      192.168.1.10: phone
+proxy-setting:
+  test-url: https://example.com/runtime
+  test-timeout: 3000
+  latency-threshold: "200,800"
+  auto-terminate-connections: true
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+    fs::write(&runtime_path.0, runtime_config).unwrap();
+
+    let mut config = load(Some(cfg_path.0.clone())).unwrap();
+    config.try_apply_runtime();
+
+    let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+    assert_eq!(connections.columns.as_ref().unwrap(), &vec!["Rule", "SourceIP"]);
+    assert_eq!(
+        connections.sort.as_ref().map(|sort| (&sort.field, sort.dir)),
+        Some((&"SourceIP".to_owned(), SortDir::Desc))
+    );
+    assert_eq!(connections.source_ip_alias.get("192.168.1.10"), Some(&"phone".to_owned()));
+    assert_eq!(config.proxy_setting.test_url, "https://example.com/runtime");
+    assert_eq!(config.proxy_setting.test_timeout.get(), 3000);
+    assert_eq!(config.proxy_setting.latency_threshold, LatencyThreshold { medium: 200, high: 800 });
+    assert!(config.proxy_setting.auto_terminate_connections);
+
+    drop(runtime_path);
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_runtime_sidecar_error_does_not_block_loading() {
+    let cfg_path = TempFile::new(temp_config_path());
+    let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+proxy-setting:
+  test-url: https://example.com/base
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+    fs::write(&runtime_path.0, "$schema-version: 2\n").unwrap();
+
+    let mut config = load(Some(cfg_path.0.clone())).unwrap();
+    config.try_apply_runtime();
+
+    assert_eq!(config.proxy_setting.test_url, "https://example.com/base");
+
+    drop(runtime_path);
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_runtime_empty_connections_does_not_override_config() {
+    let cfg_path = TempFile::new(temp_config_path());
+    let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["Host"]
+    sort: { field: "Host", dir: "asc" }
+    source-ip-alias:
+      192.168.1.10: phone
+"#;
+    let runtime_config = r#"
+$schema-version: 1
+ui:
+  connections: {}
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+    fs::write(&runtime_path.0, runtime_config).unwrap();
+
+    let mut config = load(Some(cfg_path.0.clone())).unwrap();
+    config.try_apply_runtime();
+
+    let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+    assert_eq!(connections.columns.as_ref().unwrap(), &vec!["Host"]);
+    assert_eq!(
+        connections.sort.as_ref().map(|sort| (&sort.field, sort.dir)),
+        Some((&"Host".to_owned(), SortDir::Asc))
+    );
+    assert_eq!(connections.source_ip_alias.get("192.168.1.10"), Some(&"phone".to_owned()));
+
+    drop(runtime_path);
     drop(cfg_path);
 }
 
@@ -328,6 +444,24 @@ ui:
     );
 
     drop(cfg_path);
+}
+
+#[test]
+fn test_config_runtime_connections_sort_alive_is_ignored() {
+    let setting = ConnectionsSetting {
+        query_state: QueryState {
+            pattern: None,
+            sort: Some(SortSpec { col: 0, dir: SortDir::Asc }),
+            max_cols: 2,
+        },
+        columns: vec![ALIVE_COLUMN_INDEX, connection_col_index("Host")],
+        source_ip_alias: Default::default(),
+    };
+
+    let ui: ConnectionsUiConfig = (&setting).try_into().unwrap();
+
+    assert_eq!(ui.columns.as_ref().unwrap(), &vec!["Host"]);
+    assert!(ui.sort.is_none());
 }
 
 #[test]

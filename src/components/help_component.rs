@@ -9,6 +9,7 @@ use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use super::{Component, ComponentId};
 use crate::action::Action;
 use crate::config::get_config_path;
+use crate::config::runtime::runtime_path_for;
 use crate::widgets::scrollbar::Scroller;
 
 const REPOSITORY_URL: &str =
@@ -37,12 +38,19 @@ impl<'a> HelpRow<'a> {
 
 impl HelpComponent {
     fn rows<'a>() -> Vec<HelpRow<'a>> {
+        let config_path = get_config_path();
+        let runtime_path = runtime_path_for(&config_path);
+
         vec![
             HelpRow::Empty,
             HelpRow::Empty,
             HelpRow::entry(
                 Span::raw("Default configuration").bold(),
-                format!("'{}'", get_config_path().display()),
+                format!("'{}'", config_path.display()),
+            ),
+            HelpRow::entry(
+                Span::raw("Runtime configuration").bold(),
+                format!("'{}'", runtime_path.display()),
             ),
             HelpRow::entry(Span::raw("Version").bold(), REPOSITORY_URL),
             // >>> key bindings

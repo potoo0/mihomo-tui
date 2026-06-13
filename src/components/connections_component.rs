@@ -239,6 +239,9 @@ impl ConnectionsComponent {
         if !self.live_mode.load(Ordering::Relaxed) {
             self.store.compute_view();
         }
+        if let Some(tx) = &self.action_tx {
+            let _ = tx.send(Action::ConnectionsSettingChanged);
+        }
     }
 
     fn filtered_active_connection_ids(&self) -> Vec<String> {
