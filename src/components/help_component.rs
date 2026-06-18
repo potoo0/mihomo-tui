@@ -85,6 +85,16 @@ impl HelpComponent {
             HelpRow::entry("^str$", "match exactly 'str'"),
             HelpRow::entry("'str", "match if the value contains substring 'str'"),
             HelpRow::entry("!<pattern>", "negate the match of <pattern>, examples: !^str, !'str"),
+            HelpRow::entry("\"com:443\"", "quote plain patterns containing spaces or colons"),
+            HelpRow::entry(
+                "field:pattern",
+                "match <pattern> only in the named column; field is case-insensitive",
+            ),
+            HelpRow::entry("field:\"two words\"", "quote values containing spaces"),
+            HelpRow::entry(
+                "field1:pat1 field2:pat2 pat3",
+                "match named fields and remaining columns using AND",
+            ),
             // `connections` key bindings
             HelpRow::Empty,
             HelpRow::key_title("# Connections (Conn)"),

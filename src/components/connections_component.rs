@@ -386,11 +386,16 @@ impl Component for ConnectionsComponent {
             }
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
-                ConnectionsSetting::update(|setting| setting.query_state.pattern = pattern);
+                ConnectionsSetting::update(|setting| setting.query_state.set_pattern(pattern));
             }
             Action::TabSwitch(to) if to == self.id() => {
-                let pattern =
-                    ConnectionsSetting::global().write().unwrap().query_state.pattern.clone();
+                let pattern = ConnectionsSetting::global()
+                    .write()
+                    .unwrap()
+                    .query_state
+                    .pattern
+                    .as_ref()
+                    .map(|pattern| pattern.raw().into());
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
                 return Ok(Some(Action::FilterSet(pattern)));
             }

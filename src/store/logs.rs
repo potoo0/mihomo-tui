@@ -8,7 +8,7 @@ use ringbuffer::{AllocRingBuffer, RingBuffer};
 
 use crate::models::Log;
 use crate::utils::columns::ColDef;
-use crate::utils::row_filter::RowFilter;
+use crate::utils::filter::{FilterPattern, RowFilter};
 
 pub struct Logs {
     matcher: Mutex<Matcher>,
@@ -31,11 +31,16 @@ impl Logs {
         guard.enqueue(Arc::new(record));
     }
 
-    pub fn compute_view(&self, pattern: Option<&str>) {
+    pub fn compute_view(&self, pattern: Option<&FilterPattern>) {
         let buffer = self.buffer.read().unwrap();
 
         let mut matcher = self.matcher.lock().unwrap();
-        let filtered = RowFilter::new(buffer.iter(), &mut matcher, pattern, LOG_COLS.iter());
+        let filtered = RowFilter::new(
+            buffer.iter(),
+            &mut matcher,
+            pattern.map(FilterPattern::expr),
+            LOG_COLS.iter(),
+        );
         let mut guard = self.view.write().unwrap();
         guard.clear();
         guard.extend(filtered)

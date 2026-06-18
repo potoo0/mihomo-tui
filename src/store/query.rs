@@ -1,8 +1,9 @@
 use crate::models::sort::{SortDir, SortSpec};
+use crate::utils::filter::FilterPattern;
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct QueryState {
-    pub pattern: Option<String>,
+    pub pattern: Option<FilterPattern>,
     pub sort: Option<SortSpec>,
     /// Maximum number of sortable columns, for column navigation
     pub max_cols: usize,
@@ -11,6 +12,10 @@ pub struct QueryState {
 impl QueryState {
     pub fn new(max_cols: usize) -> Self {
         Self { pattern: None, sort: None, max_cols }
+    }
+
+    pub fn set_pattern(&mut self, pattern: Option<String>) {
+        self.pattern = pattern.and_then(FilterPattern::new);
     }
 
     pub fn set_max_cols(&mut self, max_cols: usize) {

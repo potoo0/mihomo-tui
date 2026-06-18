@@ -8,7 +8,7 @@ use ratatui::layout::Constraint;
 
 use crate::models::RuleProvider;
 use crate::utils::columns::{ColDef, TableColDef};
-use crate::utils::row_filter::RowFilter;
+use crate::utils::filter::{FilterPattern, RowFilter};
 use crate::utils::time::format_datetime;
 
 #[derive(Default)]
@@ -31,12 +31,16 @@ impl RuleProviders {
             .collect();
     }
 
-    pub fn compute_view(&self, pattern: Option<&str>) {
+    pub fn compute_view(&self, pattern: Option<&FilterPattern>) {
         let buffer = self.buffer.read().unwrap();
 
         let mut matcher = self.matcher.lock().unwrap();
-        let filtered =
-            RowFilter::new(buffer.iter(), &mut matcher, pattern, RULE_PROVIDER_COLS.iter());
+        let filtered = RowFilter::new(
+            buffer.iter(),
+            &mut matcher,
+            pattern.map(FilterPattern::expr),
+            RULE_PROVIDER_COLS.iter(),
+        );
         let mut guard = self.view.write().unwrap();
         guard.clear();
         filtered.for_each(|v| guard.push(v));
