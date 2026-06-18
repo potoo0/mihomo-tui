@@ -16,7 +16,7 @@ use crate::models::Connection;
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey, TableColDef, TextResolver};
-use crate::utils::row_filter::RowFilter;
+use crate::utils::filter::{FilterPattern, RowFilter};
 use crate::utils::symbols::dot;
 use crate::utils::time::format_time_from_now;
 
@@ -72,13 +72,12 @@ impl Connections {
         let query_state = &setting.query_state;
         let buffer = self.buffer.read().unwrap();
 
-        let pattern = query_state.pattern.as_deref();
         let mut matcher = self.matcher.lock().unwrap();
         let text_resolver = SourceIpAliasTextResolver { source_ip_alias: &setting.source_ip_alias };
         let filtered = RowFilter::new(
             buffer.iter(),
             &mut matcher,
-            pattern,
+            query_state.pattern.as_ref().map(FilterPattern::expr),
             setting.columns.iter().filter_map(|&idx| CONNECTION_COLS.get(idx)),
         )
         .with_text_resolver(&text_resolver);
@@ -556,7 +555,7 @@ mod tests {
         ConnectionsSetting::update(|setting| {
             setting.columns = columns.clone();
             setting.query_state = QueryState::new(columns.len());
-            setting.query_state.pattern = Some("secret-rule".to_string());
+            setting.query_state.set_pattern(Some("secret-rule".to_string()));
             setting.source_ip_alias.clear();
         });
         store.compute_view();
@@ -566,7 +565,48 @@ mod tests {
         ConnectionsSetting::update(|setting| {
             setting.columns = columns.clone();
             setting.query_state = QueryState::new(columns.len());
-            setting.query_state.pattern = Some("secret-rule".to_string());
+            setting.query_state.set_pattern(Some("secret-rule".to_string()));
+            setting.source_ip_alias.clear();
+        });
+        store.compute_view();
+        assert_eq!(
+            store.with_view(|records| {
+                records.iter().map(|connection| connection.id.to_string()).collect::<Vec<_>>()
+            }),
+            vec!["1"]
+        );
+
+        ConnectionsSetting::update(|setting| {
+            let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.source_ip_alias.clear();
+        });
+    }
+
+    #[test]
+    fn field_filter_only_uses_visible_connection_columns() {
+        let _guard = settings_test_lock();
+        let store = Connections::new(NonZeroUsize::new(10).unwrap());
+        let mut conn = connection("1", None);
+        conn.rule = "secret-rule".to_string();
+        store.push(false, vec![conn]);
+
+        let columns = with_alive_column([connection_col_index("host")]);
+        ConnectionsSetting::update(|setting| {
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.query_state.set_pattern(Some("rule:secret-rule".to_string()));
+            setting.source_ip_alias.clear();
+        });
+        store.compute_view();
+        assert_eq!(store.with_view(|records| records.len()), 0);
+
+        let columns = with_alive_column([connection_col_index("rule")]);
+        ConnectionsSetting::update(|setting| {
+            setting.columns = columns.clone();
+            setting.query_state = QueryState::new(columns.len());
+            setting.query_state.set_pattern(Some("rule:secret-rule".to_string()));
             setting.source_ip_alias.clear();
         });
         store.compute_view();
@@ -603,7 +643,7 @@ mod tests {
         });
 
         ConnectionsSetting::update(|setting| {
-            setting.query_state.pattern = Some("phone".to_string());
+            setting.query_state.set_pattern(Some("phone".to_string()));
             setting.query_state.sort = None;
         });
         store.compute_view();
@@ -618,7 +658,7 @@ mod tests {
         ConnectionsSetting::update(|setting| {
             setting.columns = columns.clone();
             setting.query_state = QueryState::new(columns.len());
-            setting.query_state.pattern = Some("phone".to_string());
+            setting.query_state.set_pattern(Some("phone".to_string()));
         });
         store.compute_view();
         assert_eq!(store.with_view(|records| records.len()), 0);
@@ -629,7 +669,7 @@ mod tests {
         ConnectionsSetting::update(|setting| {
             setting.columns = columns.clone();
             setting.query_state = QueryState::new(columns.len());
-            setting.query_state.pattern = None;
+            setting.query_state.set_pattern(None);
             setting.query_state.sort =
                 Some(SortSpec { col: source_ip_visible_col, dir: SortDir::Asc });
         });

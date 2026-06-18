@@ -23,6 +23,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::LogLevel;
 use crate::store::logs::Logs;
+use crate::utils::filter::FilterPattern;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -34,7 +35,7 @@ pub struct LogsComponent {
     store: Arc<Logs>,
     level: Option<LogLevel>,
     live_mode: Arc<AtomicBool>,
-    filter_pattern: Arc<Mutex<Option<String>>>,
+    filter_pattern: Arc<Mutex<Option<FilterPattern>>>,
 
     level_changed: bool,
     filter_pattern_changed: bool,
@@ -92,8 +93,7 @@ impl LogsComponent {
                     store.push(record);
                     if live_mode.load(Ordering::Relaxed) {
                         let filter_pattern = filter_pattern.lock().unwrap();
-                        let filter_pattern = filter_pattern.as_deref();
-                        store.compute_view(filter_pattern);
+                        store.compute_view(filter_pattern.as_ref());
                     }
                     future::ready(())
                 })
@@ -294,8 +294,7 @@ impl Component for LogsComponent {
                 }
                 if self.filter_pattern_changed {
                     let filter_pattern = self.filter_pattern.lock().unwrap();
-                    let filter_pattern = filter_pattern.as_deref();
-                    self.store.compute_view(filter_pattern);
+                    self.store.compute_view(filter_pattern.as_ref());
                     self.filter_pattern_changed = false;
                 }
                 if self.level_changed {
@@ -307,11 +306,16 @@ impl Component for LogsComponent {
             }
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
-                *self.filter_pattern.lock().unwrap() = pattern;
+                *self.filter_pattern.lock().unwrap() = pattern.and_then(FilterPattern::new);
                 self.filter_pattern_changed = true;
             }
             Action::TabSwitch(to) if to == self.id() => {
-                let pattern = self.filter_pattern.lock().unwrap().clone();
+                let pattern = self
+                    .filter_pattern
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .map(|pattern| pattern.raw().into());
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
                 return Ok(Some(Action::FilterSet(pattern)));
             }

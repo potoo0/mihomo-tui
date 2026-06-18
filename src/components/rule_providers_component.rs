@@ -16,6 +16,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::store::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
+use crate::utils::filter::FilterPattern;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -28,7 +29,7 @@ pub struct RuleProvidersComponent {
 
     store: Arc<RuleProviders>,
     filter_pattern_changed: bool,
-    filter_pattern: Arc<Mutex<Option<String>>>,
+    filter_pattern: Arc<Mutex<Option<FilterPattern>>>,
 
     navigator: ScrollableNavigator,
     table_state: TableState,
@@ -98,13 +99,13 @@ impl RuleProvidersComponent {
     async fn refresh_rule_providers(
         api: &Api,
         store: &RuleProviders,
-        filter_pattern: &Mutex<Option<String>>,
+        filter_pattern: &Mutex<Option<FilterPattern>>,
     ) {
         match api.get_rule_providers().await {
             Ok(providers) => {
                 store.push(providers);
                 let filter_pattern = filter_pattern.lock().unwrap();
-                store.compute_view(filter_pattern.as_deref());
+                store.compute_view(filter_pattern.as_ref());
             }
             Err(e) => error!(error = ?e, "Failed to get rule providers"),
         }
@@ -269,8 +270,7 @@ impl Component for RuleProvidersComponent {
                 if self.filter_pattern_changed {
                     debug!("handle Action::Tick, recompute rule providers view");
                     let filter_pattern = self.filter_pattern.lock().unwrap();
-                    let filter_pattern = filter_pattern.as_deref();
-                    self.store.compute_view(filter_pattern);
+                    self.store.compute_view(filter_pattern.as_ref());
                     self.filter_pattern_changed = false;
                 }
                 if self.is_busy() {
@@ -279,11 +279,16 @@ impl Component for RuleProvidersComponent {
             }
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
-                *self.filter_pattern.lock().unwrap() = pattern;
+                *self.filter_pattern.lock().unwrap() = pattern.and_then(FilterPattern::new);
                 self.filter_pattern_changed = true;
             }
             Action::TabSwitch(to) if to == self.id() => {
-                let pattern = self.filter_pattern.lock().unwrap().clone();
+                let pattern = self
+                    .filter_pattern
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .map(|pattern| pattern.raw().into());
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
                 return Ok(Some(Action::FilterSet(pattern)));
             }
