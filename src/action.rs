@@ -34,6 +34,8 @@ pub enum Action {
     ConnectionsSettingChanged,
     /// Sent when the filter pattern is changed via user input.
     FilterChanged(Option<String>),
+    /// Programmatically sets the filter placeholder for the current tab.
+    FilterPlaceholder(Option<String>),
     /// Programmatically sets the filter pattern without re-triggering `FilterChanged`.
     FilterSet(Option<String>),
     ConnectionTerminateRequest(Arc<Connection>),

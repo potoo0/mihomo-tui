@@ -23,7 +23,7 @@ use crate::models::Connection;
 use crate::models::sort::SortDir;
 use crate::store::connections::{CONNECTION_COLS, Connections, SourceIpAliasTextResolver};
 use crate::store::connections_setting::ConnectionsSetting;
-use crate::utils::columns::TextResolver;
+use crate::utils::columns::{TextResolver, filter_placeholder};
 use crate::utils::symbols::{arrow, triangle};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -244,6 +244,13 @@ impl ConnectionsComponent {
         }
     }
 
+    fn filter_placeholder() -> Option<String> {
+        let setting = ConnectionsSetting::snapshot();
+        filter_placeholder(
+            setting.columns.iter().filter_map(|&idx| CONNECTION_COLS.get(idx)).map(|col| &col.col),
+        )
+    }
+
     fn filtered_active_connection_ids(&self) -> Vec<String> {
         self.store.with_view(|records| {
             records
@@ -397,9 +404,17 @@ impl Component for ConnectionsComponent {
                     .as_ref()
                     .map(|pattern| pattern.raw().into());
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                if let Some(tx) = &self.action_tx {
+                    tx.send(Action::FilterPlaceholder(Self::filter_placeholder()))?;
+                }
                 return Ok(Some(Action::FilterSet(pattern)));
             }
-            Action::ConnectionsSettingChanged => self.store.compute_view(),
+            Action::ConnectionsSettingChanged => {
+                self.store.compute_view();
+                if let Some(tx) = &self.action_tx {
+                    tx.send(Action::FilterPlaceholder(Self::filter_placeholder()))?;
+                }
+            }
             _ => {}
         }
 

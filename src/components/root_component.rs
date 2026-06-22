@@ -406,6 +406,9 @@ impl Component for RootComponent {
                 self.maybe_load_conn()?;
                 // get and init component, send shortcuts of current tab to footer
                 let shortcuts = self.get_or_init(self.current_tab).shortcuts();
+                if self.current_tab.supports_filter() {
+                    self.get_or_init(ComponentId::Filter);
+                }
                 action_tx.send(Action::Shortcuts(shortcuts))?;
             }
             Action::AppUpdateRequest => self.open_popup(ComponentId::Updates)?,

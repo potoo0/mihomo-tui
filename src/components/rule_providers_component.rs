@@ -16,6 +16,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::store::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
+use crate::utils::columns::filter_placeholder;
 use crate::utils::filter::FilterPattern;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
@@ -290,6 +291,11 @@ impl Component for RuleProvidersComponent {
                     .as_ref()
                     .map(|pattern| pattern.raw().into());
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                if let Some(tx) = &self.action_tx {
+                    tx.send(Action::FilterPlaceholder(filter_placeholder(
+                        RULE_PROVIDER_COLS.iter().map(|col| &col.col),
+                    )))?;
+                }
                 return Ok(Some(Action::FilterSet(pattern)));
             }
             _ => {}

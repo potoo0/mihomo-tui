@@ -21,6 +21,7 @@ pub struct FilterComponent {
     is_active: bool,
     should_send: bool,
     input: Input,
+    placeholder: Option<String>,
     action_tx: Option<UnboundedSender<Action>>,
 }
 
@@ -95,6 +96,10 @@ impl Component for FilterComponent {
                 debug!("handle Action::FilterSet, pattern={pattern:?}");
                 self.input = pattern.unwrap_or_default().into();
             }
+            Action::FilterPlaceholder(placeholder) => {
+                debug!("handle Action::FilterPlaceholder, placeholder={placeholder:?}");
+                self.placeholder = placeholder;
+            }
             _ => (),
         }
 
@@ -125,8 +130,15 @@ impl Component for FilterComponent {
             .border_style(style)
             .title(left.left_aligned())
             .title(right.right_aligned());
-        let input =
-            Paragraph::new(self.input.value()).scroll((0, scroll as u16)).style(style).block(block);
+        let paragraph = if self.input.value().is_empty() {
+            Paragraph::new(Line::from(Span::styled(
+                self.placeholder.as_deref().unwrap_or_default(),
+                Style::default().fg(Color::DarkGray),
+            )))
+        } else {
+            Paragraph::new(self.input.value()).scroll((0, scroll as u16)).style(style)
+        };
+        let input = paragraph.block(block);
         frame.render_widget(input, area);
         if self.is_active {
             let x = self.input.visual_cursor().max(scroll) - scroll + 1;

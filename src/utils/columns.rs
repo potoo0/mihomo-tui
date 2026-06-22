@@ -10,6 +10,20 @@ pub trait TextResolver<T> {
     -> Cow<'row, str>;
 }
 
+pub fn filter_placeholder<'a, T, I>(cols: I) -> Option<String>
+where
+    T: 'a,
+    I: IntoIterator<Item = &'a ColDef<T>>,
+{
+    let fields =
+        cols.into_iter().filter(|col| col.filterable).map(|col| col.title).collect::<Vec<_>>();
+    if fields.is_empty() {
+        None
+    } else {
+        Some(format!("Type to search: {} or Field:expr ...", fields.join(" ")))
+    }
+}
+
 pub struct ColDef<T> {
     #[allow(dead_code)]
     pub id: &'static str,
