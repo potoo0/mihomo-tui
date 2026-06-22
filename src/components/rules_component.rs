@@ -18,6 +18,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::models::Rule;
 use crate::store::rules::{RULE_COLS, Rules};
+use crate::utils::columns::filter_placeholder;
 use crate::utils::filter::FilterPattern;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
@@ -319,6 +320,11 @@ impl Component for RulesComponent {
                     .as_ref()
                     .map(|pattern| pattern.raw().into());
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                if let Some(tx) = &self.action_tx {
+                    tx.send(Action::FilterPlaceholder(filter_placeholder(
+                        RULE_COLS.iter().map(|col| &col.col),
+                    )))?;
+                }
                 return Ok(Some(Action::FilterSet(pattern)));
             }
             _ => {}
