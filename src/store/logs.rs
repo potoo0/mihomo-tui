@@ -31,6 +31,37 @@ impl Logs {
         guard.enqueue(Arc::new(record));
     }
 
+    pub fn push_and_update_view(&self, record: Log, pattern: Option<&FilterPattern>) {
+        let record = Arc::new(record);
+        let removed = {
+            let mut guard = self.buffer.write().unwrap();
+            guard.enqueue(Arc::clone(&record))
+        };
+
+        let matches = {
+            let mut matcher = self.matcher.lock().unwrap();
+            RowFilter::new(
+                std::iter::once(&record),
+                &mut matcher,
+                pattern.map(FilterPattern::expr),
+                LOG_COLS.iter(),
+            )
+            .next()
+            .is_some()
+        };
+
+        let mut guard = self.view.write().unwrap();
+        // Keep the filtered view in sync when the ring buffer evicts its oldest record.
+        if let Some(removed) = removed
+            && guard.front().is_some_and(|log| Arc::ptr_eq(log, &removed))
+        {
+            guard.dequeue();
+        }
+        if matches {
+            guard.enqueue(record);
+        }
+    }
+
     pub fn compute_view(&self, pattern: Option<&FilterPattern>) {
         let buffer = self.buffer.read().unwrap();
 
@@ -73,3 +104,41 @@ pub static LOG_COLS: &[ColDef<Log>] = &[
         sort_key: None,
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::LogLevel;
+
+    fn log(payload: &str) -> Log {
+        Log { r#type: LogLevel::Info, payload: payload.to_owned() }
+    }
+
+    fn payloads(store: &Logs) -> Vec<String> {
+        store.with_view(|records| records.iter().map(|record| record.payload.clone()).collect())
+    }
+
+    #[test]
+    fn push_and_update_view_filters_new_record() {
+        let store = Logs::new(NonZeroUsize::new(4).unwrap());
+        let pattern = FilterPattern::new("foo".to_owned());
+
+        store.push_and_update_view(log("foo one"), pattern.as_ref());
+        store.push_and_update_view(log("bar two"), pattern.as_ref());
+        store.push_and_update_view(log("foo three"), pattern.as_ref());
+
+        assert_eq!(payloads(&store), ["foo one", "foo three"]);
+    }
+
+    #[test]
+    fn push_and_update_view_removes_expired_filtered_record() {
+        let store = Logs::new(NonZeroUsize::new(2).unwrap());
+        let pattern = FilterPattern::new("foo".to_owned());
+
+        store.push_and_update_view(log("foo one"), pattern.as_ref());
+        store.push_and_update_view(log("bar two"), pattern.as_ref());
+        store.push_and_update_view(log("foo three"), pattern.as_ref());
+
+        assert_eq!(payloads(&store), ["foo three"]);
+    }
+}

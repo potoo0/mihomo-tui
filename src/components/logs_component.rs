@@ -91,10 +91,12 @@ impl LogsComponent {
                 .inspect_err(|e| warn!("Failed to parse log: {e}"))
                 .filter_map(|res| future::ready(res.ok()))
                 .for_each(|record| {
-                    store.push(record);
+                    // Keep log-store updates exclusive with view recomputation.
+                    let filter_pattern = filter_pattern.lock().unwrap();
                     if live_mode.load(Ordering::Relaxed) {
-                        let filter_pattern = filter_pattern.lock().unwrap();
-                        store.compute_view(filter_pattern.as_ref());
+                        store.push_and_update_view(record, filter_pattern.as_ref());
+                    } else {
+                        store.push(record);
                     }
                     future::ready(())
                 })
@@ -206,6 +208,12 @@ impl LogsComponent {
         if live_mode {
             self.navigator.focused = None;
             self.navigator.scroller.position(0);
+            // Recompute the view so records collected while paused become visible.
+            // Keep view recomputation exclusive with log-store updates.
+            {
+                let filter_pattern = self.filter_pattern.lock().unwrap();
+                self.store.compute_view(filter_pattern.as_ref());
+            } // release filter_pattern lock
         }
     }
 
