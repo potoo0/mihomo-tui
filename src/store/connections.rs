@@ -220,7 +220,7 @@ pub static CONNECTION_COLS: &[TableColDef<Connection>] = &[
             },
             sort_key: None,
         },
-        constraint: Constraint::Min(30),
+        constraint: Constraint::Min(15),
     },
     TableColDef {
         col: ColDef {

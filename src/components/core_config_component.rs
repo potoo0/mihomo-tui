@@ -428,15 +428,31 @@ impl Component for CoreConfigComponent {
                         Fragment::hl("⇧⇤"),
                         Fragment::raw(" nav "),
                         Fragment::hl("⇥"),
+                    ])
+                    .compact(vec![
+                        Fragment::hl("⇧⇤"),
+                        Fragment::raw("/"),
+                        Fragment::hl("⇥"),
                     ]),
                     Shortcut::new(vec![
                         Fragment::hl(arrow::UP),
                         Fragment::raw(" scroll "),
                         Fragment::hl(arrow::DOWN),
+                    ])
+                    .compact(vec![
+                        Fragment::hl(arrow::UP),
+                        Fragment::raw("/"),
+                        Fragment::hl(arrow::DOWN),
+                        Fragment::raw(" scroll"),
                     ]),
                     Shortcut::new(vec![
                         Fragment::hl("PgUp"),
                         Fragment::raw(" page "),
+                        Fragment::hl("PgDn"),
+                    ])
+                    .compact(vec![
+                        Fragment::hl("PgUp"),
+                        Fragment::raw("/"),
                         Fragment::hl("PgDn"),
                     ]),
                     Shortcut::from("edit", 0).unwrap(),
@@ -450,6 +466,11 @@ impl Component for CoreConfigComponent {
                     Shortcut::new(vec![
                         Fragment::hl("⇧⇤"),
                         Fragment::raw(" nav "),
+                        Fragment::hl("⇥"),
+                    ])
+                    .compact(vec![
+                        Fragment::hl("⇧⇤"),
+                        Fragment::raw("/"),
                         Fragment::hl("⇥"),
                     ]),
                     Shortcut::new(vec![Fragment::raw("execute "), Fragment::hl("↵")]),

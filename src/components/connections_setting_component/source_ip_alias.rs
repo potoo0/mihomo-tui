@@ -55,15 +55,26 @@ impl SourceIpAliasSettingPane {
 
 impl SettingPane for SourceIpAliasSettingPane {
     fn shortcuts(&self) -> Vec<Shortcut> {
-        vec![Shortcut::new(vec![
-            Fragment::hl(arrow::UP),
-            Fragment::raw("/"),
-            Fragment::hl("PgUp"),
-            Fragment::raw(" nav "),
-            Fragment::hl("PgDn"),
-            Fragment::raw("/"),
-            Fragment::hl(arrow::DOWN),
-        ])]
+        vec![
+            Shortcut::new(vec![
+                Fragment::hl(arrow::UP),
+                Fragment::raw("/"),
+                Fragment::hl("PgUp"),
+                Fragment::raw(" nav "),
+                Fragment::hl("PgDn"),
+                Fragment::raw("/"),
+                Fragment::hl(arrow::DOWN),
+            ])
+            .compact(vec![
+                Fragment::hl(arrow::UP),
+                Fragment::raw("/"),
+                Fragment::hl("PgUp"),
+                Fragment::raw("/"),
+                Fragment::hl("PgDn"),
+                Fragment::raw("/"),
+                Fragment::hl(arrow::DOWN),
+            ]),
+        ]
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> KeyOutcome {
