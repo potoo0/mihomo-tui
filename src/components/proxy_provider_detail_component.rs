@@ -219,30 +219,32 @@ impl Component for ProxyProviderDetailComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
+                Fragment::hl(arrow::LEFT),
+                Fragment::raw("/"),
                 Fragment::hl(arrow::UP),
                 Fragment::raw("/"),
-                Fragment::hl(arrow::LEFT),
+                Fragment::hl("PgUp"),
+                Fragment::raw("/"),
+                Fragment::hl("g"),
                 Fragment::raw(" nav "),
-                Fragment::hl(arrow::RIGHT),
+                Fragment::hl("G"),
+                Fragment::raw("/"),
+                Fragment::hl("PgDn"),
                 Fragment::raw("/"),
                 Fragment::hl(arrow::DOWN),
+                Fragment::raw("/"),
+                Fragment::hl(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![
-                Fragment::hl("PgUp"),
-                Fragment::raw(" page "),
-                Fragment::hl("PgDn"),
-            ]),
-            Shortcut::new(vec![Fragment::hl("g"), Fragment::raw(" jump "), Fragment::hl("G")]),
-            Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
-            Shortcut::from("refresh", 0).unwrap(),
-            Shortcut::from("test", 0).unwrap(),
-            Shortcut::from("update", 0).unwrap(),
             Shortcut::new(vec![
                 Fragment::hl("s"),
                 Fragment::raw("/"),
                 Fragment::hl("S"),
                 Fragment::raw("ort"),
             ]),
+            Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
+            Shortcut::from("test", 0).unwrap(),
+            Shortcut::from("update", 0).unwrap(),
+            Shortcut::from("refresh", 0).unwrap(),
         ]
     }
 

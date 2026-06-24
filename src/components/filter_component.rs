@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -11,10 +13,11 @@ use tracing::debug;
 use tui_input::Input;
 
 use crate::action::Action;
+use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::utils::tui_input::input_request;
-use crate::widgets::shortcut::{Fragment, Shortcut};
+use crate::widgets::shortcut::{Fragment, Shortcut, ShortcutMode, shortcuts_full_width};
 
 #[derive(Debug, Clone, Default)]
 pub struct FilterComponent {
@@ -23,6 +26,7 @@ pub struct FilterComponent {
     input: Input,
     placeholder: Option<String>,
     action_tx: Option<UnboundedSender<Action>>,
+    shortcuts_full_width: usize,
 }
 
 impl FilterComponent {
@@ -49,21 +53,38 @@ impl Component for FilterComponent {
                 Fragment::hl("←/C-←"),
                 Fragment::raw(" move "),
                 Fragment::hl("→/C-→"),
+            ])
+            .compact(vec![
+                Fragment::hl("←/C-←"),
+                Fragment::raw("/"),
+                Fragment::hl("→/C-→"),
             ]),
             Shortcut::new(vec![
                 Fragment::hl("Back/C-Back"),
                 Fragment::raw(" del "),
                 Fragment::hl("Del/C-Del"),
+            ])
+            .compact(vec![
+                Fragment::hl("Back"),
+                Fragment::raw("/"),
+                Fragment::hl("Del"),
             ]),
-            Shortcut::new(vec![Fragment::raw("Yank "), Fragment::hl("C-Y")]),
-            Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")]),
+            Shortcut::new(vec![Fragment::hl("C-Y"), Fragment::raw("ank")]),
+            Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")])
+                .compact(vec![Fragment::hl("Home"), Fragment::raw("/"), Fragment::hl("End")]),
             Shortcut::new(vec![
                 Fragment::raw("esc "),
                 Fragment::hl("Esc"),
                 Fragment::raw("/"),
                 Fragment::hl("↵"),
-            ]),
+            ])
+            .compact(vec![Fragment::hl("Esc"), Fragment::raw("/"), Fragment::hl("↵")]),
         ]
+    }
+
+    fn init(&mut self, _api: Arc<Api>) -> Result<()> {
+        self.shortcuts_full_width = shortcuts_full_width(&self.shortcuts(), 2);
+        Ok(())
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
@@ -118,10 +139,17 @@ impl Component for FilterComponent {
         left.extend(Shortcut::from("filter", 0).unwrap().into_spans(None));
         left.push_span(Span::raw(TOP_TITLE_RIGHT));
         // right align
+        let right_width = area.width.saturating_sub(left.width() as u16 + 1);
+        let mode = if self.shortcuts_full_width <= right_width as usize {
+            ShortcutMode::Full
+        } else {
+            ShortcutMode::Compact
+        };
+        let shortcuts = self.shortcuts();
         let mut right = Line::default();
-        for shortcut in self.shortcuts() {
+        for shortcut in &shortcuts {
             right.push_span(Span::raw(TOP_TITLE_LEFT));
-            right.extend(shortcut.into_spans(None));
+            right.extend(shortcut.spans_for(mode, None));
             right.push_span(Span::raw(TOP_TITLE_RIGHT));
         }
 

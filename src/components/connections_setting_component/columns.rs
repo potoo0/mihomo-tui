@@ -66,11 +66,30 @@ impl SettingPane for ColumnsSettingPane {
                 Fragment::hl("PgDn"),
                 Fragment::raw("/"),
                 Fragment::hl(arrow::RIGHT),
+            ])
+            .compact(vec![
+                Fragment::hl(arrow::LEFT),
+                Fragment::raw("/"),
+                Fragment::hl("PgUp"),
+                Fragment::raw("/"),
+                Fragment::hl("g"),
+                Fragment::raw("/"),
+                Fragment::hl("G"),
+                Fragment::raw("/"),
+                Fragment::hl("PgDn"),
+                Fragment::raw("/"),
+                Fragment::hl(arrow::RIGHT),
             ]),
             Shortcut::new(vec![
                 Fragment::hl(concatcp!("C-", arrow::LEFT)),
                 Fragment::raw(" move "),
                 Fragment::hl(concatcp!("C-", arrow::RIGHT)),
+            ])
+            .compact(vec![
+                Fragment::hl(concatcp!("C-", arrow::LEFT)),
+                Fragment::raw("/"),
+                Fragment::hl(concatcp!("C-", arrow::RIGHT)),
+                Fragment::raw(" move"),
             ]),
             Shortcut::new(vec![Fragment::raw("toggle "), Fragment::hl("Space")]),
             Shortcut::from("all", 0).unwrap(),

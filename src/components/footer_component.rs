@@ -5,10 +5,11 @@ use ratatui::text::{Line, Span};
 
 use crate::action::Action;
 use crate::components::{Component, ComponentId};
-use crate::widgets::shortcut::Shortcut;
+use crate::widgets::shortcut::{Shortcut, ShortcutMode, shortcuts_full_width};
 
 pub struct FooterComponent {
     shortcuts: Vec<Shortcut>,
+    full_width: usize,
 }
 
 fn default_shortcuts() -> Vec<Shortcut> {
@@ -17,16 +18,24 @@ fn default_shortcuts() -> Vec<Shortcut> {
 
 impl Default for FooterComponent {
     fn default() -> Self {
-        Self { shortcuts: default_shortcuts() }
+        let shortcuts = default_shortcuts();
+        let full_width = shortcuts_full_width(&shortcuts, 2);
+
+        Self { shortcuts, full_width }
     }
 }
 
 impl FooterComponent {
-    fn short_cuts_widget(&self) -> Line<'_> {
+    fn short_cuts_widget(&self, width: u16) -> Line<'_> {
+        let mode = if self.full_width <= width as usize {
+            ShortcutMode::Full
+        } else {
+            ShortcutMode::Compact
+        };
         let mut spans = vec![];
         for shortcut in &self.shortcuts {
             spans.push(Span::raw(BOTTOM_RIGHT));
-            spans.extend(shortcut.spans(None));
+            spans.extend(shortcut.spans_for(mode, None));
             spans.push(Span::raw(BOTTOM_LEFT));
         }
 
@@ -43,6 +52,7 @@ impl Component for FooterComponent {
         if let Action::Shortcuts(shortcuts) = action {
             let mut sc = default_shortcuts();
             sc.extend(shortcuts);
+            self.full_width = shortcuts_full_width(&sc, 2);
             self.shortcuts = sc;
         }
         Ok(None)
@@ -51,7 +61,7 @@ impl Component for FooterComponent {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> anyhow::Result<()> {
         // NOTE: bottom border may not need to be cleared, because it does not change background
         // color or other special styles frame.render_widget(Clear, area);
-        frame.render_widget(self.short_cuts_widget(), area);
+        frame.render_widget(self.short_cuts_widget(area.width), area);
         Ok(())
     }
 }

@@ -19,7 +19,7 @@ use crate::store::connections::with_alive_column;
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::utils::input::KeyOutcome;
 use crate::utils::text_ui::{popup_area, top_title_line};
-use crate::widgets::shortcut::{Fragment, Shortcut};
+use crate::widgets::shortcut::{Fragment, Shortcut, ShortcutMode, shortcuts_full_width};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 enum ActivePane {
@@ -63,14 +63,20 @@ pub(super) trait SettingPane {
             return;
         }
 
+        let footer_area = Rect::new(area.x + 1, area.y + area.height - 1, area.width - 2, 1);
+        let full_width = shortcuts_full_width(&shortcuts, 2);
+        let mode = if full_width <= footer_area.width as usize {
+            ShortcutMode::Full
+        } else {
+            ShortcutMode::Compact
+        };
         let mut spans = Vec::with_capacity(shortcuts.len());
         for shortcut in &shortcuts {
             spans.push(Span::raw(BOTTOM_RIGHT));
-            spans.extend(shortcut.spans(None));
+            spans.extend(shortcut.spans_for(mode, None));
             spans.push(Span::raw(BOTTOM_LEFT));
         }
 
-        let footer_area = Rect::new(area.x + 1, area.y + area.height - 1, area.width - 2, 1);
         frame.render_widget(Line::from(spans), footer_area);
     }
 
@@ -200,7 +206,13 @@ impl Component for ConnectionsSettingComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" pane nav "), Fragment::hl("⇥")]),
+            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" pane nav "), Fragment::hl("⇥")])
+                .compact(vec![
+                    Fragment::hl("⇧⇤"),
+                    Fragment::raw("/"),
+                    Fragment::hl("⇥"),
+                    Fragment::raw(" pane"),
+                ]),
             Shortcut::new(vec![Fragment::raw("apply "), Fragment::hl("↵")]),
             Shortcut::new(vec![Fragment::raw("cancel "), Fragment::hl("Esc")]),
         ]

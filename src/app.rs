@@ -7,7 +7,7 @@ use anyhow::{Context, Result, anyhow};
 use ratatui::layout::Rect;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, trace};
+use tracing::{debug, error, info, trace};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -236,6 +236,7 @@ impl App {
     }
 
     fn handle_resize(&mut self, tui: &mut Tui, w: u16, h: u16) -> Result<()> {
+        debug!("Resizing to {}x{}", w, h);
         tui.resize(Rect::new(0, 0, w, h))?;
         self.render(tui)?;
         Ok(())

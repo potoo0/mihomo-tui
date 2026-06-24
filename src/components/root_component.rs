@@ -46,7 +46,7 @@ use crate::utils::text_ui::top_title_line;
 use crate::version_update::SharedVersionUpdateState;
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
-const MIN_AREA: (u16, u16) = (100, 18);
+const MIN_AREA: (u16, u16) = (80, 18);
 /// 120 seconds at 4 ticks per second
 const IDLE_TICKS: u16 = 120 * 4;
 

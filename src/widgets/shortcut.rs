@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow};
 use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Span};
+use ratatui::text::Span;
 
 const DEFAULT_HL_COLOR: Color = Color::Indexed(130);
 
@@ -43,14 +43,33 @@ impl Fragment {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShortcutMode {
+    Full,
+    Compact,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Shortcut {
-    parts: Vec<Fragment>,
+    full: Vec<Fragment>,
+    compact: Option<Vec<Fragment>>,
 }
 
 impl Shortcut {
     pub fn new(parts: Vec<Fragment>) -> Self {
-        Self { parts }
+        Self { full: parts, compact: None }
+    }
+
+    pub fn compact(mut self, parts: Vec<Fragment>) -> Self {
+        self.compact = Some(parts);
+        self
+    }
+
+    fn parts(&self, mode: ShortcutMode) -> &[Fragment] {
+        match mode {
+            ShortcutMode::Full => &self.full,
+            ShortcutMode::Compact => self.compact.as_deref().unwrap_or(&self.full),
+        }
     }
 
     /// Creates a `Shortcut` from `s`, highlighting the character at `hl_index`.
@@ -84,27 +103,29 @@ impl Shortcut {
         Ok(Self::new(parts))
     }
 
-    /// Converts this `Shortcut` into a [`Line`].
-    #[inline]
-    pub fn into_line<'a>(self, hl_style: Option<Style>) -> Line<'a> {
-        Line::from(self.into_spans(hl_style))
-    }
-
     pub fn into_spans<'a>(self, hl_style: Option<Style>) -> Vec<Span<'a>> {
-        self.parts.into_iter().map(|v| v.into_span(hl_style)).collect()
+        self.into_spans_for(ShortcutMode::Full, hl_style)
     }
 
-    pub fn spans(&'_ self, hl_style: Option<Style>) -> Vec<Span<'_>> {
-        self.parts.iter().map(|v| v.span(hl_style)).collect()
+    pub fn into_spans_for<'a>(self, mode: ShortcutMode, hl_style: Option<Style>) -> Vec<Span<'a>> {
+        let parts = match mode {
+            ShortcutMode::Full => self.full,
+            ShortcutMode::Compact => self.compact.unwrap_or(self.full),
+        };
+        parts.into_iter().map(|v| v.into_span(hl_style)).collect()
+    }
+
+    pub fn spans_for(&'_ self, mode: ShortcutMode, hl_style: Option<Style>) -> Vec<Span<'_>> {
+        self.parts(mode).iter().map(|v| v.span(hl_style)).collect()
+    }
+
+    pub fn width_for(&self, mode: ShortcutMode) -> usize {
+        self.parts(mode).iter().map(|v| v.span(None).width()).sum()
     }
 }
 
-/// Converts this `Shortcut` into a [`Line`],
-/// using the default highlight color [DEFAULT_HL_COLOR].
-impl<'a> From<Shortcut> for Line<'a> {
-    fn from(value: Shortcut) -> Self {
-        value.into_line(Some(Style::default().fg(DEFAULT_HL_COLOR)))
-    }
+pub fn shortcuts_full_width(shortcuts: &[Shortcut], pad_width: usize) -> usize {
+    shortcuts.iter().map(|v| v.width_for(ShortcutMode::Full) + pad_width).sum()
 }
 
 #[cfg(test)]
@@ -112,59 +133,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn foo() {
-        let hl = Shortcut::new(vec![Fragment::hl("f"), Fragment::raw("ilter")]);
-        let l: Line = hl.into();
-        println!("{l:?}");
-    }
-
-    #[test]
-    fn test_to_line() {
-        let hl = Shortcut::new(vec![Fragment::hl("f"), Fragment::raw("ilter")]);
-        let line: Line = hl.into();
-        assert_eq!(line.spans.len(), 2);
-
-        assert_eq!(line.spans[0].content, "f");
-        assert_eq!(line.spans[0].style.fg, Some(DEFAULT_HL_COLOR));
-
-        assert_eq!(line.spans[1].content, "ilter");
-        assert_eq!(line.spans[1].style.fg, None);
-    }
-
-    #[test]
-    fn test_to_line_nonascii() {
-        let hl = Shortcut::new(vec![Fragment::hl("⁰"), Fragment::raw("filter")]);
-        let line: Line = hl.into();
-        assert_eq!(line.spans.len(), 2);
-
-        assert_eq!(line.spans[0].content, "⁰");
-        assert_eq!(line.spans[0].style.fg, Some(DEFAULT_HL_COLOR));
-
-        assert_eq!(line.spans[1].content, "filter");
-        assert_eq!(line.spans[1].style.fg, None);
-    }
-
-    #[test]
     fn test_from() {
         // beginning
         let hl = Shortcut::from("filter", 0).unwrap();
-        assert_eq!(hl.parts, vec![Fragment::Hl("f".into()), Fragment::Raw("ilter".into())]);
+        assert_eq!(hl.full, vec![Fragment::Hl("f".into()), Fragment::Raw("ilter".into())]);
 
         // middle
         let hl = Shortcut::from("filter", 3).unwrap();
         assert_eq!(
-            hl.parts,
+            hl.full,
             vec![Fragment::Raw("fil".into()), Fragment::Hl("t".into()), Fragment::Raw("er".into())]
         );
 
         // end
         let hl = Shortcut::from("filter", 5).unwrap();
-        assert_eq!(hl.parts, vec![Fragment::Raw("filte".into()), Fragment::Hl("r".into())]);
+        assert_eq!(hl.full, vec![Fragment::Raw("filte".into()), Fragment::Hl("r".into())]);
 
         // illegal
         let hl = Shortcut::from("⁰filter", 0);
         assert!(hl.is_err());
         let hl = Shortcut::from("filter", 100);
         assert!(hl.is_err());
+    }
+
+    #[test]
+    fn compact_falls_back_to_full() {
+        let shortcut = Shortcut::from("filter", 0).unwrap();
+
+        assert_eq!(
+            shortcut.spans_for(ShortcutMode::Compact, None),
+            shortcut.spans_for(ShortcutMode::Full, None)
+        );
+        assert_eq!(
+            shortcut.width_for(ShortcutMode::Compact),
+            shortcut.width_for(ShortcutMode::Full)
+        );
+    }
+
+    #[test]
+    fn shortcuts_full_width_adds_pad_width_per_shortcut() {
+        let shortcuts = vec![
+            Shortcut::new(vec![Fragment::raw("foo")]),
+            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav ")]),
+        ];
+
+        assert_eq!(shortcuts_full_width(&shortcuts, 2), 14);
     }
 }
