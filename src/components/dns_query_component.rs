@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -13,10 +14,11 @@ use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 use tui_input::Input;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::{Component, ComponentId};
+use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::dns::{DnsAnswer, DnsQueryRequest, DnsQueryResponse, DnsRecordType};
 use crate::utils::input::KeyOutcome;
 use crate::utils::text_ui::{popup_area, top_title_line};
@@ -70,6 +72,7 @@ pub struct DnsQueryComponent {
     result_rx: Option<oneshot::Receiver<QueryResult>>,
     navigator: ScrollableNavigator,
     table_state: TableState,
+    answer_horiz_offset: usize,
 
     loading: Arc<AtomicBool>,
     throbber: ThrobberState,
@@ -78,7 +81,7 @@ pub struct DnsQueryComponent {
 impl DnsQueryComponent {
     pub fn show(&mut self) {
         self.show = true;
-        self.focused = FocusedField::Type;
+        self.set_focused(FocusedField::Type);
     }
 
     pub fn hide(&mut self) {
@@ -93,6 +96,7 @@ impl DnsQueryComponent {
     fn reset_table_state(&mut self) {
         self.navigator = Default::default();
         self.table_state = Default::default();
+        self.answer_horiz_offset = 0;
     }
 
     fn reset_answers(&mut self) {
@@ -121,6 +125,25 @@ impl DnsQueryComponent {
         let len = DnsRecordType::VARIANTS.len();
         if len > 0 {
             self.record_type_index = self.record_type_index.checked_sub(1).unwrap_or(len - 1);
+        }
+    }
+
+    fn set_focused(&mut self, focused: FocusedField) {
+        if self.focused == focused {
+            return;
+        }
+
+        self.focused = focused;
+        if let Some(tx) = &self.action_tx {
+            let _ = tx.send(Action::Shortcuts(self.shortcuts()));
+        }
+    }
+
+    fn scrolled_answer_data<'a>(&self, data: &'a str) -> Cow<'a, str> {
+        if self.answer_horiz_offset == 0 {
+            Cow::Borrowed(data)
+        } else {
+            data.graphemes(true).skip(self.answer_horiz_offset).collect()
         }
     }
 
@@ -193,7 +216,15 @@ impl DnsQueryComponent {
                 };
                 let _ = self.input.handle(req);
             }
-            FocusedField::Answers => return self.navigator.handle_key_event(false, key),
+            FocusedField::Answers => match key.code {
+                KeyCode::Left => {
+                    self.answer_horiz_offset = self.answer_horiz_offset.saturating_sub(HORIZ_STEP);
+                }
+                KeyCode::Right => {
+                    self.answer_horiz_offset = self.answer_horiz_offset.saturating_add(HORIZ_STEP);
+                }
+                _ => return self.navigator.handle_key_event(false, key),
+            },
         }
 
         KeyOutcome::Consumed
@@ -296,8 +327,9 @@ impl DnsQueryComponent {
             .height(1)
             .bottom_margin(1)
             .style(Style::default().add_modifier(Modifier::BOLD));
-        let rows =
-            records.iter().map(|answer| Row::new([answer.name.as_str(), answer.data.as_str()]));
+        let rows = records.iter().map(|answer| {
+            Row::new([Cow::Borrowed(answer.name.as_str()), self.scrolled_answer_data(&answer.data)])
+        });
         let selected_row_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
         let table = Table::new(rows, [Constraint::Percentage(50), Constraint::Percentage(50)])
             .block(block)
@@ -327,12 +359,34 @@ impl Component for DnsQueryComponent {
     }
 
     fn shortcuts(&self) -> Vec<Shortcut> {
-        vec![
+        let mut shortcuts = Vec::with_capacity(4);
+        shortcuts.extend(vec![
             Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" focus "), Fragment::hl("⇥")]),
             Shortcut::new(vec![Fragment::raw("query "), Fragment::hl("↵")]),
-            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" type "), Fragment::hl("→")]),
-            Shortcut::new(vec![Fragment::hl("↑"), Fragment::raw(" answers "), Fragment::hl("↓")]),
-        ]
+        ]);
+        match self.focused {
+            FocusedField::Type => shortcuts.push(Shortcut::new(vec![
+                Fragment::hl("←"),
+                Fragment::raw(" type "),
+                Fragment::hl("→"),
+            ])),
+            FocusedField::Name => shortcuts.push(Shortcut::new(vec![
+                Fragment::hl("←"),
+                Fragment::raw(" cursor "),
+                Fragment::hl("→"),
+            ])),
+            FocusedField::Answers => shortcuts.push(Shortcut::new(vec![
+                Fragment::hl("←"),
+                Fragment::raw("/"),
+                Fragment::hl("↑"),
+                Fragment::raw(" nav "),
+                Fragment::hl("↓"),
+                Fragment::raw("/"),
+                Fragment::hl("→"),
+            ])),
+        }
+
+        shortcuts
     }
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
@@ -355,8 +409,8 @@ impl Component for DnsQueryComponent {
                 self.hide();
                 return Ok(Some(Action::Unfocus));
             }
-            KeyCode::Tab => self.focused = self.focused.next(),
-            KeyCode::BackTab => self.focused = self.focused.prev(),
+            KeyCode::Tab => self.set_focused(self.focused.next()),
+            KeyCode::BackTab => self.set_focused(self.focused.prev()),
             KeyCode::Enter => self.query(),
             _ => (),
         }
@@ -402,5 +456,96 @@ impl Component for DnsQueryComponent {
         self.render(frame, content_area);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crossterm::event::KeyModifiers;
+    use tokio::sync::mpsc::unbounded_channel;
+
+    use super::*;
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    #[test]
+    fn shortcuts_follow_focused_field() {
+        let mut component = DnsQueryComponent::default();
+
+        assert_eq!(
+            component.shortcuts()[2],
+            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" type "), Fragment::hl("→")])
+        );
+
+        component.set_focused(FocusedField::Name);
+        assert_eq!(
+            component.shortcuts()[2],
+            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" cursor "), Fragment::hl("→")])
+        );
+
+        component.set_focused(FocusedField::Answers);
+        assert_eq!(
+            component.shortcuts()[2],
+            Shortcut::new(vec![
+                Fragment::hl("←"),
+                Fragment::raw("/"),
+                Fragment::hl("↑"),
+                Fragment::raw(" nav "),
+                Fragment::hl("↓"),
+                Fragment::raw("/"),
+                Fragment::hl("→"),
+            ])
+        );
+    }
+
+    #[test]
+    fn focus_change_sends_shortcuts() {
+        let mut component = DnsQueryComponent::default();
+        let (tx, mut rx) = unbounded_channel();
+        component.register_action_handler(tx).unwrap();
+
+        component.handle_key_event(key(KeyCode::Tab)).unwrap();
+
+        let action = rx.try_recv().unwrap();
+        let Action::Shortcuts(shortcuts) = action else {
+            panic!("expected shortcuts action");
+        };
+        assert_eq!(
+            shortcuts[2],
+            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" cursor "), Fragment::hl("→")])
+        );
+    }
+
+    #[test]
+    fn answers_left_right_updates_horizontal_offset() {
+        let mut component = DnsQueryComponent::default();
+        component.set_focused(FocusedField::Answers);
+
+        assert_eq!(component.answer_horiz_offset, 0);
+        component.handle_key_event(key(KeyCode::Right)).unwrap();
+        assert_eq!(component.answer_horiz_offset, HORIZ_STEP);
+        component.handle_key_event(key(KeyCode::Left)).unwrap();
+        assert_eq!(component.answer_horiz_offset, 0);
+        component.handle_key_event(key(KeyCode::Left)).unwrap();
+        assert_eq!(component.answer_horiz_offset, 0);
+    }
+
+    #[test]
+    fn reset_answers_resets_horizontal_offset() {
+        let mut component =
+            DnsQueryComponent { answer_horiz_offset: HORIZ_STEP, ..Default::default() };
+
+        component.reset_answers();
+
+        assert_eq!(component.answer_horiz_offset, 0);
+    }
+
+    #[test]
+    fn scrolled_answer_data_uses_graphemes() {
+        let component = DnsQueryComponent { answer_horiz_offset: 1, ..Default::default() };
+
+        assert_eq!(component.scrolled_answer_data("a中b"), "中b");
     }
 }
