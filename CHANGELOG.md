@@ -1,4 +1,23 @@
 
+## 0.4.4 - 2026-06-27
+
+### Features
+
+- **Filter**
+  - Add field-scoped filter expressions for filterable views, for example `type:tcp` or `host:'google`.
+  - Show available filter fields as the filter input placeholder.
+- **Layout**
+  - Improve narrow terminal layout support.
+  - Add compact shortcut hints and adjust table/header rendering for constrained widths.
+- **DNS**
+  - Add focused shortcut hints in the DNS query dialog.
+  - Support horizontal scrolling for long answer data.
+
+### Refactors
+
+- **Logs**
+  - Improve live log update efficiency.
+
 ## 0.4.3 - 2026-06-13
 
 ### Features

@@ -40,8 +40,8 @@ wget -O- -nv https://raw.githubusercontent.com/potoo0/mihomo-tui/main/install.sh
 Or a specific version and custom directory:
 
 ```bash
-# Install v0.3.3 to /usr/local/bin
-curl -sSfL https://raw.githubusercontent.com/potoo0/mihomo-tui/main/install.sh | sh -s -- -b /usr/local/bin v0.3.3
+# Install v0.4.4 to /usr/local/bin
+curl -sSfL https://raw.githubusercontent.com/potoo0/mihomo-tui/main/install.sh | sh -s -- -b /usr/local/bin v0.4.4
 ```
 
 #### Manual Download
@@ -68,7 +68,10 @@ Usage: mihomo-tui [OPTIONS]
 
 Options:
   -c, --config <CONFIG_FILE>
-          Path to config file (default: /home/wsl/.config/mihomo-tui/config.yaml)
+          Path to config file (default: /home/wsl/.config/mihomo-tui/config.yaml). Runtime UI/proxy settings are saved
+          to the sidecar file next to it (default: /home/wsl/.config/mihomo-tui/config.runtime.yaml)
+      --update
+          Self-update before starting
   -h, --help
           Print help
   -V, --version
@@ -106,15 +109,20 @@ log-file: /tmp/mihomo-tui.log
 log-level: error
 
 # UI settings, Optional
+# connections.columns:
+#   - ordered list of Connections column titles, case-insensitive.
+#     Allowed values: Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP, Type, Process, SniffHost, ConnectTime, SourcePort, Dest, Inbound
+#   - sort is ignored when sort.field is not included in columns.
 # connections.sort:
 #   - field must match a sortable Connections column title, case-insensitive.
-#     Allowed values: Alive, Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP
+#     Allowed values: Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP, Type, Process, SniffHost, ConnectTime, SourcePort, Dest, Inbound
 #   - dir: asc | desc, default is desc
 # proxy-detail.sort:
 #   - field currently supports: latency, name
 #   - dir: asc | desc, default is asc
 ui:
   connections:
+    columns: ["Host", "Rule", "Chains", "DownRate", "UpRate", "DownTotal", "UpTotal", "SourceIP"]
     sort: { field: "DownRate", dir: "desc" }
   proxy-detail:
     sort: { field: "Latency", dir: "asc" }
