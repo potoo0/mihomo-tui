@@ -14,28 +14,28 @@ Type@10ms "./mihomo-tui -c config.yaml"
 Enter
 
 ############################# tab=1: Overview #############################
-Sleep 3s
+Sleep 1s
 
 ############################# tab=2: Connections ##########################
 Type "2"
 # enable capture mode
 Type "c"
-# search `google`
-Type "fgoogle"
+# search word `google`
+Type@50ms "f'google"
 Enter
-Sleep 1s
-# sort by col 4 (Chains)
-Right@500ms 4
 Sleep 1s
 # navigate to first item, view details
 Down
 Sleep 500ms
 Enter
 Sleep 1s
-Space
-Sleep 1s
 Escape
-Sleep 500ms
+Sleep 300ms
+# connection settings
+Type "s"
+Sleep 1500ms
+Escape
+Sleep 300ms
 
 ############################# tab=3: Proxies ##############################
 Type "3"
@@ -45,37 +45,34 @@ Type "s"
 Sleep 300ms
 Tab@300ms 2
 Ctrl+W
-Sleep 300ms
 Ctrl+W
+Type@50ms "1000,2000"
 Sleep 300ms
-Type "1000,2000"
-Sleep 500ms
 Enter
-Sleep 1s
+Sleep 300ms
 # update selected proxy
-Right@100ms 11
+Down@100ms 3
 Enter
 Sleep 500ms
-Right@300ms 2
-Sleep 500ms
+Type "]"
+Sleep 300ms
+Down@100ms 2
 Enter
 Sleep 1s
 Escape@300ms 2
 Sleep 300ms
 # test proxy
-Right
-Sleep 500ms
 Type "t"
 Sleep 1s
 
 ############################# tab=4: ProxyProviders #####################$#
 Type "4"
 Sleep 100ms
-Space
+Space 2
 Sleep 300ms
 # update selected provider
 Type "u"
-Sleep 1s
+Sleep 300ms
 # view provider proxies
 Enter
 Sleep 2s
@@ -86,7 +83,7 @@ Sleep 300ms
 Type "5"
 Sleep 300ms
 Type "d"
-Sleep 500ms
+Sleep 300ms
 # search `go`
 Type "fgo"
 Sleep 3s
@@ -94,19 +91,19 @@ Enter
 
 ############################# tab=6: Rules #################################
 Type "6"
-Sleep 150ms
-# navigate to first item, toggle disabled
-Down
-Sleep 300ms
-Type "t"
-Sleep 1500ms
-Type "s"
-Sleep 1500ms
+Sleep 1200ms
 
 ############################# tab=7: RuleProviders #################################
 Type "7"
-Sleep 1500ms
+Sleep 1200ms
 
 ############################# tab=8: Config #################################
 Type "8"
-Sleep 3s
+Sleep 1s
+# dns query
+Type "n"
+Sleep 300ms
+Tab
+Type@50ms "google.com"
+Enter
+Sleep 1500ms
