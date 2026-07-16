@@ -104,6 +104,8 @@ impl HelpComponent {
             HelpRow::entry("r", "reverse sort direction"),
             HelpRow::entry("c", "capture mode"),
             HelpRow::entry("s", "open connection settings"),
+            HelpRow::entry("-, +", "decrease/increase sort column width"),
+            HelpRow::entry("Delete", "reset sort column width"),
             // connections settings
             HelpRow::Empty,
             HelpRow::key_title("## Connections Settings"),

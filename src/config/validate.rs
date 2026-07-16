@@ -1,4 +1,5 @@
-use std::num::NonZeroUsize;
+use std::collections::{BTreeMap, HashMap};
+use std::num::{NonZeroU16, NonZeroUsize};
 
 use anyhow::{Result, anyhow, bail};
 use url::Url;
@@ -27,6 +28,7 @@ impl ConnectionsUiConfig {
         if let Some(sort) = &self.sort {
             Self::parse_connections_sort(sort)?;
         }
+        Self::parse_connections_column_widths(&self.column_widths)?;
         Ok(())
     }
 
@@ -69,6 +71,28 @@ impl ConnectionsUiConfig {
         }
 
         Ok(cols)
+    }
+
+    pub fn parse_connections_column_widths(
+        raw: &BTreeMap<String, NonZeroU16>,
+    ) -> Result<HashMap<usize, u16>> {
+        let configurable_cols = Self::configurable_connection_cols();
+        let mut widths = HashMap::with_capacity(raw.len());
+        for (field, width) in raw {
+            let Some(col) = Self::find_index_ignore_case(&configurable_cols, field) else {
+                bail!(
+                    "`ui.connections.column-widths` keys must be one of [{}], got {:?}",
+                    Self::join_connection_col_titles(&configurable_cols),
+                    field
+                );
+            };
+
+            if widths.insert(col, width.get()).is_some() {
+                bail!("duplicate `ui.connections.column-widths` key: {:?}", field);
+            }
+        }
+
+        Ok(widths)
     }
 
     fn find_index_ignore_case(items: &[(usize, &'static str)], name: &str) -> Option<usize> {

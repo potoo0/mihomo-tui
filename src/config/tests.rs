@@ -447,6 +447,79 @@ ui:
 }
 
 #[test]
+fn test_config_ui_connections_column_widths_parse_and_round_trip() {
+    let cfg_path = TempFile::new(temp_config_path());
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["Rule"]
+    column-widths:
+      hOsT: 28
+      process: 14
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+    let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+    let setting = ConnectionsSetting::try_from(connections).unwrap();
+
+    assert_eq!(setting.column_widths.get(&connection_col_index("Host")), Some(&28));
+    assert_eq!(setting.column_widths.get(&connection_col_index("Process")), Some(&14));
+
+    let serialized = ConnectionsUiConfig::try_from(&setting).unwrap();
+    assert_eq!(serialized.column_widths.get("Host").map(|width| width.get()), Some(28));
+    assert_eq!(serialized.column_widths.get("Process").map(|width| width.get()), Some(14));
+
+    drop(cfg_path);
+}
+
+#[test]
+fn test_config_ui_connections_column_widths_invalid_values() {
+    let cases = [
+        ("column-widths: { Alive: 6 }", "`ui.connections.column-widths` keys must be one of"),
+        ("column-widths: { Unknown: 10 }", "`ui.connections.column-widths` keys must be one of"),
+        ("column-widths: { Host: 10, host: 11 }", "duplicate `ui.connections.column-widths` key"),
+    ];
+
+    for (widths, expected_error) in cases {
+        let cfg_path = TempFile::new(temp_config_path());
+        let custom_config = format!(
+            r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    {widths}
+"#
+        );
+        fs::write(&cfg_path.0, custom_config).unwrap();
+
+        let err = load(Some(cfg_path.0.clone())).unwrap_err();
+        assert!(format!("{err:#}").contains(expected_error), "unexpected error: {err:#}");
+
+        drop(cfg_path);
+    }
+}
+
+#[test]
+fn test_config_ui_connections_column_width_rejects_zero() {
+    let cfg_path = TempFile::new(temp_config_path());
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    column-widths: { Host: 0 }
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+
+    let err = load(Some(cfg_path.0.clone())).unwrap_err();
+    assert!(format!("{err:#}").contains("Fail to deserialize file"));
+
+    drop(cfg_path);
+}
+
+#[test]
 fn test_config_runtime_connections_sort_alive_is_ignored() {
     let setting = ConnectionsSetting {
         query_state: QueryState {
@@ -455,6 +528,7 @@ fn test_config_runtime_connections_sort_alive_is_ignored() {
             max_cols: 2,
         },
         columns: vec![ALIVE_COLUMN_INDEX, connection_col_index("Host")],
+        column_widths: Default::default(),
         source_ip_alias: Default::default(),
     };
 

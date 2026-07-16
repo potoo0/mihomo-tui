@@ -32,6 +32,8 @@ pub enum Action {
     ConnectionDetail(Arc<Connection>),
     ConnectionsSetting(Vec<String>),
     ConnectionsSettingChanged,
+    /// Sent when connection layout settings change without affecting the data view.
+    ConnectionsLayoutChanged,
     /// Sent when the filter pattern is changed via user input.
     FilterChanged(Option<String>),
     /// Programmatically sets the filter placeholder for the current tab.
