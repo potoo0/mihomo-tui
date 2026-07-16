@@ -121,7 +121,9 @@ impl App {
                 Action::SpawnExternalEditor(ref editor, ref filepath) => {
                     self.handle_spawn_external_editor(tui, editor, filepath)?
                 }
-                Action::ConnectionsSettingChanged | Action::ProxySettingChanged => {
+                Action::ConnectionsSettingChanged
+                | Action::ConnectionsLayoutChanged
+                | Action::ProxySettingChanged => {
                     if let Err(e) = self.save_runtime_config() {
                         error!(error = ?e, "Failed to save runtime config");
                         self.action_tx.send(Action::Error(

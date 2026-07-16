@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::num::NonZeroU16;
 use std::sync::{Arc, OnceLock, RwLock};
 
 use anyhow::{Result, anyhow};
@@ -14,8 +15,23 @@ pub static GLOBAL_CONNECTION_SETTING: OnceLock<RwLock<Arc<ConnectionsSetting>>> 
 
 #[derive(Clone)]
 pub struct ConnectionsSetting {
+    /// Runtime filtering and sorting state.
+    ///
+    /// `query_state.sort.col` is a position in [`Self::columns`],
+    /// not an index into [`CONNECTION_COLS`].
     pub query_state: QueryState,
+
+    /// Ordered connection columns displayed at runtime.
+    ///
+    /// Each value is a stable index into [`CONNECTION_COLS`], while its position in this vector
+    /// is the column's visible index. The runtime-only Alive column is included here even though
+    /// it is not stored in user configuration.
     pub columns: Vec<usize>,
+
+    /// User-defined column widths keyed by stable indices into [`CONNECTION_COLS`].
+    pub column_widths: HashMap<usize, u16>,
+
+    /// Display aliases keyed by source IP address.
     pub source_ip_alias: HashMap<String, String>,
 }
 
@@ -26,6 +42,7 @@ impl ConnectionsSetting {
             let setting = ConnectionsSetting {
                 query_state: QueryState::new(columns.len()),
                 columns,
+                column_widths: Default::default(),
                 source_ip_alias: Default::default(),
             };
 
@@ -69,7 +86,18 @@ impl TryFrom<&ConnectionsUiConfig> for ConnectionsSetting {
                     .map(|col| SortSpec { col, dir: sort.dir })
             });
         let query_state = QueryState { pattern: None, sort, max_cols: columns.len() };
-        Ok(Self { columns, query_state, source_ip_alias: value.source_ip_alias.clone() })
+        let column_widths =
+            ConnectionsUiConfig::parse_connections_column_widths(&value.column_widths)?;
+        Ok(Self {
+            columns,
+            query_state,
+            column_widths,
+            source_ip_alias: value
+                .source_ip_alias
+                .iter()
+                .map(|(source_ip, alias)| (source_ip.clone(), alias.clone()))
+                .collect(),
+        })
     }
 }
 
@@ -89,6 +117,21 @@ impl TryFrom<&ConnectionsSetting> for ConnectionsUiConfig {
                     .ok_or_else(|| anyhow!("connection column index {idx} does not exist"))
             })
             .collect::<Result<Vec<_>>>()?;
+
+        let column_widths = value
+            .column_widths
+            .iter()
+            .map(|(&idx, &width)| {
+                let title = CONNECTION_COLS
+                    .get(idx)
+                    .filter(|_| idx != ALIVE_COLUMN_INDEX)
+                    .map(|def| def.col.title.to_owned())
+                    .ok_or_else(|| anyhow!("connection column index {idx} does not exist"))?;
+                let width = NonZeroU16::new(width)
+                    .ok_or_else(|| anyhow!("connection column width must be greater than zero"))?;
+                Ok((title, width))
+            })
+            .collect::<Result<BTreeMap<_, _>>>()?;
 
         let sort = match value.query_state.sort {
             None => None,
@@ -114,7 +157,12 @@ impl TryFrom<&ConnectionsSetting> for ConnectionsUiConfig {
         Ok(ConnectionsUiConfig {
             columns: Some(columns),
             sort,
-            source_ip_alias: value.source_ip_alias.clone(),
+            column_widths,
+            source_ip_alias: value
+                .source_ip_alias
+                .iter()
+                .map(|(source_ip, alias)| (source_ip.clone(), alias.clone()))
+                .collect(),
         })
     }
 }

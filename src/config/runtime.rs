@@ -36,6 +36,7 @@ impl RuntimeConfig {
 fn is_empty_connections(connections: &ConnectionsUiConfig) -> bool {
     connections.columns.is_none()
         && connections.sort.is_none()
+        && connections.column_widths.is_empty()
         && connections.source_ip_alias.is_empty()
 }
 
@@ -134,8 +135,8 @@ pub fn save(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::num::NonZeroUsize;
+    use std::collections::{BTreeMap, HashMap};
+    use std::num::{NonZeroU16, NonZeroUsize};
 
     use super::*;
     use crate::config::{LatencyThreshold, ProxySetting};
@@ -166,6 +167,7 @@ mod tests {
         let setting = ConnectionsSetting {
             query_state,
             columns: DEFAULT_CONNECTION_COL_INDICES.to_vec(),
+            column_widths: HashMap::from([(1, 24)]),
             source_ip_alias: HashMap::from([("192.168.1.10".into(), "phone".into())]),
         };
         let proxy = ProxySetting {
@@ -183,6 +185,8 @@ mod tests {
         assert!(raw.contains("sort:"));
         assert!(raw.contains("field: Host"));
         assert!(raw.contains("dir: desc"));
+        assert!(raw.contains("column-widths:"));
+        assert!(raw.contains("Host: 24"));
         assert!(raw.contains("test-url: https://example.com/generate_204"));
         assert!(raw.contains("latency-threshold: 200,800"));
     }
@@ -193,6 +197,7 @@ mod tests {
         let setting = ConnectionsSetting {
             query_state: QueryState::new(DEFAULT_CONNECTION_COL_INDICES.len()),
             columns: DEFAULT_CONNECTION_COL_INDICES.to_vec(),
+            column_widths: HashMap::new(),
             source_ip_alias: HashMap::new(),
         };
         let proxy = ProxySetting::default();
@@ -203,6 +208,18 @@ mod tests {
 
         assert!(raw.contains("$schema-version: 1"));
         assert!(raw.contains("proxy-setting:"));
+    }
+
+    #[test]
+    fn widths_only_connections_are_not_empty() {
+        let connections = ConnectionsUiConfig {
+            columns: None,
+            sort: None,
+            column_widths: BTreeMap::from([("Host".to_owned(), NonZeroU16::new(28).unwrap())]),
+            source_ip_alias: BTreeMap::new(),
+        };
+
+        assert!(!is_empty_connections(&connections));
     }
 
     #[test]

@@ -117,6 +117,9 @@ log-level: error
 #   - field must match a sortable Connections column title, case-insensitive.
 #     Allowed values: Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP, Type, Process, SniffHost, ConnectTime, SourcePort, Dest, Inbound
 #   - dir: asc | desc, default is desc
+# connections.column-widths:
+#   - optional fixed widths keyed by Connections column title, case-insensitive.
+#   - example: { Host: 28, Process: 14 }
 # proxy-detail.sort:
 #   - field currently supports: latency, name
 #   - dir: asc | desc, default is asc
