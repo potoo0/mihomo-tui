@@ -1,7 +1,5 @@
 use std::num::NonZeroUsize;
 
-use url::Url;
-
 use super::*;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
 use crate::store::connections::{
@@ -63,13 +61,67 @@ log-level: "info"
     let mut config = load(Some(cfg_path.0.clone())).unwrap();
     config.try_apply_runtime();
 
-    assert_eq!(config.mihomo_api, Url::parse("http://localhost").unwrap());
+    assert_eq!(config.mihomo_api, MihomoApiEndpoint::Http("http://localhost".parse().unwrap()));
     assert_eq!(config.mihomo_secret, Some("secret".to_owned()));
     assert_eq!(config.mihomo_repo, default_mihomo_repo());
     assert_eq!(config.log_file, Some("/tmp/log.log".to_owned()));
     assert_eq!(config.log_level, Some("info".to_owned()));
 
     drop(cfg_path);
+}
+
+#[test]
+fn test_mihomo_api_endpoint_parsing_cases() {
+    let cases = [
+        (
+            "http://127.0.0.1:9090",
+            Some(MihomoApiEndpoint::Http("http://127.0.0.1:9090".parse().unwrap())),
+        ),
+        (
+            "HTTP://127.0.0.1:9090",
+            Some(MihomoApiEndpoint::Http("http://127.0.0.1:9090".parse().unwrap())),
+        ),
+        (
+            "Https://example.com",
+            Some(MihomoApiEndpoint::Http("https://example.com".parse().unwrap())),
+        ),
+        (
+            "unix:/run/mihomo.socket",
+            Some(MihomoApiEndpoint::UnixSocket("/run/mihomo.socket".into())),
+        ),
+        ("unix:mihomo.socket", Some(MihomoApiEndpoint::UnixSocket("mihomo.socket".into()))),
+        (r"\\.\pipe\mihomo", Some(MihomoApiEndpoint::WindowsNamedPipe(r"\\.\pipe\mihomo".into()))),
+        ("", None),
+        ("unix:", None),
+        (r"\\.\pipe\", None),
+        ("/run/mihomo.sock", None),
+        ("mihomo.sock", None),
+        ("localhost:9090", None),
+        ("ftp://localhost", None),
+        ("ws://localhost", None),
+        ("file:///tmp/mihomo.sock", None),
+    ];
+
+    for (value, expected) in cases {
+        let actual = value.parse::<MihomoApiEndpoint>();
+        match expected {
+            Some(expected) => assert_eq!(actual.unwrap(), expected, "failed case {value:?}"),
+            None => assert!(actual.is_err(), "accepted {value:?}"),
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn test_load_resolves_relative_unix_socket_from_config_directory() {
+    let cfg_path = TempFile::new(temp_config_path());
+    fs::write(&cfg_path.0, "mihomo-api: unix:mihomo.sock\n").unwrap();
+
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+    assert_eq!(
+        config.mihomo_api,
+        MihomoApiEndpoint::UnixSocket(cfg_path.0.parent().unwrap().join("mihomo.sock"))
+    );
 }
 
 #[test]
@@ -365,7 +417,7 @@ fn test_config_ser_error() {
     let cfg_path = TempFile::new(temp_config_path());
 
     let partial_config = r#"
-mihomo-api: "localhost"
+mihomo-api: "unix:"
 "#;
     fs::write(&cfg_path.0, partial_config).unwrap();
 

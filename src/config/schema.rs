@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::num::{NonZeroU16, NonZeroUsize};
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -9,7 +10,7 @@ use crate::models::sort::{ProxySortField, SortDir};
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
-    pub mihomo_api: Url,
+    pub mihomo_api: MihomoApiEndpoint,
     pub mihomo_secret: Option<String>,
     pub mihomo_config_schema: Option<String>,
     #[serde(default = "default_mihomo_repo")]
@@ -32,6 +33,23 @@ pub struct Config {
 
     #[serde(default)]
     pub buffer: BufferConfig,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MihomoApiEndpoint {
+    Http(Url),
+    UnixSocket(PathBuf),
+    WindowsNamedPipe(String),
+}
+
+impl MihomoApiEndpoint {
+    pub fn resolve_relative_to(&mut self, base: &Path) {
+        if let Self::UnixSocket(path) = self
+            && path.is_relative()
+        {
+            *path = base.join(&*path);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

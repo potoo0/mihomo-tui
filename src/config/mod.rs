@@ -49,7 +49,7 @@ pub fn load(path: Option<PathBuf>) -> anyhow::Result<LoadedConfig> {
     info!("Using config file at `{}`", config_path.display());
     info!("Using runtime config file at `{}`", runtime_path.display());
 
-    let config = if config_path.is_file() {
+    let mut config = if config_path.is_file() {
         read_from_file(&config_path)?
     } else {
         if explicit_config {
@@ -63,6 +63,10 @@ pub fn load(path: Option<PathBuf>) -> anyhow::Result<LoadedConfig> {
         info!("Created default config file at `{}`", config_path.display());
         default_config
     };
+
+    if let Some(parent) = config_path.parent() {
+        config.mihomo_api.resolve_relative_to(parent);
+    }
 
     Ok(LoadedConfig { config, config_path, runtime_path })
 }
