@@ -18,7 +18,7 @@ pub fn init(config: &Config) -> Result<()> {
         .create(true)
         .append(true)
         .open(&log_file)
-        .with_context(|| format!("Fail to open file `{}`", &log_file.display()))?;
+        .with_context(|| format!("Fail to open file `{}`", log_file.display()))?;
 
     // Resolve log filtering rules with the following priority:
     // 1. <PROJECT_NAME>_LOG_LEVEL (project-specific override)
