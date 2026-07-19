@@ -108,6 +108,10 @@ impl QualityStats {
     }
 
     pub fn as_line<'a>(&self, width: u16, total: usize) -> Line<'a> {
+        // `total == 0` would make `exact` NaN below and panic in the comparator
+        if total == 0 {
+            return Line::default();
+        }
         let mut segments: Vec<(u16, f64)> = self
             .0
             .iter()
@@ -118,7 +122,10 @@ impl QualityStats {
             .collect();
 
         for _ in 0..width.saturating_sub(segments.iter().map(|(n, _)| *n).sum::<u16>()) {
-            let seg = segments.iter_mut().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+            let seg = segments
+                .iter_mut()
+                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+                .unwrap();
 
             seg.0 += 1;
             seg.1 = 0.0;
@@ -134,5 +141,22 @@ impl QualityStats {
                 )
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_as_line_with_zero_total_does_not_panic() {
+        let line = QualityStats::new([0; LatencyQuality::COUNT]).as_line(10, 0);
+        assert_eq!(line.width(), 0);
+    }
+
+    #[test]
+    fn test_as_line_fills_width() {
+        let line = QualityStats::new([1, 1, 1, 0]).as_line(90, 3);
+        assert_eq!(line.width(), 90);
     }
 }
