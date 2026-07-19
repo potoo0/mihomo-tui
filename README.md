@@ -89,7 +89,13 @@ The default location of the file depends on your OS:
 The following is a sample config.toml file:
 
 ```yaml
-# Mihomo external controller URL, Required
+# Mihomo external controller, Required.
+# Supported values:
+#   HTTP API: http://127.0.0.1:9093
+#   Unix socket: prefix the path with `unix:`.
+#     Relative paths are resolved from the mihomo-tui config directory.
+#     Examples: unix:/run/mihomo/mihomo.sock, unix:mihomo.sock
+#   Windows named pipe: wrap the path in single quotes, e.g. '\\.\pipe\mihomo'
 mihomo-api: http://127.0.0.1:9093
 
 # Mihomo external controller secret, Optional
@@ -142,6 +148,25 @@ proxy-setting:
   auto-terminate-connections: true
 
 ```
+
+`mihomo-api` accepts one of three scalar forms:
+
+```yaml
+# HTTP/HTTPS
+mihomo-api: http://127.0.0.1:9093
+
+# Unix socket (`unix:` followed by an absolute path or a path relative to the config directory)
+mihomo-api: unix:/run/mihomo/mihomo.sock
+# mihomo-api: unix:mihomo.sock
+
+# Windows named pipe (single quotes preserve backslashes in YAML)
+mihomo-api: '\\.\pipe\mihomo'
+```
+
+The matching Mihomo core settings are `external-controller`, `external-controller-unix`, and
+`external-controller-pipe`. Mihomo does not validate `secret` for Unix socket or Windows named
+pipe API access. Protect IPC endpoints with Unix file permissions or Windows named pipe ACLs;
+`mihomo-tui` sends the configured secret only over HTTP/HTTPS.
 
 For the full default config, see [.config/config.yaml](./.config/config.yaml).
 

@@ -1,14 +1,19 @@
 use anyhow::{Context, Result, anyhow};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
+use tracing::debug;
 use url::Url;
 
-use crate::config::Config;
+use crate::config::{Config, MihomoApiEndpoint};
 
 mod endpoints;
 mod github;
-mod stream;
 #[cfg(all(test, feature = "local-api-test"))]
+mod local_api_tests;
+mod stream;
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod tests;
 
 pub use github::GithubApi;
@@ -18,17 +23,32 @@ const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VE
 #[derive(Debug)]
 pub struct Api {
     api: Url,
+    endpoint: MihomoApiEndpoint,
     bearer_token: Option<String>,
     client: Client,
 }
 
 impl Api {
     pub fn new(config: &Config) -> Result<Api> {
-        let api = config.mihomo_api.clone();
-        let secret = config.mihomo_secret.clone();
-        let client = Self::create_client(&secret)?;
+        let endpoint = config.mihomo_api.clone();
+        let api = match &endpoint {
+            MihomoApiEndpoint::Http(url) => url.clone(),
+            MihomoApiEndpoint::UnixSocket(_) | MihomoApiEndpoint::WindowsNamedPipe(_) => {
+                Url::parse("http://localhost").expect("static IPC base URL must be valid")
+            }
+        };
+        let bearer_token = match &endpoint {
+            MihomoApiEndpoint::Http(_) => config.mihomo_secret.clone(),
+            MihomoApiEndpoint::UnixSocket(_) | MihomoApiEndpoint::WindowsNamedPipe(_) => {
+                if config.mihomo_secret.is_some() {
+                    debug!("mihomo-secret is ignored for IPC API transport");
+                }
+                None
+            }
+        };
+        let client = Self::create_client(&endpoint, &bearer_token)?;
 
-        Ok(Self { api, bearer_token: secret, client })
+        Ok(Self { api, endpoint, bearer_token, client })
     }
 
     /// Create default headers for the API client.
@@ -45,12 +65,37 @@ impl Api {
         Ok(headers)
     }
 
-    fn create_client(bearer_token: &Option<String>) -> Result<Client> {
-        let client = Client::builder()
-            .default_headers(Self::default_headers(bearer_token)?)
-            .no_proxy()
-            .build()
-            .context("Fail to build client")?;
+    fn create_client(
+        endpoint: &MihomoApiEndpoint,
+        bearer_token: &Option<String>,
+    ) -> Result<Client> {
+        let builder =
+            Client::builder().default_headers(Self::default_headers(bearer_token)?).no_proxy();
+        let builder = match endpoint {
+            MihomoApiEndpoint::Http(_) => builder,
+            MihomoApiEndpoint::UnixSocket(path) => {
+                #[cfg(unix)]
+                {
+                    builder.unix_socket(path.as_path())
+                }
+                #[cfg(not(unix))]
+                anyhow::bail!(
+                    "Unix socket mihomo API `{}` is not supported on this platform",
+                    path.display()
+                )
+            }
+            MihomoApiEndpoint::WindowsNamedPipe(pipe) => {
+                #[cfg(windows)]
+                {
+                    builder.windows_named_pipe(pipe.as_str())
+                }
+                #[cfg(not(windows))]
+                anyhow::bail!(
+                    "Windows named pipe mihomo API `{pipe}` is not supported on this platform"
+                )
+            }
+        };
+        let client = builder.build().context("Fail to build client")?;
         Ok(client)
     }
 

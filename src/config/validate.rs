@@ -12,6 +12,17 @@ use crate::store::connections::{ALIVE_COLUMN_INDEX, CONNECTION_COLS};
 
 impl Config {
     pub fn validate(&self) -> Result<()> {
+        match &self.mihomo_api {
+            #[cfg(not(unix))]
+            crate::config::MihomoApiEndpoint::UnixSocket(_) => {
+                bail!("Unix socket mihomo API is not supported on this platform");
+            }
+            #[cfg(not(windows))]
+            crate::config::MihomoApiEndpoint::WindowsNamedPipe(_) => {
+                bail!("Windows named pipe mihomo API is not supported on this platform");
+            }
+            _ => {}
+        }
         self.proxy_setting.validate()?;
         if let Some(connections) = self.ui.as_ref().and_then(|ui| ui.connections.as_ref()) {
             connections.validate()?;

@@ -1,7 +1,14 @@
-# Mihomo external controller URL, Required
+# Mihomo external controller, Required.
+# Supported values:
+#   HTTP API: http://127.0.0.1:9093
+#   Unix socket: prefix the path with `unix:`.
+#     Relative paths are resolved from the mihomo-tui config directory.
+#     Examples: unix:/run/mihomo/mihomo.sock, unix:mihomo.sock
+#   Windows named pipe: wrap the path in single quotes, e.g. '\\.\pipe\mihomo'
 mihomo-api: http://127.0.0.1:9093
 
-# Mihomo external controller secret, Optional
+# Mihomo external controller secret, Optional.
+# Used only by HTTP/HTTPS transports; Mihomo does not authenticate Unix socket or Windows named pipe.
 #mihomo-secret:
 
 # Path to mihomo config JSON schema file, Optional, default is builtin core-config.schema.json
