@@ -1,4 +1,19 @@
 
+## 0.4.5 - 2026-07-19
+
+### Features
+
+- **API**
+  - Support connecting to Mihomo through Unix sockets and Windows named pipes.
+- **Connections**
+  - Add adjustable column widths with `-` / `+` shortcuts.
+  - Support loading and persisting custom connection column widths.
+
+### Bug Fixes
+
+- **Proxy Detail**: Resolve and display nodes sourced from proxy providers in group details.
+- **Latency**: Avoid a panic when rendering latency quality statistics with no samples.
+
 ## 0.4.4 - 2026-06-27
 
 ### Features
