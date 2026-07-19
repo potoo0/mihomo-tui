@@ -9,6 +9,7 @@ use tracing::{debug, error, info, warn};
 use crate::api::Api;
 use crate::config::{LatencyThreshold, ProxySortConfig};
 use crate::models::proxy::Proxy;
+use crate::models::proxy_provider::ProxyProvider;
 use crate::models::sort::{ProxySortField, SortDir};
 use crate::store::proxy_setting::ProxySetting;
 use crate::widgets::latency::{LatencyQuality, QualityStats};
@@ -89,15 +90,20 @@ impl Proxies {
 
     /// Load proxies from API and update the store.
     pub async fn load(api: Arc<Api>) -> Result<()> {
-        match api.get_proxies().await {
-            Ok(proxies) => {
-                debug!("Proxies loaded");
-                match Self::global().write() {
-                    Ok(mut p) => p.push(proxies),
-                    Err(e) => error!(error = ?e, "Failed to acquire write lock"),
-                }
-            }
-            Err(e) => return Err(e),
+        // `GET /proxies` only contains groups and proxies defined inline in the
+        // core config; nodes sourced from proxy providers are only exposed via
+        // `GET /providers/proxies`. Merge them in so group children referencing
+        // provider nodes can be resolved by name.
+        let (proxies, providers) = tokio::join!(api.get_proxies(), api.get_providers());
+        let mut proxies = proxies?;
+        match providers {
+            Ok(providers) => Self::merge_provider_proxies(&mut proxies, providers),
+            Err(e) => warn!(error = ?e, "Failed to load providers, provider nodes may be missing"),
+        }
+        debug!("Proxies loaded");
+        match Self::global().write() {
+            Ok(mut p) => p.push(proxies),
+            Err(e) => error!(error = ?e, "Failed to acquire write lock"),
         }
 
         Ok(())
@@ -313,13 +319,27 @@ impl Proxies {
         }
     }
 
+    /// Merge provider-sourced proxies into the map. Entries already present in
+    /// `GET /proxies` (groups, inline proxies) take precedence; "Compatible"
+    /// providers mirroring groups are therefore effectively ignored.
+    fn merge_provider_proxies(
+        proxies: &mut IndexMap<String, Proxy>,
+        providers: IndexMap<String, ProxyProvider>,
+    ) {
+        for provider in providers.into_values() {
+            for proxy in provider.proxies {
+                proxies.entry(proxy.name.clone()).or_insert(proxy);
+            }
+        }
+    }
+
     fn remove_missing_children(proxies: &mut IndexMap<String, Proxy>) {
         let keys: HashSet<_> = proxies.keys().cloned().collect();
         for v in proxies.values_mut() {
             if let Some(children) = v.children.as_mut() {
                 let missing: Vec<_> = children.iter().filter(|c| !keys.contains(*c)).collect();
                 if missing.is_empty() {
-                    return;
+                    continue;
                 }
                 warn!("Proxy '{}' has missing children: {:?}", v.name, missing);
                 children.retain(|c| keys.contains(c));
@@ -378,6 +398,49 @@ mod tests {
 
     fn sort_config(field: ProxySortField, dir: SortDir) -> ProxySortConfig {
         ProxySortConfig { field, dir }
+    }
+
+    #[test]
+    fn test_merge_provider_proxies_adds_nodes_and_keeps_existing() {
+        let mut proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["a", "b"]), None)),
+            ("a".to_string(), proxy("a", None, Some(10))),
+        ]);
+        let providers = IndexMap::from([(
+            "p1".to_string(),
+            ProxyProvider {
+                name: "p1".to_string(),
+                vehicle_type: "HTTP".to_string(),
+                proxies: vec![proxy("a", None, Some(999)), proxy("b", None, Some(20))],
+                subscription_info: None,
+                updated_at: None,
+                updated_at_str: None,
+            },
+        )]);
+
+        Proxies::merge_provider_proxies(&mut proxies, providers);
+
+        assert_eq!(proxies.len(), 3);
+        // existing entry from `/proxies` wins over the provider copy
+        assert_eq!(proxies.get("a").unwrap().latency.0, Some(10));
+        assert_eq!(proxies.get("b").unwrap().latency.0, Some(20));
+    }
+
+    #[test]
+    fn test_remove_missing_children_cleans_all_groups() {
+        let mut proxies = IndexMap::from([
+            ("ok".to_string(), proxy("ok", Some(vec!["a"]), None)),
+            ("broken".to_string(), proxy("broken", Some(vec!["a", "ghost"]), None)),
+            ("a".to_string(), proxy("a", None, Some(10))),
+        ]);
+
+        Proxies::remove_missing_children(&mut proxies);
+
+        // groups after the first clean one must still be processed
+        assert_eq!(
+            proxies.get("broken").and_then(|p| p.children.clone()).unwrap(),
+            vec!["a".to_string()]
+        );
     }
 
     #[test]
