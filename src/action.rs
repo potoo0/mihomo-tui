@@ -11,13 +11,9 @@ pub enum Action {
     Tick,
     Render,
     Resize(u16, u16),
-    #[allow(dead_code)]
-    Suspend,
-    Resume,
     Quit,
     Focus(ComponentId),
     Unfocus,
-    ClearScreen,
     Info(AppMessage),
     Error(AppMessage),
     AppUpdateRequest,

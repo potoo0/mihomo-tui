@@ -34,7 +34,6 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::action::Action;
 use crate::api::Api;
 use crate::config::Config;
-use crate::tui::Event;
 use crate::widgets::shortcut::Shortcut;
 
 const HORIZ_STEP: usize = 4;
@@ -161,24 +160,6 @@ pub trait Component {
     fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
         let _ = config; // to appease clippy
         Ok(())
-    }
-
-    /// Handle incoming events and produce actions if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `event` - An optional event to be processed.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Option<Action>>` - An action to be processed or none.
-    fn handle_events(&mut self, event: Option<Event>) -> Result<Option<Action>> {
-        let action = match event {
-            Some(Event::Key(key_event)) => self.handle_key_event(key_event)?,
-            Some(Event::Mouse(mouse_event)) => self.handle_mouse_event(mouse_event)?,
-            _ => None,
-        };
-        Ok(action)
     }
 
     /// Handle key events and produce actions if necessary.
