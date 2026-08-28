@@ -10,10 +10,9 @@ use ratatui::prelude::{Color, Line, Modifier, Span, Style};
 use ratatui::style::Stylize;
 use ratatui::widgets::{Block, BorderType, Cell, Row, Table, TableState};
 use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info, warn};
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::models::Rule;
@@ -38,7 +37,7 @@ pub struct RulesComponent {
     loading: Arc<AtomicBool>,
     throbber: ThrobberState,
 
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 }
 
 impl RulesComponent {
@@ -273,7 +272,7 @@ impl Component for RulesComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }

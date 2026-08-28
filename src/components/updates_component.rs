@@ -8,11 +8,10 @@ use ratatui::layout::{Margin, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph};
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, info, warn};
 
 use super::{Component, ComponentId};
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::app_message::AppMessage;
 use crate::config::Config;
@@ -43,7 +42,7 @@ impl UpdateTarget {
 pub struct UpdatesComponent {
     api: Option<Arc<Api>>,
     config: Option<Arc<Config>>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
     update_state: SharedVersionUpdateState,
     selected: UpdateTarget,
     auto_restart: bool,
@@ -228,7 +227,7 @@ impl Component for UpdatesComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }

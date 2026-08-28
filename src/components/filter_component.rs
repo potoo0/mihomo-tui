@@ -8,11 +8,10 @@ use ratatui::prelude::Span;
 use ratatui::style::{Color, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Paragraph};
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 use tui_input::Input;
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
@@ -25,7 +24,7 @@ pub struct FilterComponent {
     should_send: bool,
     input: Input,
     placeholder: Option<String>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
     shortcuts_full_width: usize,
 }
 
@@ -87,7 +86,7 @@ impl Component for FilterComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }

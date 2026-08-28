@@ -10,9 +10,8 @@ use ratatui::prelude::{Color, Line, Span, Style};
 use ratatui::symbols::line::{BOTTOM_LEFT, BOTTOM_RIGHT};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use source_ip_alias::SourceIpAliasSettingPane;
-use tokio::sync::mpsc::UnboundedSender;
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::components::{Component, ComponentId};
 use crate::models::sort::SortSpec;
 use crate::store::connections::with_alive_column;
@@ -93,7 +92,7 @@ pub struct ConnectionsSettingComponent {
     active_pane: ActivePane,
     columns: ColumnsSettingPane,
     source_ip_alias: SourceIpAliasSettingPane,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 }
 
 impl ConnectionsSettingComponent {
@@ -218,7 +217,7 @@ impl Component for ConnectionsSettingComponent {
         ]
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }

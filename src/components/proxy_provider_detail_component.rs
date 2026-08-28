@@ -7,10 +7,9 @@ use ratatui::layout::{Constraint, Layout, Margin, Rect};
 use ratatui::prelude::{Color, Line, Span, Style};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, info};
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::LatencyThreshold;
@@ -28,7 +27,7 @@ const CARD_WIDTH: u16 = 25;
 #[derive(Debug, Default)]
 pub struct ProxyProviderDetailComponent {
     api: Option<Arc<Api>>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 
     show: bool,
 
@@ -253,7 +252,7 @@ impl Component for ProxyProviderDetailComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> anyhow::Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> anyhow::Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }

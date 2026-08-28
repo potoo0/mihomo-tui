@@ -9,10 +9,9 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info, warn};
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::LatencyThreshold;
@@ -30,7 +29,7 @@ const CARD_WIDTH: u16 = 25;
 #[derive(Debug, Default)]
 pub struct ProxyDetailComponent {
     api: Option<Arc<Api>>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 
     show: bool,
     proxy_name: Option<String>,
@@ -367,7 +366,7 @@ impl Component for ProxyDetailComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }

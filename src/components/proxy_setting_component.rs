@@ -10,10 +10,9 @@ use ratatui::prelude::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 use strum::{Display, EnumIter, IntoEnumIterator};
-use tokio::sync::mpsc::UnboundedSender;
 use tui_input::Input;
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::components::{Component, ComponentId};
 use crate::config::LatencyThreshold;
 use crate::store::proxy_setting::ProxySetting;
@@ -77,7 +76,7 @@ pub struct ProxySettingComponent {
     input: Input,
     error: Option<String>,
 
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 }
 
 impl ProxySettingComponent {
@@ -213,7 +212,7 @@ impl Component for ProxySettingComponent {
         ]
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }

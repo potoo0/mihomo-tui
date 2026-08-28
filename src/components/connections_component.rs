@@ -14,11 +14,11 @@ use ratatui::widgets::{Block, BorderType, Cell, Row, Table, TableState};
 use ringbuffer::RingBuffer;
 use throbber_widgets_tui::{BRAILLE_SIX, CANADIAN, Throbber, ThrobberState, WhichUse};
 use tokio::sync::Mutex as AsyncMutex;
-use tokio::sync::mpsc::{Receiver, UnboundedSender};
+use tokio::sync::mpsc::Receiver;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
@@ -41,7 +41,7 @@ const LAYOUT_SAVE_TICKS: u8 = 4;
 pub struct ConnectionsComponent {
     token: CancellationToken,
     conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 
     store: Arc<Connections>,
     navigator: ScrollableNavigator,
@@ -515,7 +515,7 @@ impl Component for ConnectionsComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }
@@ -694,7 +694,7 @@ mod tests {
     #[test]
     fn layout_save_waits_four_ticks_and_resets_countdown() {
         let mut component = component();
-        let (action_tx, mut action_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (action_tx, mut action_rx) = ActionTx::channel();
         component.action_tx = Some(action_tx);
 
         component.schedule_layout_save();
@@ -719,7 +719,7 @@ mod tests {
     #[test]
     fn quit_flushes_pending_layout_save() {
         let mut component = component();
-        let (action_tx, mut action_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (action_tx, mut action_rx) = ActionTx::channel();
         component.action_tx = Some(action_tx);
         component.schedule_layout_save();
 

@@ -13,10 +13,9 @@ use serde::Serialize;
 use serde_json::{Serializer, Value};
 use tempfile::{Builder, NamedTempFile};
 use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, info, warn};
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
@@ -46,7 +45,7 @@ const ACTION_CONSTRAINTS: [Constraint; ACTIONS.len()] = [Constraint::Min(1); ACT
 #[derive(Debug, Default)]
 pub struct CoreConfigComponent {
     api: Option<Arc<Api>>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
     config: Option<Arc<Config>>,
 
     active_pane: ActivePane,
@@ -486,7 +485,7 @@ impl Component for CoreConfigComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
 
         Ok(())

@@ -11,12 +11,11 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph, Row, Table, TableState};
 use strum::VariantArray;
 use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 use tui_input::Input;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::dns::{DnsAnswer, DnsQueryRequest, DnsQueryResponse, DnsRecordType};
@@ -60,7 +59,7 @@ impl FocusedField {
 #[derive(Default)]
 pub struct DnsQueryComponent {
     api: Option<Arc<Api>>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 
     show: bool,
     focused: FocusedField,
@@ -394,7 +393,7 @@ impl Component for DnsQueryComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }
@@ -462,7 +461,6 @@ impl Component for DnsQueryComponent {
 #[cfg(test)]
 mod tests {
     use crossterm::event::KeyModifiers;
-    use tokio::sync::mpsc::unbounded_channel;
 
     use super::*;
 
@@ -503,7 +501,7 @@ mod tests {
     #[test]
     fn focus_change_sends_shortcuts() {
         let mut component = DnsQueryComponent::default();
-        let (tx, mut rx) = unbounded_channel();
+        let (tx, mut rx) = ActionTx::channel();
         component.register_action_handler(tx).unwrap();
 
         component.handle_key_event(key(KeyCode::Tab)).unwrap();

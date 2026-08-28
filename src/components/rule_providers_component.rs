@@ -9,10 +9,9 @@ use ratatui::layout::{Margin, Rect};
 use ratatui::prelude::{Color, Line, Modifier, Span, Style, Stylize};
 use ratatui::widgets::{Block, BorderType, Cell, Row, Table, TableState};
 use throbber_widgets_tui::{BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info};
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::store::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
@@ -26,7 +25,7 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 #[derive(Default)]
 pub struct RuleProvidersComponent {
     api: Option<Arc<Api>>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 
     store: Arc<RuleProviders>,
     filter_pattern_changed: bool,
@@ -244,7 +243,7 @@ impl Component for RuleProvidersComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
 
         Ok(())

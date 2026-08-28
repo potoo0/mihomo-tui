@@ -5,11 +5,11 @@ use std::{env, thread};
 
 use anyhow::{Context, Result, anyhow};
 use ratatui::layout::Rect;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, trace};
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::app_message::AppMessage;
 use crate::components::root_component::RootComponent;
@@ -28,15 +28,13 @@ pub struct App {
     token: CancellationToken,
     root: RootComponent,
 
-    should_quit: bool,
-    should_suspend: bool,
-    action_tx: UnboundedSender<Action>,
+    action_tx: ActionTx,
     action_rx: UnboundedReceiver<Action>,
 }
 
 impl App {
     pub fn new(config: Config, runtime_path: PathBuf, api: Api) -> Result<Self> {
-        let (action_tx, action_rx) = mpsc::unbounded_channel();
+        let (action_tx, action_rx) = ActionTx::channel();
         Ok(Self {
             config: Arc::new(config),
             runtime_path,
@@ -44,8 +42,6 @@ impl App {
             token: CancellationToken::new(),
             root: RootComponent::new(),
 
-            should_quit: false,
-            should_suspend: false,
             action_tx,
             action_rx,
         })
@@ -65,20 +61,24 @@ impl App {
         self.root.register_action_handler(self.action_tx.clone())?;
         self.root.register_config_handler(Arc::clone(&self.config))?;
 
-        let action_tx = self.action_tx.clone();
         // send initial tab
-        action_tx.send(Action::TabSwitch(ComponentId::default()))?;
+        self.action_tx.send(Action::TabSwitch(ComponentId::default()))?;
         loop {
-            self.handle_events(&mut tui).await?;
-            self.handle_actions(&mut tui)?;
-            if self.should_suspend {
-                tui.suspend()?;
-                action_tx.send(Action::Resume)?;
-                action_tx.send(Action::ClearScreen)?;
-                // tui.mouse(true);
-                tui.enter()?;
-            } else if self.should_quit {
-                tui.stop()?;
+            let first_action = tokio::select! {
+                event = tui.next_event() => self.handle_event(event.unwrap_or(Event::Quit))?,
+                action = self.action_rx.recv() => Some(action.unwrap_or(Action::Quit)),
+            };
+
+            let mut should_quit = match first_action {
+                Some(action) => self.handle_action(&mut tui, action)?,
+                None => false,
+            };
+
+            while let Ok(action) = self.action_rx.try_recv() {
+                should_quit |= self.handle_action(&mut tui, action)?;
+            }
+
+            if should_quit {
                 break;
             }
         }
@@ -86,59 +86,52 @@ impl App {
         Ok(())
     }
 
-    async fn handle_events(&mut self, tui: &mut Tui) -> Result<()> {
-        let Some(event) = tui.next_event().await else {
-            return Ok(());
+    fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
+        trace!("handle_event: {event:?}");
+        let action = match event {
+            Event::Quit => Some(Action::Quit),
+            Event::Tick => Some(Action::Tick),
+            Event::Render => Some(Action::Render),
+            Event::Resize(w, h) => Some(Action::Resize(w, h)),
+            Event::Key(key) => self.root.handle_key_event(key)?,
+            Event::Mouse(mouse) => self.root.handle_mouse_event(mouse)?,
+            _ => None,
         };
-        trace!("handle_events: {event:?}");
-        let action_tx = self.action_tx.clone();
-        match event {
-            Event::Quit => action_tx.send(Action::Quit)?,
-            Event::Tick => action_tx.send(Action::Tick)?,
-            Event::Render => action_tx.send(Action::Render)?,
-            Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
-            _ => {}
-        }
-        if let Some(action) = self.root.handle_events(Some(event.clone()))? {
-            action_tx.send(action)?;
-        }
-        Ok(())
+        Ok(action)
     }
 
-    fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
-        while let Ok(action) = self.action_rx.try_recv() {
-            match action {
-                Action::Tick => {}
-                Action::Quit => {
-                    self.token.cancel();
-                    self.should_quit = true;
-                }
-                Action::Suspend => self.should_suspend = true,
-                Action::Resume => self.should_suspend = false,
-                Action::ClearScreen => tui.terminal.clear()?,
-                Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
-                Action::Render => self.render(tui)?,
-                Action::SpawnExternalEditor(ref editor, ref filepath) => {
-                    self.handle_spawn_external_editor(tui, editor, filepath)?
-                }
-                Action::ConnectionsSettingChanged
-                | Action::ConnectionsLayoutChanged
-                | Action::ProxySettingChanged => {
-                    if let Err(e) = self.save_runtime_config() {
-                        error!(error = ?e, "Failed to save runtime config");
-                        self.action_tx.send(Action::Error(
-                            AppMessage::from(("Save runtime config", e)).msg_box_size(60, 30),
-                        ))?;
-                    }
-                }
-                Action::SelfUpdate(restart) => self.handle_self_update(tui, restart)?,
-                _ => {}
+    fn handle_action(&mut self, tui: &mut Tui, action: Action) -> Result<bool> {
+        let should_quit = matches!(&action, Action::Quit);
+        match &action {
+            Action::Tick => {}
+            Action::Quit => self.token.cancel(),
+            Action::Resize(w, h) => self.handle_resize(tui, *w, *h)?,
+            Action::Render => {
+                self.action_tx.complete_render();
+                self.render(tui)?;
             }
-            if let Some(action) = self.root.update(action.clone())? {
-                self.action_tx.send(action)?
-            };
+            Action::SpawnExternalEditor(editor, filepath) => {
+                self.handle_spawn_external_editor(tui, editor, filepath)?
+            }
+            Action::ConnectionsSettingChanged
+            | Action::ConnectionsLayoutChanged
+            | Action::ProxySettingChanged => {
+                if let Err(e) = self.save_runtime_config() {
+                    error!(error = ?e, "Failed to save runtime config");
+                    self.action_tx.send(Action::Error(
+                        AppMessage::from(("Save runtime config", e)).msg_box_size(60, 30),
+                    ))?;
+                }
+            }
+            Action::SelfUpdate(restart) => self.handle_self_update(tui, *restart)?,
+            _ => {}
         }
-        Ok(())
+
+        if let Some(action) = self.root.update(action)? {
+            self.action_tx.send(action)?
+        };
+
+        Ok(should_quit)
     }
 
     fn save_runtime_config(&self) -> Result<()> {

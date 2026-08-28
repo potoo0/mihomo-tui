@@ -9,13 +9,12 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{Mutex as AsyncMutex, mpsc, watch};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::connection_batch_terminate_component::ConnectionBatchTerminateComponent;
 use crate::components::connection_detail_component::ConnectionDetailComponent;
@@ -53,7 +52,7 @@ const IDLE_TICKS: u16 = 120 * 4;
 pub struct RootComponent {
     api: Option<Arc<Api>>,
     config: Option<Arc<Config>>,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
     update_state: SharedVersionUpdateState,
 
     current_tab: ComponentId,
@@ -336,7 +335,7 @@ impl Component for RootComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }

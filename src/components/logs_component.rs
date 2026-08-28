@@ -13,12 +13,11 @@ use ratatui::widgets::{Block, BorderType, List, ListItem, ListState};
 use ringbuffer::RingBuffer;
 use strum::IntoEnumIterator;
 use throbber_widgets_tui::{Throbber, ThrobberState};
-use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::action::Action;
+use crate::action::{Action, ActionTx};
 use crate::api::Api;
 use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::LogLevel;
@@ -45,7 +44,7 @@ pub struct LogsComponent {
     horiz_offset: usize,
     navigator: ScrollableNavigator,
     throbber_state: ThrobberState,
-    action_tx: Option<UnboundedSender<Action>>,
+    action_tx: Option<ActionTx>,
 }
 
 impl LogsComponent {
@@ -271,7 +270,7 @@ impl Component for LogsComponent {
         Ok(())
     }
 
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
+    fn register_action_handler(&mut self, tx: ActionTx) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
     }
