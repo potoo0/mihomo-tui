@@ -9,7 +9,6 @@ use crate::widgets::shortcut::Shortcut;
 #[derive(Debug, Clone)]
 pub enum Action {
     Tick,
-    Render,
     Resize(u16, u16),
     Quit,
     Focus(ComponentId),

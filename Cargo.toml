@@ -64,3 +64,6 @@ yaml_serde = "0.10"
 [build-dependencies]
 anyhow = "1.0.99"
 vergen-gitcl = { version = "10.0.0", features = ["build", "cargo"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
