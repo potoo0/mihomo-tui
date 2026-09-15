@@ -15,11 +15,14 @@ use crate::app_message::AppMessage;
 use crate::components::root_component::RootComponent;
 use crate::components::{Component, ComponentId};
 use crate::config::{Config, runtime};
+use crate::render::RenderScheduler;
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::store::proxy_setting::ProxySetting;
 use crate::tui::{Event, Tui};
 use crate::version_update;
 use crate::version_update::RestartOutcome;
+
+const MAX_ACTIONS_PER_BATCH: usize = 1024;
 
 pub struct App {
     config: Arc<Config>,
@@ -30,11 +33,14 @@ pub struct App {
 
     action_tx: UnboundedSender<Action>,
     action_rx: UnboundedReceiver<Action>,
+    render_scheduler: RenderScheduler,
 }
 
 impl App {
     pub fn new(config: Config, runtime_path: PathBuf, api: Api) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
+        let render_scheduler = RenderScheduler::default();
+        render_scheduler.requester().request_render();
         Ok(Self {
             config: Arc::new(config),
             runtime_path,
@@ -44,6 +50,7 @@ impl App {
 
             action_tx,
             action_rx,
+            render_scheduler,
         })
     }
 
@@ -64,22 +71,37 @@ impl App {
         // send initial tab
         self.action_tx.send(Action::TabSwitch(ComponentId::default()))?;
         loop {
+            let deadline = self.render_scheduler.deadline();
             let first_action = tokio::select! {
                 event = tui.next_event() => self.handle_event(event.unwrap_or(Event::Quit))?,
                 action = self.action_rx.recv() => Some(action.unwrap_or(Action::Quit)),
+                _ = self.render_scheduler.wait_for_request() => None,
+                _ = RenderScheduler::wait(deadline) => None,
             };
+            self.render_scheduler.request();
 
             let mut should_quit = match first_action {
                 Some(action) => self.handle_action(&mut tui, action)?,
                 None => false,
             };
 
-            while let Ok(action) = self.action_rx.try_recv() {
+            let mut processed = 1;
+            // Keep the existing quit flush: Quit can enqueue layout-save actions.
+            while processed < MAX_ACTIONS_PER_BATCH || should_quit {
+                let Ok(action) = self.action_rx.try_recv() else { break };
                 should_quit |= self.handle_action(&mut tui, action)?;
+                processed += 1;
             }
 
             if should_quit {
                 break;
+            }
+            self.render_scheduler.consume_pending_request();
+            // Check after every bounded batch, even when select keeps receiving
+            // ready events/actions, so they cannot starve a due frame.
+            if self.render_scheduler.is_due() {
+                self.render(&mut tui)?;
+                self.render_scheduler.rendered();
             }
         }
         tui.exit()?;
@@ -91,7 +113,6 @@ impl App {
         let action = match event {
             Event::Quit => Some(Action::Quit),
             Event::Tick => Some(Action::Tick),
-            Event::Render => Some(Action::Render),
             Event::Resize(w, h) => Some(Action::Resize(w, h)),
             Event::Key(key) => self.root.handle_key_event(key)?,
             Event::Mouse(mouse) => self.root.handle_mouse_event(mouse)?,
@@ -106,7 +127,6 @@ impl App {
             Action::Tick => {}
             Action::Quit => self.token.cancel(),
             Action::Resize(w, h) => self.handle_resize(tui, *w, *h)?,
-            Action::Render => self.render(tui)?,
             Action::SpawnExternalEditor(editor, filepath) => {
                 self.handle_spawn_external_editor(tui, editor, filepath)?
             }
@@ -230,7 +250,6 @@ impl App {
     fn handle_resize(&mut self, tui: &mut Tui, w: u16, h: u16) -> Result<()> {
         debug!("Resizing to {}x{}", w, h);
         tui.resize(Rect::new(0, 0, w, h))?;
-        self.render(tui)?;
         Ok(())
     }
 

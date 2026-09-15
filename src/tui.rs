@@ -26,7 +26,6 @@ pub enum Event {
     Error,
     Closed,
     Tick,
-    Render,
     FocusGained,
     FocusLost,
     Paste(String),
@@ -41,7 +40,6 @@ pub struct Tui {
     pub cancellation_token: CancellationToken,
     pub event_rx: UnboundedReceiver<Event>,
     pub event_tx: UnboundedSender<Event>,
-    pub frame_rate: f64,
     pub tick_rate: f64,
     pub mouse: bool,
     pub paste: bool,
@@ -56,7 +54,6 @@ impl Tui {
             cancellation_token: CancellationToken::new(),
             event_rx,
             event_tx,
-            frame_rate: 30.0,
             tick_rate: 4.0,
             mouse: false,
             paste: false,
@@ -65,11 +62,6 @@ impl Tui {
 
     pub fn tick_rate(mut self, tick_rate: f64) -> Self {
         self.tick_rate = tick_rate;
-        self
-    }
-
-    pub fn frame_rate(mut self, frame_rate: f64) -> Self {
-        self.frame_rate = frame_rate;
         self
     }
 
@@ -90,7 +82,6 @@ impl Tui {
             self.event_tx.clone(),
             self.cancellation_token.clone(),
             self.tick_rate,
-            self.frame_rate,
         );
         self.task = tokio::spawn(async {
             event_loop.await;
@@ -101,11 +92,9 @@ impl Tui {
         event_tx: UnboundedSender<Event>,
         cancellation_token: CancellationToken,
         tick_rate: f64,
-        frame_rate: f64,
     ) {
         let mut event_stream = EventStream::new();
         let mut tick_interval = interval(Duration::from_secs_f64(1.0 / tick_rate));
-        let mut render_interval = interval(Duration::from_secs_f64(1.0 / frame_rate));
 
         // if this fails, then it's likely a bug in the calling code
         event_tx.send(Event::Init).expect("failed to send init event");
@@ -115,7 +104,6 @@ impl Tui {
                     break;
                 }
                 _ = tick_interval.tick() => Event::Tick,
-                _ = render_interval.tick() => Event::Render,
                 crossterm_event = event_stream.next().fuse() => match crossterm_event {
                     Some(Ok(event)) => match event {
                         CrosstermEvent::Key(key) if key.kind == KeyEventKind::Press => Event::Key(key),
