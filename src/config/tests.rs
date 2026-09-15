@@ -1,6 +1,7 @@
 use std::num::NonZeroUsize;
 
 use super::*;
+use crate::components::ComponentId;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
 use crate::store::connections::{
     ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES,
@@ -746,6 +747,135 @@ ui:
             );
         }
     }
+}
+
+#[test]
+fn test_config_ui_startup_tab_defaults_to_overview() {
+    for custom_config in [
+        r#"
+mihomo-api: "http://localhost"
+"#,
+        r#"
+mihomo-api: "http://localhost"
+ui:
+  connections: {}
+"#,
+    ] {
+        let cfg_path = TempFile::new(temp_config_path());
+        fs::write(&cfg_path.0, custom_config).unwrap();
+
+        let config = load(Some(cfg_path.0.clone())).unwrap();
+        assert_eq!(config.startup_tab(), ComponentId::Overview);
+
+        drop(cfg_path);
+    }
+}
+
+#[test]
+fn test_config_ui_startup_tab_accepts_tab_display_names() {
+    let cases = [
+        ("Overview", ComponentId::Overview),
+        ("Connections", ComponentId::Connections),
+        ("Proxies", ComponentId::Proxies),
+        ("ProxyProviders", ComponentId::ProxyProviders),
+        ("Logs", ComponentId::Logs),
+        ("Rules", ComponentId::Rules),
+        ("RuleProviders", ComponentId::RuleProviders),
+        ("Config", ComponentId::Config),
+        ("proxyproviders", ComponentId::ProxyProviders),
+        ("LOGS", ComponentId::Logs),
+        ("View", ComponentId::Overview),
+        ("Cfg", ComponentId::Config),
+        ("pxy-pr", ComponentId::ProxyProviders),
+    ];
+
+    for (startup_tab, expected) in cases {
+        let cfg_path = TempFile::new(temp_config_path());
+        let custom_config = format!(
+            r#"
+mihomo-api: "http://localhost"
+ui:
+  startup-tab: "{startup_tab}"
+"#
+        );
+        fs::write(&cfg_path.0, custom_config).unwrap();
+
+        let config = load(Some(cfg_path.0.clone())).unwrap();
+        assert_eq!(config.startup_tab(), expected, "failed case {startup_tab:?}");
+
+        drop(cfg_path);
+    }
+}
+
+#[test]
+fn test_config_ui_startup_tab_rejects_non_tab_values() {
+    for startup_tab in ["filter", "Help", "nope", "proxy-providers", ""] {
+        let cfg_path = TempFile::new(temp_config_path());
+        let custom_config = format!(
+            r#"
+mihomo-api: "http://localhost"
+ui:
+  startup-tab: "{startup_tab}"
+"#
+        );
+        fs::write(&cfg_path.0, custom_config).unwrap();
+
+        let result = load(Some(cfg_path.0.clone()));
+        assert!(result.is_err(), "expected error for {startup_tab:?}, got {:?}", result);
+
+        let err_msg = format!("{:#}", result.unwrap_err());
+        assert!(
+            err_msg.contains("`ui.startup-tab` must be one of"),
+            "unexpected error: {}",
+            err_msg
+        );
+        assert!(
+            err_msg.contains(&format!("got \"{startup_tab}\"")),
+            "unexpected error: {}",
+            err_msg
+        );
+        assert!(err_msg.contains("Overview"), "unexpected error: {}", err_msg);
+
+        let allowed_values = err_msg
+            .split("must be one of [")
+            .nth(1)
+            .and_then(|value| value.split(']').next())
+            .unwrap_or_default();
+        assert!(
+            !allowed_values.contains("Help") && !allowed_values.contains("filter"),
+            "popup components should not be listed as allowed startup tabs: {}",
+            err_msg
+        );
+
+        drop(cfg_path);
+    }
+}
+
+#[test]
+fn test_config_runtime_sidecar_ignores_startup_tab() {
+    let cfg_path = TempFile::new(temp_config_path());
+    let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  startup-tab: Logs
+"#;
+    let runtime_config = r#"
+$schema-version: 1
+ui:
+  startup-tab: Config
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+    fs::write(&runtime_path.0, runtime_config).unwrap();
+
+    let mut config = load(Some(cfg_path.0.clone())).unwrap();
+    config.try_apply_runtime();
+
+    assert_eq!(config.startup_tab(), ComponentId::Logs);
+
+    drop(runtime_path);
+    drop(cfg_path);
 }
 
 #[test]

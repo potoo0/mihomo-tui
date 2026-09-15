@@ -12,8 +12,8 @@ use tracing::{debug, error, info, trace};
 use crate::action::Action;
 use crate::api::Api;
 use crate::app_message::AppMessage;
+use crate::components::Component;
 use crate::components::root_component::RootComponent;
-use crate::components::{Component, ComponentId};
 use crate::config::{Config, runtime};
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::store::proxy_setting::ProxySetting;
@@ -67,7 +67,7 @@ impl App {
 
         let action_tx = self.action_tx.clone();
         // send initial tab
-        action_tx.send(Action::TabSwitch(ComponentId::default()))?;
+        action_tx.send(Action::TabSwitch(self.config.startup_tab()))?;
         loop {
             self.handle_events(&mut tui).await?;
             self.handle_actions(&mut tui)?;

@@ -56,6 +56,8 @@ impl MihomoApiEndpoint {
 #[serde(rename_all = "kebab-case")]
 pub struct UiConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub startup_tab: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub connections: Option<ConnectionsUiConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy_detail: Option<ProxyDetailUiConfig>,

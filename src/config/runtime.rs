@@ -24,6 +24,7 @@ impl RuntimeConfig {
         Ok(Self {
             schema_version: SCHEMA_VERSION,
             ui: Some(UiConfig {
+                startup_tab: None,
                 connections: Some(ConnectionsUiConfig::try_from(connections)?),
                 proxy_detail: None,
                 proxy_provider_detail: None,
@@ -102,6 +103,7 @@ fn apply(config: &mut Config, runtime: RuntimeConfig) -> Result<()> {
         && !is_empty_connections(&runtime_connections)
     {
         let ui = config.ui.get_or_insert(UiConfig {
+            startup_tab: None,
             connections: None,
             proxy_detail: None,
             proxy_provider_detail: None,
@@ -187,6 +189,7 @@ mod tests {
         assert!(raw.contains("dir: desc"));
         assert!(raw.contains("column-widths:"));
         assert!(raw.contains("Host: 24"));
+        assert!(!raw.contains("startup-tab:"));
         assert!(raw.contains("test-url: https://example.com/generate_204"));
         assert!(raw.contains("latency-threshold: 200,800"));
     }
@@ -208,6 +211,7 @@ mod tests {
 
         assert!(raw.contains("$schema-version: 1"));
         assert!(raw.contains("proxy-setting:"));
+        assert!(!raw.contains("startup-tab:"));
     }
 
     #[test]
