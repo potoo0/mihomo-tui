@@ -115,6 +115,11 @@ log-file: /tmp/mihomo-tui.log
 log-level: error
 
 # UI settings, Optional
+# startup-tab:
+#   - initial tab on launch; matching is case-insensitive.
+#   - accepts full tab names and the short names used in compact headers.
+#   - full names: Overview, Connections, Proxies, ProxyProviders, Logs, Rules, RuleProviders, Config
+#   - default: Overview
 # connections.columns:
 #   - ordered list of Connections column titles, case-insensitive.
 #     Allowed values: Host, Rule, Chains, DownRate, UpRate, DownTotal, UpTotal, SourceIP, Type, Process, SniffHost, ConnectTime, SourcePort, Dest, Inbound
@@ -130,6 +135,7 @@ log-level: error
 #   - field currently supports: latency, name
 #   - dir: asc | desc, default is asc
 ui:
+  startup-tab: "Proxies"
   connections:
     columns: ["Host", "Rule", "Chains", "DownRate", "UpRate", "DownTotal", "UpTotal", "SourceIP"]
     sort: { field: "DownRate", dir: "desc" }

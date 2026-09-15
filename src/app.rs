@@ -12,8 +12,8 @@ use tracing::{debug, error, info, trace};
 use crate::action::Action;
 use crate::api::Api;
 use crate::app_message::AppMessage;
+use crate::components::Component;
 use crate::components::root_component::RootComponent;
-use crate::components::{Component, ComponentId};
 use crate::config::{Config, runtime};
 use crate::render::RenderScheduler;
 use crate::store::connections_setting::ConnectionsSetting;
@@ -39,6 +39,7 @@ pub struct App {
 impl App {
     pub fn new(config: Config, runtime_path: PathBuf, api: Api) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
+        let startup_tab = config.startup_tab();
         let render_scheduler = RenderScheduler::default();
         render_scheduler.requester().request_render();
         Ok(Self {
@@ -46,7 +47,7 @@ impl App {
             runtime_path,
             api: Arc::new(api),
             token: CancellationToken::new(),
-            root: RootComponent::new(),
+            root: RootComponent::new(startup_tab),
 
             action_tx,
             action_rx,
@@ -71,7 +72,7 @@ impl App {
         self.root.start()?;
 
         // send initial tab
-        self.action_tx.send(Action::TabSwitch(ComponentId::default()))?;
+        self.action_tx.send(Action::TabSwitch(self.config.startup_tab()))?;
         loop {
             let deadline = self.render_scheduler.deadline();
             let first_action = tokio::select! {

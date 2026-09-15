@@ -4,6 +4,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use anyhow::{Result, anyhow, bail};
 use url::Url;
 
+use crate::components::{ComponentId, TABS};
 use crate::config::{
     Config, ConnectionsSortConfig, ConnectionsUiConfig, LatencyThreshold, ProxySetting,
 };
@@ -11,6 +12,15 @@ use crate::models::sort::SortSpec;
 use crate::store::connections::{ALIVE_COLUMN_INDEX, CONNECTION_COLS};
 
 impl Config {
+    /// Initial tab on launch; defaults to `Overview` when not configured.
+    pub fn startup_tab(&self) -> ComponentId {
+        self.ui
+            .as_ref()
+            .and_then(|ui| ui.startup_tab.as_deref())
+            .and_then(|tab| tab.parse::<ComponentId>().ok())
+            .unwrap_or_default()
+    }
+
     pub fn validate(&self) -> Result<()> {
         match &self.mihomo_api {
             #[cfg(not(unix))]
@@ -24,6 +34,15 @@ impl Config {
             _ => {}
         }
         self.proxy_setting.validate()?;
+        if let Some(startup_tab) = self.ui.as_ref().and_then(|ui| ui.startup_tab.as_ref())
+            && startup_tab.parse::<ComponentId>().is_err()
+        {
+            bail!(
+                "`ui.startup-tab` must be one of [{}], got {:?}",
+                TABS.iter().map(|id| id.full_name()).collect::<Vec<_>>().join(", "),
+                startup_tab
+            );
+        }
         if let Some(connections) = self.ui.as_ref().and_then(|ui| ui.connections.as_ref()) {
             connections.validate()?;
         }

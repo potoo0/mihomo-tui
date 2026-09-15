@@ -87,7 +87,7 @@ struct ConnectionStreamHub {
 }
 
 impl RootComponent {
-    pub fn new() -> Self {
+    pub fn new(initial_tab: ComponentId) -> Self {
         let update_state = SharedVersionUpdateState::default();
         let components: Vec<Box<dyn Component>> = vec![
             Box::new(HeaderComponent::new(update_state.clone())),
@@ -97,7 +97,7 @@ impl RootComponent {
         Self {
             api: Default::default(),
             config: Default::default(),
-            current_tab: Default::default(),
+            current_tab: initial_tab,
             popup: Default::default(),
             focused: Default::default(),
             idle_tabs: Default::default(),
@@ -346,7 +346,7 @@ impl ConnectionStreamHub {
         let stream = api.stream_connections()?;
         let token = CancellationToken::new();
         let task_token = token.clone();
-        info!("Loading connections");
+        info!(?current_tab, "Loading connections");
         let stats_tx = self.stats_tx.clone();
         let conns_tx = self.conns_tx.clone();
         let conns_rx = Arc::clone(&self.conns_rx);

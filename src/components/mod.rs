@@ -22,6 +22,7 @@ mod rule_providers_component;
 mod rules_component;
 mod updates_component;
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -40,7 +41,7 @@ use crate::widgets::shortcut::Shortcut;
 const HORIZ_STEP: usize = 4;
 
 /// Header tabs in display order; index is used for tab navigation and shortcuts
-const TABS: [ComponentId; 8] = [
+pub const TABS: [ComponentId; 8] = [
     ComponentId::Overview,
     ComponentId::Connections,
     ComponentId::Proxies,
@@ -76,6 +77,20 @@ pub enum ComponentId {
     Config,
     DnsQuery,
     Filter,
+}
+
+impl FromStr for ComponentId {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        TABS.iter()
+            .copied()
+            .find(|id| {
+                id.full_name().eq_ignore_ascii_case(value)
+                    || id.short_name().is_some_and(|name| name.eq_ignore_ascii_case(value))
+            })
+            .ok_or(())
+    }
 }
 
 impl ComponentId {
