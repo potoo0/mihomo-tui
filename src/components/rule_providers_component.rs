@@ -15,6 +15,7 @@ use tracing::{debug, error, info};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::render::RenderRequester;
 use crate::store::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
 use crate::utils::columns::filter_placeholder;
 use crate::utils::filter::FilterPattern;
@@ -27,6 +28,7 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 pub struct RuleProvidersComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
 
     store: Arc<RuleProviders>,
     filter_pattern_changed: bool,
@@ -47,11 +49,13 @@ impl RuleProvidersComponent {
         let store = Arc::clone(&self.store);
         let filter_pattern = Arc::clone(&self.filter_pattern);
         let loading = Arc::clone(&self.loading);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("log-loader").spawn(async move {
             Self::refresh_rule_providers(&api, &store, &filter_pattern).await;
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -69,6 +73,7 @@ impl RuleProvidersComponent {
         let store = Arc::clone(&self.store);
         let filter_pattern = Arc::clone(&self.filter_pattern);
         let pending_update = Arc::clone(&self.pending_update);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         // update counter
         {
             let mut guard = pending_update.write().unwrap();
@@ -90,10 +95,12 @@ impl RuleProvidersComponent {
                         }
                     }
                 }
+                render_requester.request_render();
             }
 
             // refresh providers
             Self::refresh_rule_providers(&api, &store, &filter_pattern).await;
+            render_requester.request_render();
         });
     }
 
@@ -245,6 +252,11 @@ impl Component for RuleProvidersComponent {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
 
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

@@ -9,6 +9,7 @@ use crate::api::Api;
 use crate::config::{LatencyThreshold, ProxySortConfig};
 use crate::models::proxy_provider::ProxyProvider;
 use crate::models::sort::{ProxySortField, SortDir};
+use crate::render::RenderRequester;
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::time::format_datetime;
 use crate::widgets::latency::{LatencyQuality, QualityStats};
@@ -102,7 +103,7 @@ impl ProxyProviders {
         }
     }
 
-    fn update_sort_and_reload<F>(api: Arc<Api>, f: F)
+    fn update_sort_and_reload<F>(api: Arc<Api>, render_requester: RenderRequester, f: F)
     where
         F: FnOnce(Option<ProxySortConfig>) -> Option<ProxySortConfig>,
     {
@@ -120,16 +121,17 @@ impl ProxyProviders {
 
         tokio::task::Builder::new()
             .name("proxy-provider-loader")
-            .spawn(async {
+            .spawn(async move {
                 if let Err(e) = Self::load(api).await {
                     error!(error = ?e, "Failed to reload proxy providers after sort change");
                 }
+                render_requester.request_render();
             })
             .expect("Failed to spawn proxy providers loader task");
     }
 
-    pub fn switch_sort_field(api: Arc<Api>) {
-        Self::update_sort_and_reload(api, |old_sort| match old_sort {
+    pub fn switch_sort_field(api: Arc<Api>, render_requester: RenderRequester) {
+        Self::update_sort_and_reload(api, render_requester, |old_sort| match old_sort {
             None => Some(ProxySortConfig { field: ProxySortField::Latency, dir: SortDir::Asc }),
             Some(old) => match old.field {
                 ProxySortField::Latency => {
@@ -140,8 +142,8 @@ impl ProxyProviders {
         });
     }
 
-    pub fn toggle_sort_direction(api: Arc<Api>) {
-        Self::update_sort_and_reload(api, |old_sort| {
+    pub fn toggle_sort_direction(api: Arc<Api>, render_requester: RenderRequester) {
+        Self::update_sort_and_reload(api, render_requester, |old_sort| {
             old_sort.map(|old| ProxySortConfig { dir: old.dir.toggle(), ..old })
         });
     }

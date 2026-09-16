@@ -15,6 +15,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
+use crate::render::RenderRequester;
 use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::symbols::arrow;
@@ -29,6 +30,7 @@ const CARD_WIDTH: u16 = 25;
 pub struct ProxyProviderDetailComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
 
     show: bool,
 
@@ -66,6 +68,7 @@ impl ProxyProviderDetailComponent {
         info!("Loading proxy providers");
         let api = Arc::clone(self.api.as_ref().unwrap());
         let loading = Arc::clone(&self.loading);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-providers-loader").spawn(async move {
@@ -73,6 +76,7 @@ impl ProxyProviderDetailComponent {
                 error!(error = ?e, "Failed to get proxy providers")
             }
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -82,6 +86,7 @@ impl ProxyProviderDetailComponent {
         info!("Health check for provider: {}", name);
         let api = Arc::clone(self.api.as_ref().unwrap());
         let health_checking = Arc::clone(&self.health_checking);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         health_checking.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-health-check").spawn(async move {
@@ -89,6 +94,7 @@ impl ProxyProviderDetailComponent {
                 error!(error = ?e, "Failed to health check and reload provider");
             }
             health_checking.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -99,6 +105,7 @@ impl ProxyProviderDetailComponent {
         let api = Arc::clone(self.api.as_ref().unwrap());
         let action_tx = self.action_tx.as_ref().unwrap().clone();
         let loading = Arc::clone(&self.loading);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-update").spawn(async move {
@@ -107,6 +114,7 @@ impl ProxyProviderDetailComponent {
                 let _ = action_tx.send(Action::Error(("Update proxy provider", e).into()));
             }
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -258,6 +266,11 @@ impl Component for ProxyProviderDetailComponent {
         Ok(())
     }
 
+    fn register_render_requester(&mut self, requester: RenderRequester) -> anyhow::Result<()> {
+        self.render_requester = Some(requester);
+        Ok(())
+    }
+
     fn handle_key_event(&mut self, key: KeyEvent) -> anyhow::Result<Option<Action>> {
         let Some(provider_name) = self.provider_name.clone() else {
             return Ok(None);
@@ -273,8 +286,14 @@ impl Component for ProxyProviderDetailComponent {
             KeyCode::Char('r') => self.load_providers()?,
             KeyCode::Char('t') => self.provider_health_check(provider_name)?,
             KeyCode::Char('u') => self.update_provider(provider_name)?,
-            KeyCode::Char('s') => ProxyProviders::switch_sort_field(self.api.clone().unwrap()),
-            KeyCode::Char('S') => ProxyProviders::toggle_sort_direction(self.api.clone().unwrap()),
+            KeyCode::Char('s') => ProxyProviders::switch_sort_field(
+                self.api.clone().unwrap(),
+                self.render_requester.as_ref().unwrap().clone(),
+            ),
+            KeyCode::Char('S') => ProxyProviders::toggle_sort_direction(
+                self.api.clone().unwrap(),
+                self.render_requester.as_ref().unwrap().clone(),
+            ),
             _ => (),
         }
 

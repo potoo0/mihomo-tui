@@ -17,6 +17,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::{Config, LatencyThreshold};
+use crate::render::RenderRequester;
 use crate::store::proxies::{Proxies, ProxyView};
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::symbols::arrow;
@@ -31,6 +32,7 @@ const CARDS_PER_ROW: usize = 2;
 pub struct ProxiesComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
     navigator: ScrollableNavigator,
 
     loading: Arc<AtomicBool>,
@@ -45,6 +47,7 @@ impl Default for ProxiesComponent {
         Self {
             api: None,
             action_tx: None,
+            render_requester: None,
             navigator: ScrollableNavigator::new(CARDS_PER_ROW),
             loading: Default::default(),
             throbber: Default::default(),
@@ -60,12 +63,14 @@ impl ProxiesComponent {
         info!("Loading proxies");
         let api = Arc::clone(self.api.as_ref().unwrap());
         let loading = Arc::clone(&self.loading);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("proxies-loader").spawn(async move {
             if let Err(e) = Proxies::load(api).await {
                 error!(error = ?e, "Failed to load proxies");
             }
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -75,6 +80,7 @@ impl ProxiesComponent {
         info!("Testing proxy group {}", name);
         let api = Arc::clone(self.api.as_ref().unwrap());
         let pending_test = Arc::clone(&self.pending_test);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         pending_test.fetch_add(1, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-group-tester").spawn(async move {
@@ -84,6 +90,7 @@ impl ProxiesComponent {
             let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
                 if x == 0 { None } else { Some(x - 1) }
             });
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -251,6 +258,11 @@ impl Component for ProxiesComponent {
         let sort_config =
             config.ui.as_ref().and_then(|ui| ui.proxy_detail.as_ref()).and_then(|c| c.sort.clone());
         Proxies::init_sort_config(sort_config);
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

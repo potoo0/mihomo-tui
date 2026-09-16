@@ -1,5 +1,6 @@
 use std::future::pending;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use futures_util::FutureExt;
@@ -15,12 +16,21 @@ const MIN_RENDER_INTERVAL: Duration =
 #[derive(Clone, Debug)]
 pub struct RenderRequester {
     notify: Arc<Notify>,
+    visible: Option<Arc<AtomicBool>>,
 }
 
 impl RenderRequester {
+    /// Return a requester that only notifies while `visible` is true.
+    pub fn scoped(&self, visible: Arc<AtomicBool>) -> Self {
+        Self { visible: Some(visible), ..self.clone() }
+    }
+
     /// Commit visible state before calling this. Repeated requests share one
     /// pending notification; a request during drawing schedules a later frame.
     pub fn request_render(&self) {
+        if self.visible.as_ref().is_some_and(|visible| !visible.load(Ordering::Acquire)) {
+            return;
+        }
         self.notify.notify_one();
     }
 }
@@ -34,7 +44,7 @@ pub struct RenderScheduler {
 
 impl RenderScheduler {
     pub fn requester(&self) -> RenderRequester {
-        RenderRequester { notify: Arc::clone(&self.notify) }
+        RenderRequester { notify: Arc::clone(&self.notify), visible: None }
     }
 
     /// Wait for and consume a rendering notification.
@@ -165,6 +175,20 @@ mod tests {
         requester.request_render();
         scheduler.consume_pending_request();
         assert!(scheduler.wait_for_request().now_or_never().is_none());
+    }
+
+    #[test]
+    fn scoped_requester_only_notifies_while_visible() {
+        let scheduler = RenderScheduler::default();
+        let visible = Arc::new(AtomicBool::new(false));
+        let requester = scheduler.requester().scoped(Arc::clone(&visible));
+
+        requester.request_render();
+        assert!(scheduler.wait_for_request().now_or_never().is_none());
+
+        visible.store(true, Ordering::Release);
+        requester.request_render();
+        assert!(scheduler.wait_for_request().now_or_never().is_some());
     }
 
     #[tokio::test(start_paused = true)]

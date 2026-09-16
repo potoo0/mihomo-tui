@@ -16,6 +16,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
+use crate::render::RenderRequester;
 use crate::store::connections::CONNECTION_COLS;
 use crate::utils::columns::ColDef;
 use crate::utils::text_ui::{popup_area, top_title_line};
@@ -53,6 +54,7 @@ impl Phase {
 pub struct ConnectionTerminateComponent {
     api: Option<Arc<Api>>,
     token: CancellationToken,
+    render_requester: Option<RenderRequester>,
 
     phase: Arc<RwLock<Phase>>,
     target: Option<Arc<Connection>>,
@@ -79,6 +81,7 @@ impl ConnectionTerminateComponent {
         let api = self.api.as_ref().unwrap().clone();
         let id = self.target.as_deref().unwrap().id.clone();
         let token = self.token.clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("connection-terminator").spawn(async move {
             tokio::select! {
@@ -93,6 +96,7 @@ impl ConnectionTerminateComponent {
                             *phase.write().unwrap() = Phase::DoneErr(e.to_string());
                         },
                     }
+                    render_requester.request_render();
                 }
             }
         })?;
@@ -131,6 +135,11 @@ impl Component for ConnectionTerminateComponent {
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
         self.token = CancellationToken::new();
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

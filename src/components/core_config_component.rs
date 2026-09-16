@@ -21,6 +21,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
 use crate::models::CoreConfig;
+use crate::render::RenderRequester;
 use crate::utils::editor::resolve_editor;
 use crate::utils::input::KeyOutcome;
 use crate::utils::json5_formatter::{Json5Formatter, collect_paths, extract_comments};
@@ -48,6 +49,7 @@ pub struct CoreConfigComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
     config: Option<Arc<Config>>,
+    render_requester: Option<RenderRequester>,
 
     active_pane: ActivePane,
     store: Arc<RwLock<String>>,
@@ -71,6 +73,7 @@ struct TaskContext {
     modified: Arc<AtomicBool>,
     loading: Arc<AtomicBool>,
     app_config: Arc<Config>,
+    render_requester: RenderRequester,
 }
 
 #[derive(Debug, Default)]
@@ -115,6 +118,7 @@ impl CoreConfigComponent {
             modified: Arc::clone(&self.modified),
             loading: Arc::clone(&self.loading),
             app_config: Arc::clone(self.config.as_ref().unwrap()),
+            render_requester: self.render_requester.as_ref().unwrap().clone(),
         }
     }
 
@@ -146,6 +150,7 @@ impl CoreConfigComponent {
             Err(e) => error!(error = ?e, "load core config failed"),
         }
         ctx.loading.store(false, Ordering::Relaxed);
+        ctx.render_requester.request_render();
     }
 
     fn pretty_print_core_config(ctx: &TaskContext, config: CoreConfig) -> Result<String> {
@@ -256,6 +261,7 @@ impl CoreConfigComponent {
                     error!(error = ?e, "Failed to submit core config to mihomo API");
                     let _ = action_tx.send(Action::Error(("Submit core config", e).into()));
                     ctx.loading.store(false, Ordering::Relaxed);
+                    ctx.render_requester.request_render();
                 }
             }
         })?;
@@ -294,6 +300,7 @@ impl CoreConfigComponent {
                 }
             }
             ctx.loading.store(false, Ordering::Relaxed);
+            ctx.render_requester.request_render();
         })?;
         Ok(())
     }
@@ -494,6 +501,11 @@ impl Component for CoreConfigComponent {
 
     fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
         self.config = Some(config);
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

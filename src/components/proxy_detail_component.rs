@@ -17,6 +17,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
+use crate::render::RenderRequester;
 use crate::store::proxies::Proxies;
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::symbols::arrow;
@@ -31,6 +32,7 @@ const CARD_WIDTH: u16 = 25;
 pub struct ProxyDetailComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
 
     show: bool,
     proxy_name: Option<String>,
@@ -111,6 +113,7 @@ impl ProxyDetailComponent {
         let api = Arc::clone(self.api.as_ref().unwrap());
         let loading = Arc::clone(&self.loading);
         let action_tx = self.action_tx.as_ref().unwrap().clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("proxies-loader").spawn(async move {
             if let Err(e) = Proxies::load(api).await {
@@ -118,6 +121,7 @@ impl ProxyDetailComponent {
                 let _ = action_tx.send(Action::Error(("Load proxy", e).into()));
             }
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -128,6 +132,7 @@ impl ProxyDetailComponent {
         let api = Arc::clone(self.api.as_ref().unwrap());
         let loading = Arc::clone(&self.loading);
         let action_tx = self.action_tx.as_ref().unwrap().clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("proxy-updater").spawn(async move {
             match Proxies::update_and_reload(api.clone(), &selector_name, &name).await {
@@ -139,6 +144,7 @@ impl ProxyDetailComponent {
             }
 
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -148,6 +154,7 @@ impl ProxyDetailComponent {
         info!(name = %name, is_group, reset_pending, "Testing proxy");
         let api = Arc::clone(self.api.as_ref().unwrap());
         let pending_test = Arc::clone(&self.pending_test);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         pending_test.fetch_add(1, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-tester").spawn(async move {
@@ -166,6 +173,7 @@ impl ProxyDetailComponent {
                     if x == 0 { None } else { Some(x - 1) }
                 });
             }
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -372,6 +380,11 @@ impl Component for ProxyDetailComponent {
         Ok(())
     }
 
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
+        Ok(())
+    }
+
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         let Some(proxy) = self.proxy_name.as_ref().and_then(|n| Proxies::get_by_name(n)) else {
             return Ok(None);
@@ -420,8 +433,14 @@ impl Component for ProxyDetailComponent {
                     .unwrap_or_else(|| (proxy.name.clone(), proxy.children.is_some(), true));
                 self.test_proxy(name, is_group, reset_pending)?;
             }
-            KeyCode::Char('s') => Proxies::switch_sort_field(self.api.clone().unwrap()),
-            KeyCode::Char('S') => Proxies::toggle_sort_direction(self.api.clone().unwrap()),
+            KeyCode::Char('s') => Proxies::switch_sort_field(
+                self.api.clone().unwrap(),
+                self.render_requester.as_ref().unwrap().clone(),
+            ),
+            KeyCode::Char('S') => Proxies::toggle_sort_direction(
+                self.api.clone().unwrap(),
+                self.render_requester.as_ref().unwrap().clone(),
+            ),
             KeyCode::Char('[')
                 if !self.loading.load(Ordering::Relaxed) && self.layers.len() > 1 =>
             {

@@ -15,6 +15,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId, TABS};
 use crate::config::Config;
+use crate::render::RenderRequester;
 use crate::utils::symbols::{SUPERSCRIPT, arrow};
 use crate::version_update::SharedVersionUpdateState;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -47,6 +48,7 @@ pub struct HeaderComponent {
 
     api: Option<Arc<Api>>,
     config: Option<Arc<Config>>,
+    render_requester: Option<RenderRequester>,
     version: Arc<Mutex<Option<String>>>,
     update_state: SharedVersionUpdateState,
     release_checker: Option<JoinHandle<()>>,
@@ -58,6 +60,7 @@ impl HeaderComponent {
             selected: Self::component_index(ComponentId::default()),
             api: None,
             config: None,
+            render_requester: None,
             version: Default::default(),
             update_state,
             release_checker: None,
@@ -71,10 +74,12 @@ impl HeaderComponent {
     fn load_version(&mut self, api: Arc<Api>) -> anyhow::Result<()> {
         info!("Loading version");
         let version = Arc::clone(&self.version);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         tokio::task::Builder::new().name("version-loader").spawn(async move {
             match api.get_version().await {
                 Ok(v) => {
                     *version.lock().unwrap() = Some(v.to_string());
+                    render_requester.request_render();
                     Ok(())
                 }
                 Err(e) => {
@@ -99,11 +104,13 @@ impl HeaderComponent {
             return Ok(());
         };
         let update_state = self.update_state.clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         let handle = tokio::task::Builder::new().name("release-checker").spawn(async move {
             loop {
                 if let Err(e) = update_state.refresh(&api, &mihomo_repo).await {
                     warn!(error = ?e, "Failed to check release updates");
                 }
+                render_requester.request_render();
                 tokio::time::sleep(RELEASE_CHECK_INTERVAL).await;
             }
         })?;
@@ -184,6 +191,11 @@ impl Component for HeaderComponent {
 
     fn register_config_handler(&mut self, config: Arc<Config>) -> anyhow::Result<()> {
         self.config = Some(config);
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> anyhow::Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

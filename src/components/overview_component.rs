@@ -22,6 +22,7 @@ use crate::components::{Component, ComponentId};
 use crate::config::OverviewBufferConfig;
 use crate::models::{ConnectionStats, Memory, Traffic};
 use crate::palette;
+use crate::render::RenderRequester;
 use crate::utils::axis::{axis_bounds, axis_labels};
 use crate::utils::byte_size::{ByteSizeOptExt, human_bytes};
 use crate::utils::symbols::arrow;
@@ -35,6 +36,7 @@ type Series = Vec<(f64, f64)>;
 pub struct OverviewComponent {
     api: Option<Arc<Api>>,
     token: CancellationToken,
+    render_requester: Option<RenderRequester>,
 
     stats_rx: Receiver<Option<ConnectionStats>>,
     memory: Arc<Mutex<AllocRingBuffer<Memory>>>,
@@ -51,6 +53,7 @@ impl OverviewComponent {
         Self {
             api: Default::default(),
             token: Default::default(),
+            render_requester: Default::default(),
 
             stats_rx,
             memory: Arc::new(Mutex::new(memory)),
@@ -63,6 +66,7 @@ impl OverviewComponent {
         let token = self.token.clone();
         let api = Arc::clone(self.api.as_ref().unwrap());
         let store = Arc::clone(&self.memory);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("memory-loader").spawn(async move {
             let stream = match api.stream_memory().await {
@@ -79,10 +83,32 @@ impl OverviewComponent {
                 .for_each(|record| {
                     if record.used > 0 {
                         store.lock().unwrap().enqueue(record);
+                        render_requester.request_render();
                     }
                     future::ready(())
                 })
                 .await;
+        })?;
+        Ok(())
+    }
+
+    fn watch_connection_stats(&self) -> Result<()> {
+        let token = self.token.clone();
+        let mut stats_rx = self.stats_rx.clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
+
+        tokio::task::Builder::new().name("connection-stats-watcher").spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    result = stats_rx.changed() => {
+                        if result.is_err() {
+                            break;
+                        }
+                        render_requester.request_render();
+                    }
+                }
+            }
         })?;
         Ok(())
     }
@@ -92,6 +118,7 @@ impl OverviewComponent {
         let token = self.token.clone();
         let api = Arc::clone(self.api.as_ref().unwrap());
         let store = Arc::clone(&self.traffic);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("traffic-loader").spawn(async move {
             let stream = match api.stream_traffic().await {
@@ -107,6 +134,7 @@ impl OverviewComponent {
                 .filter_map(|res| future::ready(res.ok()))
                 .for_each(|record| {
                     store.lock().unwrap().enqueue(record);
+                    render_requester.request_render();
                     future::ready(())
                 })
                 .await;
@@ -294,7 +322,13 @@ impl Component for OverviewComponent {
         Ok(())
     }
 
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
+        Ok(())
+    }
+
     fn start(&mut self) -> Result<()> {
+        self.watch_connection_stats()?;
         self.load_memory()?;
         self.load_traffic()
     }

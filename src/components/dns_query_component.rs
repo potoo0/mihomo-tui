@@ -165,6 +165,7 @@ impl DnsQueryComponent {
 
         let req = DnsQueryRequest { name: name.to_owned(), r#type: self.current_record_type() };
         let (tx, rx) = oneshot::channel();
+        let action_tx = self.action_tx.as_ref().unwrap().clone();
         self.result_rx = Some(rx);
         self.reset_answers();
         self.loading.store(true, Ordering::Relaxed);
@@ -173,7 +174,9 @@ impl DnsQueryComponent {
             .name("dns-query")
             .spawn(async move {
                 let result = api.query_dns(&req).await.map_err(|err| err.to_string());
-                let _ = tx.send(result);
+                if tx.send(result).is_ok() {
+                    let _ = action_tx.send(Action::DnsQueryResultReady);
+                }
             })
             .unwrap();
     }
@@ -422,12 +425,8 @@ impl Component for DnsQueryComponent {
         match action {
             Action::DnsQuery => self.show(),
             Action::Focus(ComponentId::DnsQuery) => self.show(),
-            Action::Tick => {
-                self.poll_result();
-                if self.loading.load(Ordering::Relaxed) {
-                    self.throbber.calc_next();
-                }
-            }
+            Action::DnsQueryResultReady => self.poll_result(),
+            Action::Tick if self.loading.load(Ordering::Relaxed) => self.throbber.calc_next(),
             _ => (),
         }
 
@@ -547,5 +546,21 @@ mod tests {
         let component = DnsQueryComponent { answer_horiz_offset: 1, ..Default::default() };
 
         assert_eq!(component.scrolled_answer_data("a中b"), "中b");
+    }
+
+    #[test]
+    fn result_ready_action_consumes_query_result() {
+        let mut component = DnsQueryComponent::default();
+        let (tx, rx) = oneshot::channel();
+        component.result_rx = Some(rx);
+        component.loading.store(true, Ordering::Relaxed);
+        tx.send(Ok(DnsQueryResponse { answer: Vec::new() })).unwrap();
+
+        component.update(Action::DnsQueryResultReady).unwrap();
+
+        assert!(component.result_rx.is_none());
+        assert!(!component.loading.load(Ordering::Relaxed));
+        assert!(component.answers.is_empty());
+        assert!(component.error.is_none());
     }
 }
