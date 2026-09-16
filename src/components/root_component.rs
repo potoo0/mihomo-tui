@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use futures_util::{StreamExt, TryStreamExt, future};
 use ratatui::Frame;
@@ -104,60 +104,65 @@ impl RootComponent {
         }
     }
 
-    fn get_or_init(&mut self, id: ComponentId) -> &mut Box<dyn Component> {
-        self.components.entry(id).or_insert_with(|| {
-            let mut c: Box<dyn Component> = match id {
-                ComponentId::Overview => {
-                    let store_capacity =
-                        self.config.as_ref().map(|c| c.buffer.overview.clone()).unwrap_or_default();
-                    Box::new(OverviewComponent::new(self.stats_rx.clone(), store_capacity))
-                }
-                ComponentId::Connections => {
-                    let store_capacity = self
-                        .config
-                        .as_ref()
-                        .map(|c| c.buffer.clone())
-                        .unwrap_or_default()
-                        .connections;
-                    Box::new(ConnectionsComponent::new(Arc::clone(&self.conns_rx), store_capacity))
-                }
-                ComponentId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::default()),
-                ComponentId::Proxies => Box::new(ProxiesComponent::default()),
-                ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
-                ComponentId::ProxySetting => Box::new(ProxySettingComponent::default()),
-                ComponentId::ProxyProviders => Box::new(ProxyProvidersComponent::default()),
-                ComponentId::ProxyProviderDetail => {
-                    Box::new(ProxyProviderDetailComponent::default())
-                }
-                ComponentId::Logs => {
-                    let store_capacity =
-                        self.config.as_ref().map(|c| c.buffer.clone()).unwrap_or_default().logs;
-                    Box::new(LogsComponent::new(store_capacity))
-                }
-                ComponentId::Rules => Box::new(RulesComponent::default()),
-                ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
-                ComponentId::Config => Box::new(CoreConfigComponent::default()),
-                ComponentId::Updates => Box::new(UpdatesComponent::new(self.update_state.clone())),
-                ComponentId::Help => Box::new(HelpComponent::default()),
-                ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
-                ComponentId::ConnectionBatchTerminate => {
-                    Box::new(ConnectionBatchTerminateComponent::default())
-                }
-                ComponentId::ConnectionTerminate => {
-                    Box::new(ConnectionTerminateComponent::default())
-                }
-                ComponentId::Filter => Box::new(FilterComponent::default()),
-                ComponentId::DnsQuery => Box::new(DnsQueryComponent::default()),
-                _ => panic!("unsupported component `{:?}`", id),
-            };
-            debug!("Initializing component `{:?}`", id);
-            c.init(Arc::clone(self.api.as_ref().unwrap())).unwrap();
-            c.register_action_handler(self.action_tx.as_ref().unwrap().clone()).unwrap();
-            if let Some(cfg) = self.config.as_ref() {
-                c.register_config_handler(Arc::clone(cfg)).unwrap();
+    fn create_component(&self, id: ComponentId) -> Result<Box<dyn Component>> {
+        let (Some(api), Some(action_tx), Some(config)) = (&self.api, &self.action_tx, &self.config)
+        else {
+            bail!("component dependencies are not initialized");
+        };
+
+        let mut component: Box<dyn Component> = match id {
+            ComponentId::Overview => Box::new(OverviewComponent::new(
+                self.stats_rx.clone(),
+                config.buffer.overview.clone(),
+            )),
+            ComponentId::Connections => Box::new(ConnectionsComponent::new(
+                Arc::clone(&self.conns_rx),
+                config.buffer.connections,
+            )),
+            ComponentId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::default()),
+            ComponentId::Proxies => Box::new(ProxiesComponent::default()),
+            ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
+            ComponentId::ProxySetting => Box::new(ProxySettingComponent::default()),
+            ComponentId::ProxyProviders => Box::new(ProxyProvidersComponent::default()),
+            ComponentId::ProxyProviderDetail => Box::new(ProxyProviderDetailComponent::default()),
+            ComponentId::Logs => Box::new(LogsComponent::new(config.buffer.logs)),
+            ComponentId::Rules => Box::new(RulesComponent::default()),
+            ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
+            ComponentId::Config => Box::new(CoreConfigComponent::default()),
+            ComponentId::Updates => Box::new(UpdatesComponent::new(self.update_state.clone())),
+            ComponentId::Help => Box::new(HelpComponent::default()),
+            ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
+            ComponentId::ConnectionBatchTerminate => {
+                Box::new(ConnectionBatchTerminateComponent::default())
             }
-            c
-        })
+            ComponentId::ConnectionTerminate => Box::new(ConnectionTerminateComponent::default()),
+            ComponentId::Filter => Box::new(FilterComponent::default()),
+            ComponentId::DnsQuery => Box::new(DnsQueryComponent::default()),
+            _ => bail!("unsupported component `{:?}`", id),
+        };
+
+        debug!("Initializing component `{:?}`", id);
+        component.init(Arc::clone(api)).with_context(|| format!("failed to initialize {id:?}"))?;
+        component
+            .register_action_handler(action_tx.clone())
+            .with_context(|| format!("failed to register action handler for {id:?}"))?;
+        component
+            .register_config_handler(Arc::clone(config))
+            .with_context(|| format!("failed to register config handler for {id:?}"))?;
+        component.start().with_context(|| format!("failed to start {id:?}"))?;
+
+        Ok(component)
+    }
+
+    fn get_or_start(&mut self, id: ComponentId) -> Result<&mut Box<dyn Component>> {
+        // TODO: Once Polonius is stable, use `get_mut` as an early-return fast path to avoid
+        // the second lookup for initialized components (NLL problem case #3).
+        if !self.components.contains_key(&id) {
+            let component = self.create_component(id)?;
+            self.components.insert(id, component);
+        }
+
+        Ok(self.components.get_mut(&id).expect("component must exist after initialization"))
     }
 
     fn open_popup(&mut self, id: ComponentId) -> Result<()> {
@@ -165,7 +170,7 @@ impl RootComponent {
         self.popup = Some(id);
 
         // get and init component, send shortcuts of current tab to footer
-        let shortcuts = self.get_or_init(id).shortcuts();
+        let shortcuts = self.get_or_start(id)?.shortcuts();
         let tx = self.action_tx.as_ref().unwrap();
         tx.send(Action::Shortcuts(shortcuts))?;
 
@@ -332,12 +337,14 @@ impl Component for RootComponent {
         for component in self.components.values_mut() {
             component.init(Arc::clone(&api))?;
         }
-        self.maybe_load_conn()?;
         Ok(())
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
-        self.action_tx = Some(tx);
+        self.action_tx = Some(tx.clone());
+        for component in self.components.values_mut() {
+            component.register_action_handler(tx.clone())?;
+        }
         Ok(())
     }
 
@@ -348,6 +355,13 @@ impl Component for RootComponent {
         }
 
         Ok(())
+    }
+
+    fn start(&mut self) -> Result<()> {
+        for component in self.components.values_mut() {
+            component.start()?;
+        }
+        self.maybe_load_conn()
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
@@ -366,7 +380,7 @@ impl Component for RootComponent {
 
         // The focused component exclusively handles key events.
         if let Some(focused) = self.focused {
-            return self.get_or_init(focused).handle_key_event(key);
+            return self.get_or_start(focused)?.handle_key_event(key);
         }
 
         match key.code {
@@ -382,7 +396,7 @@ impl Component for RootComponent {
             _ => {}
         }
         debug!("Try handling key event: tab={:?}, key={:?}", self.current_tab, key);
-        self.get_or_init(self.current_tab).handle_key_event(key)
+        self.get_or_start(self.current_tab)?.handle_key_event(key)
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
@@ -405,9 +419,9 @@ impl Component for RootComponent {
                 self.current_tab = to;
                 self.maybe_load_conn()?;
                 // get and init component, send shortcuts of current tab to footer
-                let shortcuts = self.get_or_init(self.current_tab).shortcuts();
+                let shortcuts = self.get_or_start(self.current_tab)?.shortcuts();
                 if self.current_tab.supports_filter() {
-                    self.get_or_init(ComponentId::Filter);
+                    self.get_or_start(ComponentId::Filter)?;
                 }
                 action_tx.send(Action::Shortcuts(shortcuts))?;
             }
@@ -432,7 +446,7 @@ impl Component for RootComponent {
                 if self.popup.is_some() {
                     self.popup = None;
                     // send shortcuts of current tab to footer
-                    let shortcuts = self.get_or_init(self.current_tab).shortcuts();
+                    let shortcuts = self.get_or_start(self.current_tab)?.shortcuts();
                     action_tx.send(Action::Shortcuts(shortcuts))?;
                 }
             }
@@ -471,26 +485,28 @@ impl Component for RootComponent {
         let chunks = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).split(area);
 
         // draw header
-        self.get_or_init(ComponentId::Header).draw(frame, chunks[0])?;
+        self.get_or_start(ComponentId::Header)?.draw(frame, chunks[0])?;
 
         // draw main area
         if self.current_tab.supports_filter() {
             let inner_chunks =
                 Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).split(chunks[1]);
-            self.get_or_init(ComponentId::Filter).draw(frame, inner_chunks[0])?;
-            self.get_or_init(self.current_tab).draw(frame, inner_chunks[1])?;
+            self.get_or_start(ComponentId::Filter)?.draw(frame, inner_chunks[0])?;
+            self.get_or_start(self.current_tab)?.draw(frame, inner_chunks[1])?;
         } else {
-            self.get_or_init(self.current_tab).draw(frame, chunks[1])?;
+            self.get_or_start(self.current_tab)?.draw(frame, chunks[1])?;
         }
 
         // draw popup if any
-        self.popup.map(|c| self.get_or_init(c).draw(frame, chunks[1])).transpose()?;
+        if let Some(popup) = self.popup {
+            self.get_or_start(popup)?.draw(frame, chunks[1])?;
+        }
         self.msg_box.as_ref().map(|c| c.draw(frame, area)).transpose()?;
 
         // draw footer
         // get last row of main area for footer, with margin left/right = 1
         let footer_area = Rect::new(area.x + 1, area.y + area.height - 1, area.width - 2, 1);
-        self.get_or_init(ComponentId::Footer).draw(frame, footer_area)?;
+        self.get_or_start(ComponentId::Footer)?.draw(frame, footer_area)?;
         Ok(())
     }
 }

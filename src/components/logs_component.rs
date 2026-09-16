@@ -266,14 +266,16 @@ impl Component for LogsComponent {
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
         self.token = CancellationToken::new();
-        self.load_log()?;
-
         Ok(())
     }
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
+    }
+
+    fn start(&mut self) -> Result<()> {
+        self.load_log()
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {

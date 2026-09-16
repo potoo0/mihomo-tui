@@ -494,9 +494,11 @@ impl Component for CoreConfigComponent {
 
     fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
         self.config = Some(config);
-        self.load_core_config()?;
-
         Ok(())
+    }
+
+    fn start(&mut self) -> Result<()> {
+        self.load_core_config()
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
