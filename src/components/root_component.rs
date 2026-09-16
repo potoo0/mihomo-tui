@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result, bail};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -42,6 +43,7 @@ use crate::components::updates_component::UpdatesComponent;
 use crate::components::{Component, ComponentId, TABS};
 use crate::config::Config;
 use crate::models::{Connection, ConnectionStats};
+use crate::render::RenderRequester;
 use crate::utils::text_ui::top_title_line;
 use crate::version_update::SharedVersionUpdateState;
 
@@ -54,6 +56,7 @@ pub struct RootComponent {
     api: Option<Arc<Api>>,
     config: Option<Arc<Config>>,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requesters: TabRenderRequesters,
     update_state: SharedVersionUpdateState,
 
     current_tab: ComponentId,
@@ -71,6 +74,13 @@ pub struct RootComponent {
     stats_rx: watch::Receiver<Option<ConnectionStats>>,
     conns_tx: mpsc::Sender<Vec<Connection>>,
     conns_rx: Arc<AsyncMutex<mpsc::Receiver<Vec<Connection>>>>,
+}
+
+#[derive(Default)]
+struct TabRenderRequesters {
+    requester: Option<RenderRequester>,
+    /// Render notification gates for tabs with continuously running streams.
+    gates: HashMap<ComponentId, Arc<AtomicBool>>,
 }
 
 impl RootComponent {
@@ -94,6 +104,7 @@ impl RootComponent {
             msg_box: Default::default(),
             components,
             action_tx: Default::default(),
+            render_requesters: Default::default(),
             update_state,
 
             conn_token: Default::default(),
@@ -104,7 +115,11 @@ impl RootComponent {
         }
     }
 
-    fn create_component(&self, id: ComponentId) -> Result<Box<dyn Component>> {
+    fn create_component(
+        &self,
+        id: ComponentId,
+        render_requester: RenderRequester,
+    ) -> Result<Box<dyn Component>> {
         let (Some(api), Some(action_tx), Some(config)) = (&self.api, &self.action_tx, &self.config)
         else {
             bail!("component dependencies are not initialized");
@@ -149,6 +164,9 @@ impl RootComponent {
         component
             .register_config_handler(Arc::clone(config))
             .with_context(|| format!("failed to register config handler for {id:?}"))?;
+        component
+            .register_render_requester(render_requester)
+            .with_context(|| format!("failed to register render requester for {id:?}"))?;
         component.start().with_context(|| format!("failed to start {id:?}"))?;
 
         Ok(component)
@@ -158,7 +176,8 @@ impl RootComponent {
         // TODO: Once Polonius is stable, use `get_mut` as an early-return fast path to avoid
         // the second lookup for initialized components (NLL problem case #3).
         if !self.components.contains_key(&id) {
-            let component = self.create_component(id)?;
+            let render_requester = self.render_requesters.requester_for(id, self.current_tab)?;
+            let component = self.create_component(id, render_requester)?;
             self.components.insert(id, component);
         }
 
@@ -271,6 +290,7 @@ impl RootComponent {
         }
         if self.components.remove(&id).is_some() {
             self.idle_tabs.remove(&id);
+            self.render_requesters.remove(id);
             info!("Destroyed idle component {:?}", id);
         }
     }
@@ -319,6 +339,51 @@ impl RootComponent {
     }
 }
 
+impl TabRenderRequesters {
+    fn register(&mut self, requester: RenderRequester) {
+        self.requester = Some(requester);
+    }
+
+    fn requester_for(
+        &mut self,
+        id: ComponentId,
+        current_tab: ComponentId,
+    ) -> Result<RenderRequester> {
+        let Some(requester) = self.requester.as_ref() else {
+            bail!("render requester is not initialized");
+        };
+        if !Self::uses_render_gate(id) {
+            return Ok(requester.clone());
+        }
+
+        let visible = Arc::new(AtomicBool::new(id == current_tab));
+        self.gates.insert(id, Arc::clone(&visible));
+        Ok(requester.scoped(visible))
+    }
+
+    fn uses_render_gate(id: ComponentId) -> bool {
+        // Only tabs with continuously running streams need render gates.
+        matches!(id, ComponentId::Overview | ComponentId::Connections | ComponentId::Logs)
+    }
+
+    fn set_render_gate(&mut self, id: ComponentId, visible: bool) {
+        if let Some(gate) = self.gates.get(&id) {
+            gate.store(visible, Ordering::Release);
+        }
+    }
+
+    fn switch_tab(&mut self, from: ComponentId, to: ComponentId) {
+        if from != to {
+            self.set_render_gate(from, false);
+            self.set_render_gate(to, true);
+        }
+    }
+
+    fn remove(&mut self, id: ComponentId) {
+        self.gates.remove(&id);
+    }
+}
+
 impl Drop for RootComponent {
     fn drop(&mut self) {
         self.stop_conn();
@@ -354,6 +419,15 @@ impl Component for RootComponent {
             component.register_config_handler(Arc::clone(&config))?;
         }
 
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requesters.register(requester);
+        for (id, component) in self.components.iter_mut() {
+            let requester = self.render_requesters.requester_for(*id, self.current_tab)?;
+            component.register_render_requester(requester)?;
+        }
         Ok(())
     }
 
@@ -415,8 +489,10 @@ impl Component for RootComponent {
                 return Ok(None);
             }
             Action::TabSwitch(to) => {
+                let from = self.current_tab;
                 self.renew_idle(to);
                 self.current_tab = to;
+                self.render_requesters.switch_tab(from, to);
                 self.maybe_load_conn()?;
                 // get and init component, send shortcuts of current tab to footer
                 let shortcuts = self.get_or_start(self.current_tab)?.shortcuts();
@@ -508,5 +584,53 @@ impl Component for RootComponent {
         let footer_area = Rect::new(area.x + 1, area.y + area.height - 1, area.width - 2, 1);
         self.get_or_start(ComponentId::Footer)?.draw(frame, footer_area)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use futures_util::FutureExt;
+
+    use super::*;
+    use crate::render::RenderScheduler;
+
+    fn has_render_request(scheduler: &RenderScheduler) -> bool {
+        scheduler.wait_for_request().now_or_never().is_some()
+    }
+
+    #[test]
+    fn stream_tab_requester_follows_tab_visibility() {
+        let scheduler = RenderScheduler::default();
+        let mut requesters = TabRenderRequesters::default();
+        requesters.register(scheduler.requester());
+
+        let logs = requesters
+            .requester_for(ComponentId::Logs, ComponentId::Rules)
+            .expect("render requester is registered");
+        logs.request_render();
+        assert!(!has_render_request(&scheduler));
+
+        requesters.switch_tab(ComponentId::Rules, ComponentId::Logs);
+        logs.request_render();
+        assert!(has_render_request(&scheduler));
+
+        requesters.switch_tab(ComponentId::Logs, ComponentId::Rules);
+        logs.request_render();
+        assert!(!has_render_request(&scheduler));
+    }
+
+    #[test]
+    fn non_stream_tab_requester_is_not_gated() {
+        let scheduler = RenderScheduler::default();
+        let mut requesters = TabRenderRequesters::default();
+        requesters.register(scheduler.requester());
+
+        let rules = requesters
+            .requester_for(ComponentId::Rules, ComponentId::Logs)
+            .expect("render requester is registered");
+        requesters.switch_tab(ComponentId::Logs, ComponentId::Overview);
+
+        rules.request_render();
+        assert!(has_render_request(&scheduler));
     }
 }

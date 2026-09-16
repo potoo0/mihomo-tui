@@ -12,6 +12,7 @@ use tracing::{debug, info};
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::render::RenderRequester;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
@@ -44,6 +45,7 @@ impl Phase {
 pub struct ConnectionBatchTerminateComponent {
     api: Option<Arc<Api>>,
     token: CancellationToken,
+    render_requester: Option<RenderRequester>,
 
     phase: Arc<RwLock<Phase>>,
     targets: Vec<String>,
@@ -70,6 +72,7 @@ impl ConnectionBatchTerminateComponent {
         let api = Arc::clone(self.api.as_ref().unwrap());
         let ids = self.targets.clone();
         let token = self.token.clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("connections-batch-terminator").spawn(async move {
             let mut ok = 0;
@@ -94,6 +97,7 @@ impl ConnectionBatchTerminateComponent {
             }
 
             *phase.write().unwrap() = Phase::Done { ok, err };
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -131,6 +135,11 @@ impl Component for ConnectionBatchTerminateComponent {
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
         self.token = CancellationToken::new();
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

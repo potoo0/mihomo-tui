@@ -17,6 +17,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
+use crate::render::RenderRequester;
 use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::utils::byte_size::human_bytes;
 use crate::utils::symbols::arrow;
@@ -32,6 +33,7 @@ const CARDS_PER_ROW: usize = 2;
 pub struct ProxyProvidersComponent {
     api: Option<Arc<Api>>,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
 
     navigator: ScrollableNavigator,
     loading: Arc<AtomicBool>,
@@ -46,6 +48,7 @@ impl ProxyProvidersComponent {
         info!("Loading proxy providers");
         let api = Arc::clone(self.api.as_ref().unwrap());
         let loading = Arc::clone(&self.loading);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-providers-loader").spawn(async move {
@@ -53,6 +56,7 @@ impl ProxyProvidersComponent {
                 error!(error = ?e, "Failed to get proxy providers")
             }
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -62,6 +66,7 @@ impl ProxyProvidersComponent {
         info!("Health check for provider: {}", name);
         let api = Arc::clone(self.api.as_ref().unwrap());
         let pending_test = Arc::clone(&self.pending_test);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         pending_test.fetch_add(1, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-health-check").spawn(async move {
@@ -71,6 +76,7 @@ impl ProxyProvidersComponent {
             let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
                 if x == 0 { None } else { Some(x - 1) }
             });
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -81,6 +87,7 @@ impl ProxyProvidersComponent {
         let api = Arc::clone(self.api.as_ref().unwrap());
         let action_tx = self.action_tx.as_ref().unwrap().clone();
         let loading = Arc::clone(&self.loading);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-update").spawn(async move {
@@ -89,6 +96,7 @@ impl ProxyProvidersComponent {
                 let _ = action_tx.send(Action::Error(("Update proxy provider", e).into()));
             }
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -304,6 +312,11 @@ impl Component for ProxyProvidersComponent {
             .and_then(|ui| ui.proxy_provider_detail.as_ref())
             .and_then(|c| c.sort.clone());
         ProxyProviders::init_sort_config(sort_config);
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

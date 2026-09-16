@@ -16,6 +16,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::app_message::AppMessage;
 use crate::config::Config;
+use crate::render::RenderRequester;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::version_update::{SharedVersionUpdateState, VersionStatus, VersionUpdateState};
@@ -44,6 +45,7 @@ pub struct UpdatesComponent {
     api: Option<Arc<Api>>,
     config: Option<Arc<Config>>,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
     update_state: SharedVersionUpdateState,
     selected: UpdateTarget,
     auto_restart: bool,
@@ -55,6 +57,7 @@ impl UpdatesComponent {
             api: None,
             config: None,
             action_tx: None,
+            render_requester: None,
             update_state,
             selected: UpdateTarget::App,
             auto_restart: true,
@@ -83,10 +86,12 @@ impl UpdatesComponent {
         };
         debug!("refresh versions");
         let update_state = self.update_state.clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         tokio::task::Builder::new().name("app-version-refresher").spawn(async move {
             if let Err(e) = update_state.refresh(&api, &mihomo_repo).await {
                 warn!(error = ?e, "Failed to refresh update status");
             }
+            render_requester.request_render();
         })?;
         Ok(())
     }
@@ -99,6 +104,7 @@ impl UpdatesComponent {
             return Ok(());
         };
         let update_state = self.update_state.clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         let previous_version = match &previous {
             VersionStatus::Available { current, .. } => current.clone(),
             _ => return Ok(()),
@@ -157,6 +163,7 @@ impl UpdatesComponent {
                     let _ = action_tx.send(Action::Error(("Update mihomo core", e).into()));
                 }
             }
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -235,6 +242,11 @@ impl Component for UpdatesComponent {
 
     fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
         self.config = Some(config);
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

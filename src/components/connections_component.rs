@@ -23,6 +23,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
+use crate::render::RenderRequester;
 use crate::store::connections::{
     ALIVE_COLUMN_INDEX, CONNECTION_COLS, Connections, SourceIpAliasTextResolver,
 };
@@ -42,6 +43,7 @@ pub struct ConnectionsComponent {
     token: CancellationToken,
     conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
 
     store: Arc<Connections>,
     navigator: ScrollableNavigator,
@@ -65,6 +67,7 @@ impl ConnectionsComponent {
             token: CancellationToken::new(),
             conns_rx,
             action_tx: None,
+            render_requester: None,
             store: Arc::new(Connections::new(store_capacity)),
             navigator: Default::default(),
             table_state: Default::default(),
@@ -82,6 +85,7 @@ impl ConnectionsComponent {
         let live_mode = Arc::clone(&self.live_mode);
         let capture_mode = Arc::clone(&self.capture_mode);
         let rx = Arc::clone(&self.conns_rx);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         let token = self.token.clone();
         tokio::task::Builder::new().name("connections-loader").spawn(async move {
@@ -93,6 +97,7 @@ impl ConnectionsComponent {
                             store.push(capture_mode.load(Ordering::Relaxed), records);
                             if live_mode.load(Ordering::Relaxed) {
                                 store.compute_view();
+                                render_requester.request_render();
                             }
                         },
                         _ => break,
@@ -516,6 +521,11 @@ impl Component for ConnectionsComponent {
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

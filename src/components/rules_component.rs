@@ -17,6 +17,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::models::Rule;
+use crate::render::RenderRequester;
 use crate::store::rules::{RULE_COLS, Rules};
 use crate::utils::columns::filter_placeholder;
 use crate::utils::filter::FilterPattern;
@@ -39,6 +40,7 @@ pub struct RulesComponent {
     throbber: ThrobberState,
 
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
 }
 
 impl RulesComponent {
@@ -48,11 +50,13 @@ impl RulesComponent {
         let store = Arc::clone(&self.store);
         let filter_pattern = Arc::clone(&self.filter_pattern);
         let loading = Arc::clone(&self.loading);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("rule-loader").spawn(async move {
             Self::refresh_rules(&api, &store, &filter_pattern).await;
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -145,6 +149,7 @@ impl RulesComponent {
         let loading = Arc::clone(&self.loading);
         loading.store(true, Ordering::Relaxed);
         let action_tx = self.action_tx.as_ref().unwrap().clone();
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("rule-disabled-change-submitter").spawn(async move {
             match api.update_rules_disabled_state(changes).await {
@@ -159,6 +164,7 @@ impl RulesComponent {
                 }
             }
             loading.store(false, Ordering::Relaxed);
+            render_requester.request_render();
         })?;
 
         Ok(())
@@ -273,6 +279,11 @@ impl Component for RulesComponent {
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

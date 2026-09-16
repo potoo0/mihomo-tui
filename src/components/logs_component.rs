@@ -22,6 +22,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::LogLevel;
+use crate::render::RenderRequester;
 use crate::store::logs::{LOG_COLS, Logs};
 use crate::utils::columns::filter_placeholder;
 use crate::utils::filter::FilterPattern;
@@ -46,6 +47,7 @@ pub struct LogsComponent {
     navigator: ScrollableNavigator,
     throbber_state: ThrobberState,
     action_tx: Option<UnboundedSender<Action>>,
+    render_requester: Option<RenderRequester>,
 }
 
 impl LogsComponent {
@@ -66,6 +68,7 @@ impl LogsComponent {
             navigator: Default::default(),
             throbber_state: Default::default(),
             action_tx: None,
+            render_requester: None,
         }
     }
 
@@ -77,6 +80,7 @@ impl LogsComponent {
         let level = self.level;
         let filter_pattern = Arc::clone(&self.filter_pattern);
         let live_mode = Arc::clone(&self.live_mode);
+        let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("log-loader").spawn(async move {
             let stream = match api.stream_logs(level).await {
@@ -91,10 +95,13 @@ impl LogsComponent {
                 .inspect_err(|e| warn!("Failed to parse log: {e}"))
                 .filter_map(|res| future::ready(res.ok()))
                 .for_each(|record| {
-                    // Keep log-store updates exclusive with view recomputation.
-                    let filter_pattern = filter_pattern.lock().unwrap();
                     if live_mode.load(Ordering::Relaxed) {
-                        store.push_and_update_view(record, filter_pattern.as_ref());
+                        // Keep log-store updates exclusive with view recomputation.
+                        {
+                            let filter_pattern = filter_pattern.lock().unwrap();
+                            store.push_and_update_view(record, filter_pattern.as_ref());
+                        }
+                        render_requester.request_render();
                     } else {
                         store.push(record);
                     }
@@ -271,6 +278,11 @@ impl Component for LogsComponent {
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        self.render_requester = Some(requester);
         Ok(())
     }
 

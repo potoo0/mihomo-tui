@@ -34,6 +34,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::action::Action;
 use crate::api::Api;
 use crate::config::Config;
+use crate::render::RenderRequester;
 use crate::widgets::shortcut::Shortcut;
 
 const HORIZ_STEP: usize = 4;
@@ -162,9 +163,15 @@ pub trait Component {
         Ok(())
     }
 
+    /// Register a requester that wakes the application after visible state changes.
+    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
+        let _ = requester; // to appease clippy
+        Ok(())
+    }
+
     /// Start initial loading and background tasks.
     ///
-    /// Called exactly once after [`Component::init`] and all handlers have been registered.
+    /// Called exactly once after [`Component::init`] and all dependencies have been registered.
     fn start(&mut self) -> Result<()> {
         Ok(())
     }
