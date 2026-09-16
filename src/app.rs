@@ -67,6 +67,7 @@ impl App {
         self.root.init(Arc::clone(&self.api))?;
         self.root.register_action_handler(self.action_tx.clone())?;
         self.root.register_config_handler(Arc::clone(&self.config))?;
+        self.root.start()?;
 
         // send initial tab
         self.action_tx.send(Action::TabSwitch(ComponentId::default()))?;

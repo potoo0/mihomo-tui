@@ -251,8 +251,11 @@ impl Component for ProxiesComponent {
         let sort_config =
             config.ui.as_ref().and_then(|ui| ui.proxy_detail.as_ref()).and_then(|c| c.sort.clone());
         Proxies::init_sort_config(sort_config);
-        self.load_proxies()?;
         Ok(())
+    }
+
+    fn start(&mut self) -> Result<()> {
+        self.load_proxies()
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {

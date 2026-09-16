@@ -239,8 +239,6 @@ impl Component for RuleProvidersComponent {
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
-        self.load_rule_providers()?;
-
         Ok(())
     }
 
@@ -248,6 +246,10 @@ impl Component for RuleProvidersComponent {
         self.action_tx = Some(tx);
 
         Ok(())
+    }
+
+    fn start(&mut self) -> Result<()> {
+        self.load_rule_providers()
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {

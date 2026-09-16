@@ -178,16 +178,20 @@ impl Component for HeaderComponent {
     }
 
     fn init(&mut self, api: Arc<Api>) -> anyhow::Result<()> {
-        self.api = Some(Arc::clone(&api));
-        let _ = self.start_release_checker();
-        self.load_version(api)
+        self.api = Some(api);
+        Ok(())
     }
 
     fn register_config_handler(&mut self, config: Arc<Config>) -> anyhow::Result<()> {
         self.config = Some(config);
-        let _ = self.start_release_checker();
-
         Ok(())
+    }
+
+    fn start(&mut self) -> anyhow::Result<()> {
+        if let Err(e) = self.start_release_checker() {
+            warn!(error = ?e, "Failed to start release checker");
+        }
+        self.load_version(Arc::clone(self.api.as_ref().unwrap()))
     }
 
     fn update(&mut self, action: Action) -> anyhow::Result<Option<Action>> {

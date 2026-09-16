@@ -304,8 +304,11 @@ impl Component for ProxyProvidersComponent {
             .and_then(|ui| ui.proxy_provider_detail.as_ref())
             .and_then(|c| c.sort.clone());
         ProxyProviders::init_sort_config(sort_config);
-        self.load_providers()?;
         Ok(())
+    }
+
+    fn start(&mut self) -> Result<()> {
+        self.load_providers()
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {

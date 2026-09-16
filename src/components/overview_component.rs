@@ -291,9 +291,12 @@ impl Component for OverviewComponent {
     fn init(&mut self, api: Arc<Api>) -> Result<()> {
         self.api = Some(api);
         self.token = CancellationToken::new();
-        self.load_memory()?;
-        self.load_traffic()?;
         Ok(())
+    }
+
+    fn start(&mut self) -> Result<()> {
+        self.load_memory()?;
+        self.load_traffic()
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {

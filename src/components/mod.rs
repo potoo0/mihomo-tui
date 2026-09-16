@@ -162,6 +162,13 @@ pub trait Component {
         Ok(())
     }
 
+    /// Start initial loading and background tasks.
+    ///
+    /// Called exactly once after [`Component::init`] and all handlers have been registered.
+    fn start(&mut self) -> Result<()> {
+        Ok(())
+    }
+
     /// Handle key events and produce actions if necessary.
     ///
     /// # Arguments
