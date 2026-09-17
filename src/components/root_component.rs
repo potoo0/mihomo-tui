@@ -57,6 +57,7 @@ pub struct RootComponent {
     config: Option<Arc<Config>>,
     action_tx: Option<UnboundedSender<Action>>,
     render_requesters: TabRenderRequesters,
+    connections: ConnectionStreamHub,
     update_state: SharedVersionUpdateState,
 
     current_tab: ComponentId,
@@ -68,12 +69,6 @@ pub struct RootComponent {
     msg_box: Option<MsgBoxComponent>,
     focused: Option<ComponentId>,
     popup: Option<ComponentId>,
-
-    conn_token: Option<CancellationToken>,
-    stats_tx: watch::Sender<Option<ConnectionStats>>,
-    stats_rx: watch::Receiver<Option<ConnectionStats>>,
-    conns_tx: mpsc::Sender<Vec<Connection>>,
-    conns_rx: Arc<AsyncMutex<mpsc::Receiver<Vec<Connection>>>>,
 }
 
 #[derive(Default)]
@@ -81,6 +76,14 @@ struct TabRenderRequesters {
     requester: Option<RenderRequester>,
     /// Render notification gates for tabs with continuously running streams.
     gates: HashMap<ComponentId, Arc<AtomicBool>>,
+}
+
+/// Owns the shared connections stream and its fan-out channels.
+struct ConnectionStreamHub {
+    token: Option<CancellationToken>,
+    stats_tx: watch::Sender<Option<ConnectionStats>>,
+    conns_tx: mpsc::Sender<Vec<Connection>>,
+    conns_rx: Arc<AsyncMutex<mpsc::Receiver<Vec<Connection>>>>,
 }
 
 impl RootComponent {
@@ -91,9 +94,6 @@ impl RootComponent {
             Box::new(FooterComponent::default()),
         ];
         let components = components.into_iter().map(|c| (c.id(), c)).collect::<HashMap<_, _>>();
-        let (stats_tx, stats_rx) = watch::channel(None);
-        let (conns_tx, conns_rx) = mpsc::channel(2);
-
         Self {
             api: Default::default(),
             config: Default::default(),
@@ -105,13 +105,8 @@ impl RootComponent {
             components,
             action_tx: Default::default(),
             render_requesters: Default::default(),
+            connections: ConnectionStreamHub::new(),
             update_state,
-
-            conn_token: Default::default(),
-            stats_tx,
-            stats_rx,
-            conns_tx,
-            conns_rx: Arc::new(AsyncMutex::new(conns_rx)),
         }
     }
 
@@ -127,11 +122,11 @@ impl RootComponent {
 
         let mut component: Box<dyn Component> = match id {
             ComponentId::Overview => Box::new(OverviewComponent::new(
-                self.stats_rx.clone(),
+                self.connections.stats_rx(),
                 config.buffer.overview.clone(),
             )),
             ComponentId::Connections => Box::new(ConnectionsComponent::new(
-                Arc::clone(&self.conns_rx),
+                self.connections.conns_rx(),
                 config.buffer.connections,
             )),
             ComponentId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::default()),
@@ -199,81 +194,11 @@ impl RootComponent {
         Ok(())
     }
 
-    /// Returns `true` if the connections stream is currently active.
-    fn is_conn_active(&self) -> bool {
-        self.conn_token.as_ref().is_some_and(|t| !t.is_cancelled())
-    }
-
-    /// Returns `true` if the current tab requires the connections stream.
-    fn is_conn_tab(&self) -> bool {
-        matches!(self.current_tab, ComponentId::Overview | ComponentId::Connections)
-    }
-
-    fn should_stop_conn(&self) -> bool {
-        !self.is_conn_tab()
-            && self.is_conn_active()
-            && !self.idle_tabs.contains_key(&ComponentId::Overview)
-            && !self.idle_tabs.contains_key(&ComponentId::Connections)
-    }
-
-    fn stop_conn(&mut self) {
-        if let Some(token) = self.conn_token.take() {
-            info!("Stopping connection stream");
-            token.cancel();
-        }
-    }
-
-    /// Start loading connections if needed
-    fn maybe_load_conn(&mut self) -> Result<()> {
-        if !self.is_conn_tab() || self.is_conn_active() {
-            return Ok(());
-        }
-
-        let token = CancellationToken::new();
-        self.conn_token = Some(token.clone());
-        info!("Loading connections");
-        let api = Arc::clone(self.api.as_ref().unwrap());
-        let stats_tx = self.stats_tx.clone();
-        let conns_tx = self.conns_tx.clone();
-        let conns_rx = Arc::clone(&self.conns_rx);
-
-        tokio::task::Builder::new().name("connections_wrapper-loader").spawn(async move {
-            let stream = match api.stream_connections().await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    error!(error = ?e, "Failed to get connections stream.");
-                    return;
-                }
-            };
-            stream
-                .take_until(token.cancelled())
-                .inspect_err(|e| warn!(error = ?e, "Failed to parse connections."))
-                .filter_map(|res| future::ready(res.ok()))
-                .for_each(|record| {
-                    let _ = stats_tx.send(Some((&record).into()));
-                    if let Err(TrySendError::Full(v)) =
-                        conns_tx.try_send(record.connections.unwrap_or_default())
-                    {
-                        // drop oldest
-                        if let Ok(mut guard) = conns_rx.try_lock() {
-                            let _ = guard.try_recv();
-                        }
-                        let _ = conns_tx.try_send(v);
-                    }
-                    future::ready(())
-                })
-                .await;
-        })?;
-        Ok(())
-    }
-
-    fn area_msg_line<'a>(width: u16, height: u16) -> Line<'a> {
-        Line::default().spans(vec![
-            "Width = ".bold(),
-            Span::raw(width.to_string()).cyan(),
-            " Height = ".bold(),
-            Span::raw(height.to_string()).cyan(),
-        ])
+    fn start_conn_if_needed(&mut self) -> Result<()> {
+        let Some(api) = self.api.as_ref() else {
+            bail!("API is not initialized");
+        };
+        self.connections.start_if_needed(api, self.current_tab)
     }
 
     fn renew_idle(&mut self, to: ComponentId) {
@@ -308,9 +233,9 @@ impl RootComponent {
             self.destroy_component(id);
         }
         // stop connections if no tab needs it
-        if self.should_stop_conn() {
-            self.stop_conn();
-        }
+        let has_idle_consumer =
+            self.idle_tabs.keys().any(|id| ConnectionStreamHub::needs_stream(*id));
+        self.connections.stop_if_unused(self.current_tab, has_idle_consumer);
     }
 
     fn handle_global_shortcut(&mut self, key: KeyEvent) -> Option<Action> {
@@ -384,10 +309,96 @@ impl TabRenderRequesters {
     }
 }
 
-impl Drop for RootComponent {
+impl ConnectionStreamHub {
+    fn new() -> Self {
+        let (stats_tx, _) = watch::channel(None);
+        let (conns_tx, conns_rx) = mpsc::channel(2);
+
+        Self {
+            token: Default::default(),
+            stats_tx,
+            conns_tx,
+            conns_rx: Arc::new(AsyncMutex::new(conns_rx)),
+        }
+    }
+
+    fn stats_rx(&self) -> watch::Receiver<Option<ConnectionStats>> {
+        self.stats_tx.subscribe()
+    }
+
+    fn conns_rx(&self) -> Arc<AsyncMutex<mpsc::Receiver<Vec<Connection>>>> {
+        Arc::clone(&self.conns_rx)
+    }
+
+    fn is_active(&self) -> bool {
+        self.token.as_ref().is_some_and(|token| !token.is_cancelled())
+    }
+
+    fn needs_stream(component_id: ComponentId) -> bool {
+        matches!(component_id, ComponentId::Overview | ComponentId::Connections)
+    }
+
+    fn start_if_needed(&mut self, api: &Arc<Api>, current_tab: ComponentId) -> Result<()> {
+        if !Self::needs_stream(current_tab) || self.is_active() {
+            return Ok(());
+        }
+
+        let token = CancellationToken::new();
+        self.token = Some(token.clone());
+        info!("Loading connections");
+        let api = Arc::clone(api);
+        let stats_tx = self.stats_tx.clone();
+        let conns_tx = self.conns_tx.clone();
+        let conns_rx = Arc::clone(&self.conns_rx);
+
+        tokio::task::Builder::new().name("connections_wrapper-loader").spawn(async move {
+            let stream = match api.stream_connections().await {
+                Ok(stream) => stream,
+                Err(e) => {
+                    error!(error = ?e, "Failed to create connections stream.");
+                    token.cancel();
+                    return;
+                }
+            };
+            stream
+                .take_until(token.cancelled())
+                .inspect_err(|e| warn!(error = ?e, "Failed to parse connections."))
+                .filter_map(|res| future::ready(res.ok()))
+                .for_each(|record| {
+                    stats_tx.send_replace(Some((&record).into()));
+                    if let Err(TrySendError::Full(v)) =
+                        conns_tx.try_send(record.connections.unwrap_or_default())
+                    {
+                        // drop oldest
+                        if let Ok(mut guard) = conns_rx.try_lock() {
+                            let _ = guard.try_recv();
+                        }
+                        let _ = conns_tx.try_send(v);
+                    }
+                    future::ready(())
+                })
+                .await;
+        })?;
+        Ok(())
+    }
+
+    fn stop_if_unused(&mut self, current_tab: ComponentId, has_idle_consumer: bool) {
+        if self.is_active() && !Self::needs_stream(current_tab) && !has_idle_consumer {
+            self.stop();
+        }
+    }
+
+    fn stop(&mut self) {
+        if let Some(token) = self.token.take() {
+            info!("Stopping connection stream");
+            token.cancel();
+        }
+    }
+}
+
+impl Drop for ConnectionStreamHub {
     fn drop(&mut self) {
-        self.stop_conn();
-        info!("`RootComponent` dropped, background task cancelled");
+        self.stop();
     }
 }
 
@@ -435,7 +446,7 @@ impl Component for RootComponent {
         for component in self.components.values_mut() {
             component.start()?;
         }
-        self.maybe_load_conn()
+        self.start_conn_if_needed()
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
@@ -476,7 +487,7 @@ impl Component for RootComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         let action_tx = self.action_tx.as_ref().unwrap().clone();
         match action {
-            Action::Quit => self.stop_conn(),
+            Action::Quit => self.connections.stop(),
             Action::Tick => self.on_tick(),
             Action::Error(err) => {
                 self.msg_box =
@@ -493,7 +504,7 @@ impl Component for RootComponent {
                 self.renew_idle(to);
                 self.current_tab = to;
                 self.render_requesters.switch_tab(from, to);
-                self.maybe_load_conn()?;
+                self.start_conn_if_needed()?;
                 // get and init component, send shortcuts of current tab to footer
                 let shortcuts = self.get_or_start(self.current_tab)?.shortcuts();
                 if self.current_tab.supports_filter() {
@@ -545,10 +556,10 @@ impl Component for RootComponent {
         if area.width < MIN_AREA.0 || area.height < MIN_AREA.1 {
             let lines = vec![
                 Line::from("Terminal size too small:").centered(),
-                Self::area_msg_line(area.width, area.height).centered(),
+                area_msg_line(area.width, area.height).centered(),
                 Line::raw(""),
                 Line::from("Expected:").centered(),
-                Self::area_msg_line(MIN_AREA.0, MIN_AREA.1).centered(),
+                area_msg_line(MIN_AREA.0, MIN_AREA.1).centered(),
             ];
             let block = Block::default()
                 .border_type(BorderType::Rounded)
@@ -585,6 +596,15 @@ impl Component for RootComponent {
         self.get_or_start(ComponentId::Footer)?.draw(frame, footer_area)?;
         Ok(())
     }
+}
+
+fn area_msg_line<'a>(width: u16, height: u16) -> Line<'a> {
+    Line::default().spans(vec![
+        "Width = ".bold(),
+        Span::raw(width.to_string()).cyan(),
+        " Height = ".bold(),
+        Span::raw(height.to_string()).cyan(),
+    ])
 }
 
 #[cfg(test)]
@@ -632,5 +652,30 @@ mod tests {
 
         rules.request_render();
         assert!(has_render_request(&scheduler));
+    }
+
+    #[test]
+    fn connection_streams_are_needed_by_overview_and_connections_tabs() {
+        assert!(ConnectionStreamHub::needs_stream(ComponentId::Overview));
+        assert!(ConnectionStreamHub::needs_stream(ComponentId::Connections));
+        assert!(!ConnectionStreamHub::needs_stream(ComponentId::Logs));
+        assert!(!ConnectionStreamHub::needs_stream(ComponentId::Rules));
+    }
+
+    #[test]
+    fn connection_stream_stops_only_without_current_or_idle_consumers() {
+        let mut hub = ConnectionStreamHub::new();
+        hub.stop_if_unused(ComponentId::Logs, false);
+        assert!(!hub.is_active());
+
+        hub.token = Some(CancellationToken::new());
+        hub.stop_if_unused(ComponentId::Connections, false);
+        assert!(hub.is_active());
+
+        hub.stop_if_unused(ComponentId::Logs, true);
+        assert!(hub.is_active());
+
+        hub.stop_if_unused(ComponentId::Logs, false);
+        assert!(!hub.is_active());
     }
 }
