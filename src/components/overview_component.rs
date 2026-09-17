@@ -14,7 +14,7 @@ use ratatui::widgets::{
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use tokio::sync::watch::Receiver;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -64,18 +64,11 @@ impl OverviewComponent {
     fn load_memory(&mut self) -> Result<()> {
         info!("Loading memory");
         let token = self.token.clone();
-        let api = Arc::clone(self.api.as_ref().unwrap());
+        let stream = self.api.as_ref().unwrap().stream_memory()?;
         let store = Arc::clone(&self.memory);
         let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("memory-loader").spawn(async move {
-            let stream = match api.stream_memory().await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    error!(error = ?e, "Failed to get memory stream");
-                    return;
-                }
-            };
             stream
                 .take_until(token.cancelled())
                 .inspect_err(|e| warn!("Failed to parse memory: {e}"))
@@ -116,18 +109,11 @@ impl OverviewComponent {
     fn load_traffic(&mut self) -> Result<()> {
         info!("Loading traffic");
         let token = self.token.clone();
-        let api = Arc::clone(self.api.as_ref().unwrap());
+        let stream = self.api.as_ref().unwrap().stream_traffic()?;
         let store = Arc::clone(&self.traffic);
         let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("traffic-loader").spawn(async move {
-            let stream = match api.stream_traffic().await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    error!(error = ?e, "Failed to get traffic stream");
-                    return;
-                }
-            };
             stream
                 .take_until(token.cancelled())
                 .inspect_err(|e| warn!("Failed to parse traffic: {e}"))

@@ -14,7 +14,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{Mutex as AsyncMutex, mpsc, watch};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
@@ -343,25 +343,17 @@ impl ConnectionStreamHub {
             return Ok(());
         }
 
+        let stream = api.stream_connections()?;
         let token = CancellationToken::new();
-        self.token = Some(token.clone());
+        let task_token = token.clone();
         info!("Loading connections");
-        let api = Arc::clone(api);
         let stats_tx = self.stats_tx.clone();
         let conns_tx = self.conns_tx.clone();
         let conns_rx = Arc::clone(&self.conns_rx);
 
         tokio::task::Builder::new().name("connections_wrapper-loader").spawn(async move {
-            let stream = match api.stream_connections().await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    error!(error = ?e, "Failed to create connections stream.");
-                    token.cancel();
-                    return;
-                }
-            };
             stream
-                .take_until(token.cancelled())
+                .take_until(task_token.cancelled())
                 .inspect_err(|e| warn!(error = ?e, "Failed to parse connections."))
                 .filter_map(|res| future::ready(res.ok()))
                 .for_each(|record| {
@@ -379,6 +371,7 @@ impl ConnectionStreamHub {
                 })
                 .await;
         })?;
+        self.token = Some(token);
         Ok(())
     }
 

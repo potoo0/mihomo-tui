@@ -15,7 +15,7 @@ use strum::IntoEnumIterator;
 use throbber_widgets_tui::{Throbber, ThrobberState};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::action::Action;
@@ -75,21 +75,13 @@ impl LogsComponent {
     fn load_log(&mut self) -> Result<()> {
         info!("Loading log, with level: {:?}", self.level);
         let token = self.token.clone();
-        let api = Arc::clone(self.api.as_ref().unwrap());
+        let stream = self.api.as_ref().unwrap().stream_logs(self.level)?;
         let store = Arc::clone(&self.store);
-        let level = self.level;
         let filter_pattern = Arc::clone(&self.filter_pattern);
         let live_mode = Arc::clone(&self.live_mode);
         let render_requester = self.render_requester.as_ref().unwrap().clone();
 
         tokio::task::Builder::new().name("log-loader").spawn(async move {
-            let stream = match api.stream_logs(level).await {
-                Ok(stream) => stream,
-                Err(e) => {
-                    error!(error = ?e, "Failed to get memory stream");
-                    return;
-                }
-            };
             stream
                 .take_until(token.cancelled())
                 .inspect_err(|e| warn!("Failed to parse log: {e}"))
