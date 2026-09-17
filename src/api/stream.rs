@@ -97,7 +97,7 @@ impl Api {
         path: &str,
         query_params: Option<HashMap<String, String>>,
         retry_interval: Duration,
-    ) -> Result<impl Stream<Item = Result<T>>>
+    ) -> Result<impl Stream<Item = Result<T>> + use<T>>
     where
         T: DeserializeOwned,
     {
@@ -171,25 +171,25 @@ impl Api {
         }))
     }
 
-    pub async fn stream_logs(
+    pub fn stream_logs(
         &self,
         level: Option<LogLevel>,
-    ) -> Result<impl Stream<Item = Result<Log>>> {
+    ) -> Result<impl Stream<Item = Result<Log>> + use<>> {
         let params = level.map(|l| HashMap::from([("level".to_string(), l.to_string())]));
         self.create_stream::<Log>("/logs", params, DEFAULT_WS_RETRY_INTERVAL)
     }
 
-    pub async fn stream_connections(
+    pub fn stream_connections(
         &self,
-    ) -> Result<impl Stream<Item = Result<ConnectionsWrapper>>> {
+    ) -> Result<impl Stream<Item = Result<ConnectionsWrapper>> + use<>> {
         self.create_stream::<ConnectionsWrapper>("/connections", None, DEFAULT_WS_RETRY_INTERVAL)
     }
 
-    pub async fn stream_memory(&self) -> Result<impl Stream<Item = Result<Memory>>> {
+    pub fn stream_memory(&self) -> Result<impl Stream<Item = Result<Memory>> + use<>> {
         self.create_stream::<Memory>("/memory", None, DEFAULT_WS_RETRY_INTERVAL)
     }
 
-    pub async fn stream_traffic(&self) -> Result<impl Stream<Item = Result<Traffic>>> {
+    pub fn stream_traffic(&self) -> Result<impl Stream<Item = Result<Traffic>> + use<>> {
         self.create_stream::<Traffic>("/traffic", None, DEFAULT_WS_RETRY_INTERVAL)
     }
 }

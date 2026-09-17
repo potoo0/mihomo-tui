@@ -130,7 +130,6 @@ async fn test_ws() {
             let api = Arc::clone(&$api);
             tokio::spawn(async move {
                 api.$method()
-                    .await
                     .unwrap()
                     .take($n)
                     .for_each(|msg| {
@@ -165,7 +164,7 @@ async fn test_stream_connections() {
     init_logger();
     let api = init_api();
 
-    let stream = api.stream_connections().await.unwrap().take(2);
+    let stream = api.stream_connections().unwrap().take(2);
     pin_mut!(stream);
     while let Some(msg) = stream.next().await {
         let value = msg.unwrap().connections.unwrap()[0].metadata.clone();
@@ -194,7 +193,6 @@ async fn test_stream_logs() {
         .name("consumer")
         .spawn(async move {
             api.stream_logs(Some(LogLevel::Debug))
-                .await
                 .unwrap()
                 .take_until(token_cloned.cancelled())
                 .for_each(|msg| {
