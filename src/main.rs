@@ -72,7 +72,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let mut app = app::App::new(loaded_config.config, loaded_config.runtime_path, api)?;
-    app.run().await?;
+    if let Err(error) = app.run().await {
+        tracing::error!(error = ?error, "App exited with an error");
+        return Err(error);
+    }
 
     Ok(())
 }

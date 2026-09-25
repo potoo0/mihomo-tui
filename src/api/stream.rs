@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -7,7 +8,8 @@ use futures_util::{Stream, StreamExt, stream};
 use reqwest::header;
 use reqwest::header::HeaderValue;
 use serde::de::DeserializeOwned;
-use tokio::time::sleep;
+use socket2::{SockRef, TcpKeepalive};
+use tokio::time::{sleep, timeout};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::error::Error as WebSocketError;
@@ -15,14 +17,25 @@ use tokio_tungstenite::tungstenite::handshake::client::Request;
 use tokio_tungstenite::{client_async, connect_async};
 use tracing::{debug, warn};
 
-use super::{Api, USER_AGENT};
+use super::{Api, CONNECT_TIMEOUT, USER_AGENT};
 use crate::config::MihomoApiEndpoint;
 use crate::models::{ConnectionsWrapper, Log, LogLevel, Memory, Traffic};
 
 const DEFAULT_WS_RETRY_INTERVAL: Duration = Duration::from_secs(3);
+const WS_TCP_KEEPALIVE_IDLE: Duration = Duration::from_secs(15);
+const WS_TCP_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(5);
+const WS_TCP_KEEPALIVE_RETRIES: u32 = 3;
 
 type WebSocketMessageStream =
     Pin<Box<dyn Stream<Item = std::result::Result<Message, WebSocketError>> + Send>>;
+
+fn configure_tcp_keepalive(socket: &tokio::net::TcpStream) -> io::Result<()> {
+    let keepalive = TcpKeepalive::new()
+        .with_time(WS_TCP_KEEPALIVE_IDLE)
+        .with_interval(WS_TCP_KEEPALIVE_INTERVAL)
+        .with_retries(WS_TCP_KEEPALIVE_RETRIES);
+    SockRef::from(socket).set_tcp_keepalive(&keepalive)
+}
 
 async fn connect_websocket(
     endpoint: &MihomoApiEndpoint,
@@ -31,6 +44,9 @@ async fn connect_websocket(
     match endpoint {
         MihomoApiEndpoint::Http(_) => {
             let (ws, _) = connect_async(request).await.context("Fail to connect websocket")?;
+            if let Err(error) = configure_tcp_keepalive(ws.get_ref().get_ref()) {
+                warn!(?error, "Failed to configure websocket TCP keepalive");
+            }
             Ok(Box::pin(ws))
         }
         MihomoApiEndpoint::UnixSocket(path) => {
@@ -88,7 +104,7 @@ impl Api {
         // url to request, append header UA
         let mut request = IntoClientRequest::into_client_request(&url)?;
         request.headers_mut().insert(header::USER_AGENT, HeaderValue::from_static(USER_AGENT));
-        debug!("create websocket stream, url: {}, headers: {:?}", url, request.headers());
+        debug!(path, "create websocket stream request");
         Ok(request)
     }
 
@@ -103,25 +119,41 @@ impl Api {
     {
         struct ReconnectState {
             endpoint: MihomoApiEndpoint,
+            path: String,
             request: Request,
             retry_interval: Duration,
             ws: Option<WebSocketMessageStream>,
         }
 
-        let request = self.build_ws_request(path, query_params)?;
-        let state =
-            ReconnectState { endpoint: self.endpoint.clone(), request, retry_interval, ws: None };
+        let request = self
+            .build_ws_request(path, query_params)
+            .with_context(|| format!("Failed to create websocket request for {path}"))?;
+        let state = ReconnectState {
+            endpoint: self.endpoint.clone(),
+            path: path.to_owned(),
+            request,
+            retry_interval,
+            ws: None,
+        };
 
         Ok(stream::unfold(state, |mut state| async move {
             loop {
                 if state.ws.is_none() {
-                    match connect_websocket(&state.endpoint, state.request.clone()).await {
+                    let connect_result = timeout(
+                        CONNECT_TIMEOUT,
+                        connect_websocket(&state.endpoint, state.request.clone()),
+                    )
+                    .await
+                    .map_err(|_| anyhow!("websocket connect timed out after {CONNECT_TIMEOUT:?}"))
+                    .and_then(|result| result);
+                    match connect_result {
                         Ok(ws) => {
                             state.ws = Some(ws);
                         }
-                        Err(e) => {
+                        Err(error) => {
                             warn!(
-                                error = ?e,
+                                error = ?error,
+                                path = %state.path,
                                 retry_interval = ?state.retry_interval,
                                 "Failed to connect websocket stream, retrying"
                             );
@@ -140,6 +172,7 @@ impl Api {
                     Some(Ok(Message::Close(frame))) => {
                         warn!(
                             close_frame = ?frame,
+                            path = %state.path,
                             retry_interval = ?state.retry_interval,
                             "Websocket stream closed by peer, retrying"
                         );
@@ -152,6 +185,7 @@ impl Api {
                     Some(Err(e)) => {
                         warn!(
                             error = ?e,
+                            path = %state.path,
                             retry_interval = ?state.retry_interval,
                             "Websocket stream disconnected, retrying"
                         );
@@ -160,6 +194,7 @@ impl Api {
                     }
                     None => {
                         warn!(
+                            path = %state.path,
                             retry_interval = ?state.retry_interval,
                             "Websocket stream closed, retrying"
                         );
@@ -211,6 +246,23 @@ mod reconnecting_stream_tests {
     const TEST_CASES: [&str; 3] = ["t001", "t002", "t003"];
     const NEXT_TIMEOUT: Duration = Duration::from_secs(1);
     const RETRY_INTERVAL: Duration = Duration::from_millis(10);
+
+    #[tokio::test]
+    async fn websocket_tcp_keepalive_is_configured() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let socket = tokio::net::TcpStream::connect(listener.local_addr().unwrap()).await.unwrap();
+        let (_server, _) = listener.accept().await.unwrap();
+
+        configure_tcp_keepalive(&socket).unwrap();
+        let options = SockRef::from(&socket);
+        assert!(options.keepalive().unwrap());
+        #[cfg(any(target_os = "linux", target_os = "macos", target_os = "android"))]
+        {
+            assert_eq!(options.tcp_keepalive_time().unwrap(), WS_TCP_KEEPALIVE_IDLE);
+            assert_eq!(options.tcp_keepalive_interval().unwrap(), WS_TCP_KEEPALIVE_INTERVAL);
+        }
+        assert_eq!(options.tcp_keepalive_retries().unwrap(), WS_TCP_KEEPALIVE_RETRIES);
+    }
 
     #[cfg(windows)]
     fn unique_pipe_name() -> String {
@@ -279,6 +331,31 @@ mod reconnecting_stream_tests {
         let payloads = collect_payloads(api, TEST_CASES.len()).await;
 
         assert_eq!(payloads, TEST_CASES);
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn create_stream_retries_after_stalled_handshake() {
+        init_logger();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let test_timeout = CONNECT_TIMEOUT + Duration::from_secs(2);
+
+        let server = tokio::spawn(async move {
+            // Accept the first TCP connection but never answer its websocket upgrade.
+            let (_stalled_socket, _) = listener.accept().await.unwrap();
+            let (socket, _) = timeout(test_timeout, listener.accept()).await.unwrap().unwrap();
+            let mut ws = accept_async(socket).await.unwrap();
+            ws.send(log_message(TEST_CASES[0])).await.unwrap();
+        });
+
+        let api =
+            test_api(MihomoApiEndpoint::Http(format!("http://{addr}").parse().unwrap()), None);
+        let stream = api.create_stream::<Log>("/logs", None, RETRY_INTERVAL).unwrap();
+        pin_mut!(stream);
+        let record = timeout(test_timeout, stream.next()).await.unwrap().unwrap().unwrap();
+
+        assert_eq!(record.payload, TEST_CASES[0]);
         server.await.unwrap();
     }
 

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use indexmap::IndexMap;
@@ -11,6 +12,13 @@ use crate::models::dns::{DnsQueryRequest, DnsQueryResponse};
 use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
 use crate::models::{ConnectionsWrapper, CoreConfig, Rule, RuleProvider, Version};
+
+const LONG_API_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+const PROXY_TEST_TIMEOUT_MARGIN: Duration = Duration::from_secs(10);
+
+fn proxy_test_request_timeout(timeout_ms: usize) -> Duration {
+    Duration::from_millis(timeout_ms as u64).saturating_add(PROXY_TEST_TIMEOUT_MARGIN)
+}
 
 impl Api {
     pub async fn get_version(&self) -> Result<Version> {
@@ -122,6 +130,7 @@ impl Api {
             .client
             .get(self.api.join(&format!("/proxies/{}/delay", name.as_ref()))?)
             .query(&[("url", url.as_ref()), ("timeout", timeout.to_string().as_ref())])
+            .timeout(proxy_test_request_timeout(timeout))
             .send()
             .await
             .context("Fail to send `GET /proxies/<name>/delay`")?;
@@ -146,6 +155,7 @@ impl Api {
             .client
             .get(self.api.join(&format!("/group/{}/delay", name.as_ref()))?)
             .query(&[("url", url.as_ref()), ("timeout", timeout.to_string().as_ref())])
+            .timeout(proxy_test_request_timeout(timeout))
             .send()
             .await
             .context("Fail to send `GET /group/<name>/delay`")?;
@@ -187,6 +197,7 @@ impl Api {
         let resp = self
             .client
             .get(self.api.join(&format!("/providers/proxies/{}/healthcheck", name.as_ref()))?)
+            .timeout(LONG_API_REQUEST_TIMEOUT)
             .send()
             .await
             .context("Fail to send `GET /providers/proxies/<name>/healthcheck` request")?;
@@ -205,6 +216,7 @@ impl Api {
         let resp = self
             .client
             .put(self.api.join(&format!("/providers/proxies/{}", name.as_ref()))?)
+            .timeout(LONG_API_REQUEST_TIMEOUT)
             .send()
             .await
             .context("Fail to send `PUT /providers/proxies/<name>`")?;
@@ -288,6 +300,7 @@ impl Api {
         let resp = self
             .client
             .put(self.api.join(&format!("/providers/rules/{}", name.as_ref()))?)
+            .timeout(LONG_API_REQUEST_TIMEOUT)
             .send()
             .await
             .context("Fail to send `PUT /providers/rules/<name>` request")?;
@@ -348,6 +361,7 @@ impl Api {
             .body(body)
             .query(&[("force", "true")])
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
+            .timeout(LONG_API_REQUEST_TIMEOUT)
             .send()
             .await
             .context("Fail to send `PUT /configs` request")?;
@@ -384,6 +398,7 @@ impl Api {
         let resp = self
             .client
             .post(self.api.join("/upgrade")?)
+            .timeout(LONG_API_REQUEST_TIMEOUT)
             .send()
             .await
             .context("Fail to send `POST /upgrade` request")?;
@@ -438,6 +453,7 @@ impl Api {
         let resp = self
             .client
             .post(self.api.join("/configs/geo")?)
+            .timeout(LONG_API_REQUEST_TIMEOUT)
             .send()
             .await
             .context("Fail to send `POST /configs/geo` request")?;

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result, anyhow};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, header};
@@ -19,6 +21,8 @@ mod tests;
 pub use github::GithubApi;
 
 const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
 pub struct Api {
@@ -69,8 +73,11 @@ impl Api {
         endpoint: &MihomoApiEndpoint,
         bearer_token: &Option<String>,
     ) -> Result<Client> {
-        let builder =
-            Client::builder().default_headers(Self::default_headers(bearer_token)?).no_proxy();
+        let builder = Client::builder()
+            .default_headers(Self::default_headers(bearer_token)?)
+            .no_proxy()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT);
         let builder = match endpoint {
             MihomoApiEndpoint::Http(_) => builder,
             MihomoApiEndpoint::UnixSocket(path) => {
