@@ -58,7 +58,9 @@ impl ConnectionsUiConfig {
         if let Some(sort) = &self.sort {
             Self::parse_connections_sort(sort)?;
         }
-        Self::parse_connections_column_widths(&self.column_widths)?;
+        if let Some(column_widths) = &self.column_widths {
+            Self::parse_connections_column_widths(column_widths)?;
+        }
         Ok(())
     }
 

@@ -135,6 +135,8 @@ mihomo-api: "http://localhost"
 ui:
   connections:
     columns: ["Host"]
+    source-ip-alias:
+      192.168.1.11: laptop
 proxy-setting:
   test-url: https://example.com/base
   test-timeout: 1000
@@ -167,7 +169,9 @@ proxy-setting:
         connections.sort.as_ref().map(|sort| (&sort.field, sort.dir)),
         Some((&"SourceIP".to_owned(), SortDir::Desc))
     );
-    assert_eq!(connections.source_ip_alias.get("192.168.1.10"), Some(&"phone".to_owned()));
+    let aliases = connections.source_ip_alias.as_ref().unwrap();
+    assert_eq!(aliases.get("192.168.1.10"), Some(&"phone".to_owned()));
+    assert_eq!(aliases.len(), 1);
     assert_eq!(config.proxy_setting.test_url, "https://example.com/runtime");
     assert_eq!(config.proxy_setting.test_timeout.get(), 3000);
     assert_eq!(config.proxy_setting.latency_threshold, LatencyThreshold { medium: 200, high: 800 });
@@ -210,6 +214,7 @@ ui:
   connections:
     columns: ["Host"]
     sort: { field: "Host", dir: "asc" }
+    column-widths: { Host: 20 }
     source-ip-alias:
       192.168.1.10: phone
 "#;
@@ -230,10 +235,84 @@ ui:
         connections.sort.as_ref().map(|sort| (&sort.field, sort.dir)),
         Some((&"Host".to_owned(), SortDir::Asc))
     );
-    assert_eq!(connections.source_ip_alias.get("192.168.1.10"), Some(&"phone".to_owned()));
+    assert_eq!(
+        connections.source_ip_alias.as_ref().unwrap().get("192.168.1.10"),
+        Some(&"phone".to_owned())
+    );
+    assert_eq!(connections.column_widths.as_ref().unwrap()["Host"].get(), 20);
 
     drop(runtime_path);
     drop(cfg_path);
+}
+
+#[test]
+fn test_config_runtime_partial_connections_preserves_missing_fields() {
+    let cfg_path = TempFile::new(temp_config_path());
+    let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    columns: ["Host"]
+    sort: { field: "Host", dir: "asc" }
+    column-widths: { Host: 20 }
+    source-ip-alias:
+      192.168.1.10: phone
+"#;
+    let runtime_config = r#"
+$schema-version: 1
+ui:
+  connections:
+    columns: ["Host", "Rule"]
+    column-widths: { Rule: 24 }
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+    fs::write(&runtime_path.0, runtime_config).unwrap();
+
+    let mut config = load(Some(cfg_path.0.clone())).unwrap();
+    config.try_apply_runtime();
+
+    let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+    assert_eq!(connections.columns.as_ref().unwrap(), &vec!["Host", "Rule"]);
+    assert_eq!(connections.sort.as_ref().unwrap().field, "Host");
+    assert_eq!(connections.column_widths.as_ref().unwrap().len(), 1);
+    assert_eq!(connections.column_widths.as_ref().unwrap()["Rule"].get(), 24);
+    assert_eq!(connections.source_ip_alias.as_ref().unwrap()["192.168.1.10"], "phone");
+}
+
+#[test]
+fn test_config_runtime_empty_maps_clear_base_settings() {
+    let cfg_path = TempFile::new(temp_config_path());
+    let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));
+
+    let custom_config = r#"
+mihomo-api: "http://localhost"
+ui:
+  connections:
+    column-widths: { Host: 20 }
+    source-ip-alias:
+      192.168.1.10: phone
+"#;
+    let runtime_config = r#"
+$schema-version: 1
+ui:
+  connections:
+    column-widths: {}
+    source-ip-alias: {}
+"#;
+    fs::write(&cfg_path.0, custom_config).unwrap();
+    fs::write(&runtime_path.0, runtime_config).unwrap();
+
+    let mut config = load(Some(cfg_path.0.clone())).unwrap();
+    config.try_apply_runtime();
+
+    let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
+    assert!(connections.column_widths.as_ref().unwrap().is_empty());
+    assert!(connections.source_ip_alias.as_ref().unwrap().is_empty());
+    let setting = ConnectionsSetting::try_from(connections).unwrap();
+    assert!(setting.column_widths.is_empty());
+    assert!(setting.source_ip_alias.is_empty());
 }
 
 #[test]
@@ -522,8 +601,9 @@ ui:
     assert_eq!(setting.column_widths.get(&connection_col_index("Process")), Some(&14));
 
     let serialized = ConnectionsUiConfig::try_from(&setting).unwrap();
-    assert_eq!(serialized.column_widths.get("Host").map(|width| width.get()), Some(28));
-    assert_eq!(serialized.column_widths.get("Process").map(|width| width.get()), Some(14));
+    let widths = serialized.column_widths.as_ref().unwrap();
+    assert_eq!(widths.get("Host").map(|width| width.get()), Some(28));
+    assert_eq!(widths.get("Process").map(|width| width.get()), Some(14));
 
     drop(cfg_path);
 }

@@ -86,18 +86,17 @@ impl TryFrom<&ConnectionsUiConfig> for ConnectionsSetting {
                     .map(|col| SortSpec { col, dir: sort.dir })
             });
         let query_state = QueryState { pattern: None, sort, max_cols: columns.len() };
-        let column_widths =
-            ConnectionsUiConfig::parse_connections_column_widths(&value.column_widths)?;
-        Ok(Self {
-            columns,
-            query_state,
-            column_widths,
-            source_ip_alias: value
-                .source_ip_alias
-                .iter()
-                .map(|(source_ip, alias)| (source_ip.clone(), alias.clone()))
-                .collect(),
-        })
+        let column_widths = match &value.column_widths {
+            Some(widths) => ConnectionsUiConfig::parse_connections_column_widths(widths)?,
+            None => HashMap::new(),
+        };
+        let source_ip_alias = value
+            .source_ip_alias
+            .iter()
+            .flatten()
+            .map(|(source_ip, alias)| (source_ip.clone(), alias.clone()))
+            .collect();
+        Ok(Self { columns, query_state, column_widths, source_ip_alias })
     }
 }
 
@@ -153,16 +152,19 @@ impl TryFrom<&ConnectionsSetting> for ConnectionsUiConfig {
                 }
             }
         };
-
-        Ok(ConnectionsUiConfig {
-            columns: Some(columns),
-            sort,
-            column_widths,
-            source_ip_alias: value
+        let source_ip_alias = Some(
+            value
                 .source_ip_alias
                 .iter()
                 .map(|(source_ip, alias)| (source_ip.clone(), alias.clone()))
                 .collect(),
+        );
+
+        Ok(ConnectionsUiConfig {
+            columns: Some(columns),
+            sort,
+            column_widths: Some(column_widths),
+            source_ip_alias,
         })
     }
 }

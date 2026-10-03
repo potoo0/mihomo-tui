@@ -1,8 +1,10 @@
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
+use tempfile::NamedTempFile;
 use tracing::error;
 
 use crate::config::{Config, ConnectionsUiConfig, ProxySetting, UiConfig};
@@ -32,13 +34,47 @@ impl RuntimeConfig {
             proxy_setting: Some(proxy_setting.clone()),
         })
     }
-}
 
-fn is_empty_connections(connections: &ConnectionsUiConfig) -> bool {
-    connections.columns.is_none()
-        && connections.sort.is_none()
-        && connections.column_widths.is_empty()
-        && connections.source_ip_alias.is_empty()
+    fn apply_to(self, config: &mut Config) -> Result<()> {
+        if self.schema_version != SCHEMA_VERSION {
+            bail!(
+                "Unsupported runtime config schema version {}, expected {}",
+                self.schema_version,
+                SCHEMA_VERSION
+            );
+        }
+
+        if let Some(runtime_connections) = self.ui.and_then(|ui| ui.connections) {
+            let ui = config.ui.get_or_insert(UiConfig {
+                startup_tab: None,
+                connections: None,
+                proxy_detail: None,
+                proxy_provider_detail: None,
+            });
+            if let Some(connections) = &mut ui.connections {
+                if let Some(columns) = runtime_connections.columns {
+                    connections.columns = Some(columns);
+                }
+                if let Some(sort) = runtime_connections.sort {
+                    connections.sort = Some(sort);
+                }
+                if let Some(column_widths) = runtime_connections.column_widths {
+                    connections.column_widths = Some(column_widths);
+                }
+                if let Some(source_ip_alias) = runtime_connections.source_ip_alias {
+                    connections.source_ip_alias = Some(source_ip_alias);
+                }
+            } else {
+                ui.connections = Some(runtime_connections);
+            }
+        }
+
+        if let Some(runtime_proxy) = self.proxy_setting {
+            config.proxy_setting = runtime_proxy;
+        }
+
+        Ok(())
+    }
 }
 
 pub fn runtime_path_for(config_path: &Path) -> PathBuf {
@@ -71,7 +107,7 @@ fn load_and_apply(config: &mut Config, runtime_path: &Path) -> Result<()> {
     };
 
     let mut next = config.clone();
-    apply(&mut next, runtime)?;
+    runtime.apply_to(&mut next)?;
     next.validate()?;
     *config = next;
     Ok(())
@@ -90,55 +126,35 @@ pub fn load(runtime_path: &Path) -> Result<Option<RuntimeConfig>> {
     Ok(Some(runtime))
 }
 
-fn apply(config: &mut Config, runtime: RuntimeConfig) -> Result<()> {
-    if runtime.schema_version != SCHEMA_VERSION {
-        bail!(
-            "Unsupported runtime config schema version {}, expected {}",
-            runtime.schema_version,
-            SCHEMA_VERSION
-        );
-    }
-
-    if let Some(runtime_connections) = runtime.ui.and_then(|ui| ui.connections)
-        && !is_empty_connections(&runtime_connections)
-    {
-        let ui = config.ui.get_or_insert(UiConfig {
-            startup_tab: None,
-            connections: None,
-            proxy_detail: None,
-            proxy_provider_detail: None,
-        });
-        ui.connections = Some(runtime_connections);
-    }
-
-    if let Some(runtime_proxy) = runtime.proxy_setting {
-        config.proxy_setting = runtime_proxy;
-    }
-
-    Ok(())
-}
-
 pub fn save(
     runtime_path: &Path,
     connections: &ConnectionsSetting,
     proxy_setting: &ProxySetting,
 ) -> Result<()> {
-    if let Some(parent) = runtime_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("Fail to create directory `{}`", parent.display()))?;
-    }
+    let parent = runtime_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)
+        .with_context(|| format!("Fail to create directory `{}`", parent.display()))?;
 
     let runtime = RuntimeConfig::new(connections, proxy_setting)?;
     let raw = yaml_serde::to_string(&runtime).context("Fail to serialize runtime config")?;
-    fs::write(runtime_path, raw)
-        .with_context(|| format!("Fail to write runtime config `{}`", runtime_path.display()))?;
+    let mut temp = NamedTempFile::new_in(parent)
+        .with_context(|| format!("Fail to create temporary file in `{}`", parent.display()))?;
+    temp.write_all(raw.as_bytes()).with_context(|| {
+        format!("Fail to write temporary runtime config in `{}`", parent.display())
+    })?;
+    temp.as_file().sync_all().context("Fail to sync temporary runtime config")?;
+    temp.persist(runtime_path)
+        .with_context(|| format!("Fail to replace runtime config `{}`", runtime_path.display()))?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, HashMap};
-    use std::num::{NonZeroU16, NonZeroUsize};
+    use std::collections::HashMap;
+    use std::num::NonZeroUsize;
 
     use super::*;
     use crate::config::{LatencyThreshold, ProxySetting};
@@ -203,35 +219,28 @@ mod tests {
             column_widths: HashMap::new(),
             source_ip_alias: HashMap::new(),
         };
-        let proxy = ProxySetting::default();
+        let mut proxy = ProxySetting::default();
 
+        save(&runtime_path, &setting, &proxy).unwrap();
+        proxy.test_url = "https://example.com/updated".into();
         save(&runtime_path, &setting, &proxy).unwrap();
         let raw = fs::read_to_string(&runtime_path).unwrap();
         fs::remove_file(&runtime_path).unwrap();
 
         assert!(raw.contains("$schema-version: 1"));
         assert!(raw.contains("proxy-setting:"));
+        assert!(raw.contains("column-widths: {}"));
+        assert!(raw.contains("source-ip-alias: {}"));
+        assert!(raw.contains("test-url: https://example.com/updated"));
         assert!(!raw.contains("startup-tab:"));
-    }
-
-    #[test]
-    fn widths_only_connections_are_not_empty() {
-        let connections = ConnectionsUiConfig {
-            columns: None,
-            sort: None,
-            column_widths: BTreeMap::from([("Host".to_owned(), NonZeroU16::new(28).unwrap())]),
-            source_ip_alias: BTreeMap::new(),
-        };
-
-        assert!(!is_empty_connections(&connections));
     }
 
     #[test]
     fn apply_rejects_unknown_schema_version() {
         let mut config = crate::config::default_config().unwrap();
-        let err =
-            apply(&mut config, RuntimeConfig { schema_version: 2, ui: None, proxy_setting: None })
-                .unwrap_err();
+        let err = RuntimeConfig { schema_version: 2, ui: None, proxy_setting: None }
+            .apply_to(&mut config)
+            .unwrap_err();
 
         assert!(err.to_string().contains("Unsupported runtime config schema version"));
     }

@@ -72,10 +72,10 @@ pub struct ConnectionsUiConfig {
     pub columns: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort: Option<ConnectionsSortConfig>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub column_widths: BTreeMap<String, NonZeroU16>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub source_ip_alias: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column_widths: Option<BTreeMap<String, NonZeroU16>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_ip_alias: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
