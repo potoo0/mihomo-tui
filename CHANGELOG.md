@@ -1,4 +1,17 @@
 
+## 0.5.0 - 2026-10-03
+
+### Features
+
+- **Rendering**: Render on demand in response to user input and asynchronous UI updates.
+- **Config**
+  - Add `ui.startup-tab` to choose the initial tab on launch.
+  - Apply runtime connection settings by field, preserving values from the main config for omitted fields and allowing empty column widths and source IP aliases to clear them.
+
+### Bug Fixes
+
+- **API**: Add TCP keepalive and connection timeouts for WebSocket streams, and request timeouts for HTTP APIs.
+
 ## 0.4.5 - 2026-07-19
 
 ### Features
