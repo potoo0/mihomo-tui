@@ -87,9 +87,7 @@ impl ProxiesComponent {
             if let Err(e) = Proxies::test_group_and_reload(api, &name).await {
                 error!(error = ?e, "Failed to test and load proxy: {}", name);
             }
-            let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
-                if x == 0 { None } else { Some(x - 1) }
-            });
+            pending_test.update(Ordering::Relaxed, Ordering::Relaxed, |n| n.saturating_sub(1));
             render_requester.request_render();
         })?;
 

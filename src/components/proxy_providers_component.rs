@@ -73,9 +73,7 @@ impl ProxyProvidersComponent {
             if let Err(e) = ProxyProviders::health_check_and_reload(api, &name).await {
                 error!(error = ?e, "Failed to health check and reload provider");
             }
-            let _ = pending_test.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |x| {
-                if x == 0 { None } else { Some(x - 1) }
-            });
+            pending_test.update(Ordering::Relaxed, Ordering::Relaxed, |n| n.saturating_sub(1));
             render_requester.request_render();
         })?;
 
