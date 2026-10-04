@@ -1,3 +1,13 @@
+## 0.5.1 - 2026-10-04
+
+### Features
+
+- **Shortcuts**: Add `h` / `l` to switch sort columns in Connections and scroll horizontally in Logs.
+
+### Bug Fixes
+
+- **Shortcuts**: Move Help from `h` to `?`, restoring `h` navigation in Proxies and ProxyProviders.
+- **Help**: Make `q` quit the program when Help is open.
 
 ## 0.5.0 - 2026-10-03
 
