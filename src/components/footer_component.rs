@@ -13,7 +13,7 @@ pub struct FooterComponent {
 }
 
 fn default_shortcuts() -> Vec<Shortcut> {
-    vec![Shortcut::from("help", 0).unwrap(), Shortcut::from("quit", 0).unwrap()]
+    vec![Shortcut::from("?", 0).unwrap(), Shortcut::from("quit", 0).unwrap()]
 }
 
 impl Default for FooterComponent {

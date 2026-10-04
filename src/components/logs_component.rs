@@ -294,8 +294,12 @@ impl Component for LogsComponent {
             KeyCode::Char('w') => self.set_level(LogLevel::Warning),
             KeyCode::Char('i') => self.set_level(LogLevel::Info),
             KeyCode::Char('d') => self.set_level(LogLevel::Debug),
-            KeyCode::Left => self.horiz_offset = self.horiz_offset.saturating_sub(HORIZ_STEP),
-            KeyCode::Right => self.horiz_offset = self.horiz_offset.saturating_add(HORIZ_STEP),
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.horiz_offset = self.horiz_offset.saturating_sub(HORIZ_STEP);
+            }
+            KeyCode::Char('l') | KeyCode::Right => {
+                self.horiz_offset = self.horiz_offset.saturating_add(HORIZ_STEP);
+            }
             _ => (),
         };
 

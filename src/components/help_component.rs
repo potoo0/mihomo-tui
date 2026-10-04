@@ -58,10 +58,11 @@ impl HelpComponent {
             HelpRow::entry(Span::raw("Key").bold(), Span::raw("Description").bold()),
             // common key bindings
             HelpRow::key_title("common"),
-            HelpRow::entry("h", "Toggle help"),
+            HelpRow::entry("?", "Toggle help"),
             HelpRow::entry("q / Ctrl+c", "Quits program"),
             HelpRow::entry("Number", "switch to tab"),
-            HelpRow::entry("k / Up, j / Down", "navigation"),
+            HelpRow::entry("k / Up, j / Down", "vertical navigation where available"),
+            HelpRow::entry("h / Left, l / Right", "horizontal navigation where available"),
             HelpRow::entry("g, G", "go to first, last"),
             HelpRow::entry("PageUp, Space / PageDown", "page up, down"),
             HelpRow::entry("Esc", "cancel / back / live toggle"),
@@ -213,7 +214,8 @@ impl Component for HelpComponent {
             return Ok(None);
         }
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('h') => {
+            KeyCode::Char('q') => return Ok(Some(Action::Quit)),
+            KeyCode::Esc | KeyCode::Char('?') => {
                 return Ok(Some(Action::Unfocus));
             }
             _ => (),

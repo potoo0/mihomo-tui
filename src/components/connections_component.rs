@@ -540,11 +540,11 @@ impl Component for ConnectionsComponent {
         }
         match key.code {
             KeyCode::Esc => self.live_mode(true),
-            KeyCode::Left => {
+            KeyCode::Char('h') | KeyCode::Left => {
                 ConnectionsSetting::update(|setting| setting.query_state.sort_prev());
                 self.handle_query_state_changed();
             }
-            KeyCode::Right => {
+            KeyCode::Char('l') | KeyCode::Right => {
                 ConnectionsSetting::update(|setting| {
                     // When capture mode is off, the runtime Alive column is hidden with zero width.
                     // If sorting starts from None, advance once more so Right lands on the first
