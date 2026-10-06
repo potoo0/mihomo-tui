@@ -1,3 +1,16 @@
+## 0.5.2 - 2026-10-06
+
+### Features
+
+- **Help**: Style the popup, highlight shortcut keys, and support horizontal scrolling for long lines.
+- **Proxy Detail / Proxy Provider Detail**: Adjust card width with `-` / `+`. Set each view's width with `ui.proxy-detail.card-width` or `ui.proxy-provider-detail.card-width`; interactive changes persist in the runtime config.
+
+### Bug Fixes
+
+- **Shortcuts**: Show footer hints for the active popup or dialog instead of the main view.
+- **Help**: Make `q` close Help without quitting the program.
+- **Proxy Settings**: Allow typing `q` in the input field.
+
 ## 0.5.1 - 2026-10-04
 
 ### Features
