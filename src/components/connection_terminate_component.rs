@@ -128,7 +128,13 @@ impl Component for ConnectionTerminateComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![Fragment::hl("y"), Fragment::raw("es "), Fragment::hl("↵")]),
-            Shortcut::new(vec![Fragment::hl("n"), Fragment::raw("o "), Fragment::hl("Esc")]),
+            Shortcut::new(vec![
+                Fragment::hl("n"),
+                Fragment::raw("o "),
+                Fragment::hl("q"),
+                Fragment::raw("/"),
+                Fragment::hl("Esc"),
+            ]),
         ]
     }
 

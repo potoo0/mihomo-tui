@@ -364,6 +364,7 @@ impl Component for DnsQueryComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         let mut shortcuts = Vec::with_capacity(4);
         shortcuts.extend(vec![
+            Shortcut::new(vec![Fragment::hl("Esc")]),
             Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" focus "), Fragment::hl("⇥")]),
             Shortcut::new(vec![Fragment::raw("query "), Fragment::hl("↵")]),
         ]);
@@ -474,19 +475,19 @@ mod tests {
         let mut component = DnsQueryComponent::default();
 
         assert_eq!(
-            component.shortcuts()[2],
+            component.shortcuts()[3],
             Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" type "), Fragment::hl("→")])
         );
 
         component.set_focused(FocusedField::Name);
         assert_eq!(
-            component.shortcuts()[2],
+            component.shortcuts()[3],
             Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" cursor "), Fragment::hl("→")])
         );
 
         component.set_focused(FocusedField::Answers);
         assert_eq!(
-            component.shortcuts()[2],
+            component.shortcuts()[3],
             Shortcut::new(vec![
                 Fragment::hl("←"),
                 Fragment::raw("/"),
@@ -512,7 +513,7 @@ mod tests {
             panic!("expected shortcuts action");
         };
         assert_eq!(
-            shortcuts[2],
+            shortcuts[3],
             Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" cursor "), Fragment::hl("→")])
         );
     }

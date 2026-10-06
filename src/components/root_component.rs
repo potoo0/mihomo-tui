@@ -46,6 +46,7 @@ use crate::models::{Connection, ConnectionStats};
 use crate::render::RenderRequester;
 use crate::utils::text_ui::top_title_line;
 use crate::version_update::SharedVersionUpdateState;
+use crate::widgets::shortcut::Shortcut;
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
 const MIN_AREA: (u16, u16) = (80, 18);
@@ -191,6 +192,17 @@ impl RootComponent {
         // focus the popup component
         tx.send(Action::Focus(id))?;
 
+        Ok(())
+    }
+
+    fn set_shortcuts(&mut self, shortcuts: Vec<Shortcut>) -> Result<()> {
+        let mut visible = Vec::with_capacity(shortcuts.len() + 2);
+        if self.popup.is_none() {
+            visible.push(Shortcut::from("?", 0)?);
+            visible.push(Shortcut::from("quit", 0)?);
+        }
+        visible.extend(shortcuts);
+        self.get_or_start(ComponentId::Footer)?.update(Action::Shortcuts(visible))?;
         Ok(())
     }
 
@@ -480,6 +492,10 @@ impl Component for RootComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         let action_tx = self.action_tx.as_ref().unwrap().clone();
         match action {
+            Action::Shortcuts(shortcuts) => {
+                self.set_shortcuts(shortcuts)?;
+                return Ok(None);
+            }
             Action::Quit => self.connections.stop(),
             Action::Tick => self.on_tick(),
             Action::Error(err) => {

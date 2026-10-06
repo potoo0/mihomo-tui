@@ -63,7 +63,8 @@ impl Component for ConnectionDetailComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::raw("esc "),
+                Fragment::hl("q"),
+                Fragment::raw("/"),
                 Fragment::hl("Esc"),
                 Fragment::raw("/"),
                 Fragment::hl("Enter"),

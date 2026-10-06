@@ -193,9 +193,11 @@ impl Component for ProxySettingComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
+            Shortcut::new(vec![Fragment::raw("cancel "), Fragment::hl("Esc")])
+                .compact(vec![Fragment::hl("Esc")]),
+            Shortcut::new(vec![Fragment::raw("confirm "), Fragment::hl("↵")]),
             Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav "), Fragment::hl("⇥")])
                 .compact(vec![Fragment::hl("⇧⇤"), Fragment::raw("/"), Fragment::hl("⇥")]),
-            Shortcut::new(vec![Fragment::raw("confirm "), Fragment::hl("↵")]),
             Shortcut::new(vec![
                 Fragment::hl("←/C-←"),
                 Fragment::raw(" move "),
@@ -220,7 +222,7 @@ impl Component for ProxySettingComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => {
+            KeyCode::Esc => {
                 self.hide();
                 return Ok(Some(Action::Unfocus));
             }
@@ -271,5 +273,21 @@ impl Component for ProxySettingComponent {
         self.render_settings(frame, content_area);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn q_is_typed_instead_of_closing_proxy_settings() {
+        let mut component = ProxySettingComponent { show: true, ..Default::default() };
+
+        let action = component.handle_key_event(KeyEvent::from(KeyCode::Char('q'))).unwrap();
+
+        assert!(action.is_none());
+        assert!(component.show);
+        assert_eq!(component.input.value(), "q");
     }
 }
