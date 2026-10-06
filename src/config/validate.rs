@@ -4,7 +4,7 @@ use std::num::{NonZeroU16, NonZeroUsize};
 use anyhow::{Result, anyhow, bail};
 use url::Url;
 
-use crate::components::{ComponentId, TABS};
+use crate::components::{ComponentId, MIN_CARD_WIDTH, TABS};
 use crate::config::{
     Config, ConnectionsSortConfig, ConnectionsUiConfig, LatencyThreshold, ProxySetting,
 };
@@ -45,6 +45,26 @@ impl Config {
         }
         if let Some(connections) = self.ui.as_ref().and_then(|ui| ui.connections.as_ref()) {
             connections.validate()?;
+        }
+        if let Some(width) = self
+            .ui
+            .as_ref()
+            .and_then(|ui| ui.proxy_detail.as_ref())
+            .and_then(|detail| detail.card_width)
+            && width < MIN_CARD_WIDTH
+        {
+            bail!("`ui.proxy-detail.card-width` must be at least {MIN_CARD_WIDTH}, got {width}");
+        }
+        if let Some(width) = self
+            .ui
+            .as_ref()
+            .and_then(|ui| ui.proxy_provider_detail.as_ref())
+            .and_then(|detail| detail.card_width)
+            && width < MIN_CARD_WIDTH
+        {
+            bail!(
+                "`ui.proxy-provider-detail.card-width` must be at least {MIN_CARD_WIDTH}, got {width}"
+            );
         }
         Ok(())
     }

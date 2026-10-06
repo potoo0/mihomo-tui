@@ -39,6 +39,7 @@ use crate::render::RenderRequester;
 use crate::widgets::shortcut::Shortcut;
 
 const HORIZ_STEP: usize = 4;
+pub const MIN_CARD_WIDTH: u16 = 18;
 
 /// Header tabs in display order; index is used for tab navigation and shortcuts
 pub const TABS: [ComponentId; 8] = [

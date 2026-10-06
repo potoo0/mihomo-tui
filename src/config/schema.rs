@@ -92,6 +92,8 @@ pub struct ConnectionsSortConfig {
 pub struct ProxyDetailUiConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort: Option<ProxySortConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub card_width: Option<u16>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

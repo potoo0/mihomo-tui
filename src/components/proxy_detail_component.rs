@@ -14,11 +14,12 @@ use tracing::{debug, error, info, warn};
 
 use crate::action::Action;
 use crate::api::Api;
-use crate::components::{Component, ComponentId};
+use crate::components::{Component, ComponentId, MIN_CARD_WIDTH};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
 use crate::render::RenderRequester;
 use crate::store::proxies::Proxies;
+use crate::store::proxy_detail_setting::ProxyDetailSetting;
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, popup_area, space_between};
@@ -27,6 +28,14 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const CARD_HEIGHT: u16 = 3;
 const CARD_WIDTH: u16 = 25;
+const WIDTH_HINT_TICKS: u8 = 4;
+const CARD_WIDTH_SAVE_TICKS: u8 = 4;
+
+fn card_layout(area: Rect, preferred_width: u16) -> std::rc::Rc<[Rect]> {
+    let width = preferred_width.max(MIN_CARD_WIDTH).min(area.width);
+    let cols = (area.width / width.max(1)).max(1);
+    Layout::horizontal((0..cols).map(|_| Constraint::Min(width))).split(area)
+}
 
 #[derive(Debug, Default)]
 pub struct ProxyDetailComponent {
@@ -43,6 +52,9 @@ pub struct ProxyDetailComponent {
     layers: Vec<Layer>,
 
     navigator: ScrollableNavigator,
+    card_area_width: u16,
+    width_hint_ticks: u8,
+    card_width_save_ticks: u8,
 
     loading: Arc<AtomicBool>,
     throbber: ThrobberState,
@@ -58,6 +70,45 @@ struct Layer {
 }
 
 impl ProxyDetailComponent {
+    fn adjust_card_width(&mut self, delta: i16) {
+        if self.card_area_width == 0 {
+            return;
+        }
+        let max_width = self.card_area_width.max(MIN_CARD_WIDTH);
+        let previous = ProxyDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+        let current = previous.min(max_width);
+        let width = current.saturating_add_signed(delta).clamp(MIN_CARD_WIDTH, max_width);
+        self.width_hint_ticks = WIDTH_HINT_TICKS;
+        if previous != width {
+            ProxyDetailSetting::update(|setting| setting.card_width = Some(width));
+            self.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
+        }
+    }
+
+    fn notify_card_width_save(&self) {
+        if let Some(tx) = &self.action_tx {
+            let _ = tx.send(Action::ProxyDetailLayoutChanged);
+        }
+    }
+
+    fn tick_card_width_save(&mut self) {
+        if self.card_width_save_ticks == 0 {
+            return;
+        }
+        self.card_width_save_ticks -= 1;
+        if self.card_width_save_ticks == 0 {
+            self.notify_card_width_save();
+        }
+    }
+
+    fn flush_card_width_save(&mut self) {
+        if self.card_width_save_ticks == 0 {
+            return;
+        }
+        self.card_width_save_ticks = 0;
+        self.notify_card_width_save();
+    }
+
     pub fn show(&mut self, proxy_name: String) {
         debug!("Show proxy detail: {}", proxy_name);
         if Proxies::get_by_name(&proxy_name).is_none() {
@@ -78,6 +129,7 @@ impl ProxyDetailComponent {
         self.show = false;
         self.proxy_name = None;
         self.layers.clear();
+        self.width_hint_ticks = 0;
     }
 
     fn close(&mut self) {
@@ -230,6 +282,22 @@ impl ProxyDetailComponent {
         ])
     }
 
+    fn with_width_hint<'a>(&self, block: Block<'a>, content_area: Rect) -> Block<'a> {
+        if self.width_hint_ticks == 0 {
+            return block;
+        }
+        let preferred_width = ProxyDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+        let actual_width =
+            card_layout(content_area, preferred_width).first().map_or(0, |card| card.width);
+        block.title_bottom(
+            Line::styled(
+                format!(" Card width: {preferred_width} (actual: {actual_width}) "),
+                Color::LightCyan,
+            )
+            .centered(),
+        )
+    }
+
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.pending_test.load(Ordering::Relaxed) > 0 {
             let symbol = Throbber::default()
@@ -292,12 +360,24 @@ impl ProxyDetailComponent {
 
     fn render_cards(&mut self, group: &Proxy, frame: &mut Frame, area: Rect) {
         let children_names = group.children.as_deref().unwrap_or_default();
-        let cols = (area.width / CARD_WIDTH).max(1) as usize;
-        let col_chunks =
-            Layout::horizontal((0..cols).map(|_| Constraint::Min(CARD_WIDTH))).split(area);
+        self.card_area_width = area.width;
+        let preferred_width = ProxyDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+        let col_chunks = card_layout(area, preferred_width);
+        let cols = col_chunks.len();
+        let previous_cols = self.navigator.scroller.step_value();
         self.navigator
             .step(cols)
             .length(children_names.len(), ((area.height / CARD_HEIGHT) as usize) * cols);
+        // Keep the focused card visible and the scroll position row-aligned when columns change.
+        if cols != previous_cols {
+            let anchor = self.navigator.focused.unwrap_or(self.navigator.scroller.pos());
+            let last_row = children_names
+                .len()
+                .saturating_sub(self.navigator.scroller.viewport_content_length())
+                .div_ceil(cols)
+                * cols;
+            self.navigator.scroller.position(((anchor / cols) * cols).min(last_row));
+        }
         let visible_names =
             &children_names[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
         let threshold = ProxySetting::global().read().unwrap().latency_threshold;
@@ -363,6 +443,18 @@ impl Component for ProxyDetailComponent {
                 .compact(vec![Fragment::hl("[/]"), Fragment::raw(" layer")]),
             Shortcut::from("cur", 0).unwrap(),
             Shortcut::new(vec![Fragment::raw("sel "), Fragment::hl("↵")]),
+            Shortcut::new(vec![
+                Fragment::hl("-"),
+                Fragment::raw("/"),
+                Fragment::hl("+"),
+                Fragment::raw(" width"),
+            ])
+            .compact(vec![
+                Fragment::hl("-"),
+                Fragment::raw("/"),
+                Fragment::hl("+"),
+                Fragment::raw(" w"),
+            ]),
             Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
             Shortcut::from("test", 0).unwrap(),
             Shortcut::from("refresh", 0).unwrap(),
@@ -407,6 +499,13 @@ impl Component for ProxyDetailComponent {
             KeyCode::Char('r') => {
                 self.backup_navigator();
                 self.load_proxies()?;
+            }
+            KeyCode::Char('-') if key.modifiers == KeyModifiers::NONE => self.adjust_card_width(-1),
+            KeyCode::Char('=') if key.modifiers == KeyModifiers::NONE => self.adjust_card_width(1),
+            KeyCode::Char('+')
+                if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT =>
+            {
+                self.adjust_card_width(1);
             }
             KeyCode::Enter => {
                 // update selected proxy
@@ -476,7 +575,10 @@ impl Component for ProxyDetailComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::ProxyDetail(name) => self.show(name),
+            Action::Quit => self.flush_card_width_save(),
             Action::Tick => {
+                self.width_hint_ticks = self.width_hint_ticks.saturating_sub(1);
+                self.tick_card_width_save();
                 if self.loading.load(Ordering::Relaxed) {
                     self.throbber.calc_next();
                 }
@@ -514,6 +616,7 @@ impl Component for ProxyDetailComponent {
             .border_style(Color::LightBlue)
             .title(self.title_line(proxy.children.as_ref().map(Vec::len).unwrap_or_default()));
         let content_area = block.inner(area);
+        let block = self.with_width_hint(block, content_area);
         frame.render_widget(block, area);
         self.render_throbber(frame, area);
 
@@ -521,5 +624,67 @@ impl Component for ProxyDetailComponent {
         self.navigator.render(frame, area.inner(Margin::new(0, 1)));
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::sync::mpsc::unbounded_channel;
+
+    use super::*;
+
+    #[test]
+    fn card_layout_respects_width_limits() {
+        let area = Rect::new(2, 3, 80, 6);
+        let narrow = card_layout(area, 10);
+        assert_eq!(narrow.len(), 4);
+        assert_eq!(narrow[0].width, 20);
+        assert_eq!(narrow[1].x, 22);
+
+        let stretched = card_layout(Rect::new(0, 0, 92, 6), 40);
+        assert_eq!(stretched.len(), 2);
+        assert_eq!(stretched[0].width, 46);
+        assert_eq!(stretched[1].width, 46);
+
+        let wide = card_layout(area, 100);
+        assert_eq!(wide.len(), 1);
+        assert_eq!(wide[0].width, area.width);
+
+        let tiny = card_layout(Rect::new(0, 0, 12, 3), CARD_WIDTH);
+        assert_eq!(tiny.len(), 1);
+        assert_eq!(tiny[0].width, 12);
+    }
+
+    #[test]
+    fn card_width_save_waits_four_ticks_after_last_change() {
+        let previous = ProxyDetailSetting::snapshot();
+        ProxyDetailSetting::update(|setting| setting.card_width = None);
+        let (tx, mut rx) = unbounded_channel();
+        let mut component =
+            ProxyDetailComponent { action_tx: Some(tx), card_area_width: 80, ..Default::default() };
+
+        component.adjust_card_width(1);
+        component.update(Action::Tick).unwrap();
+        component.adjust_card_width(1);
+        assert_eq!(ProxyDetailSetting::snapshot().card_width, Some(27));
+        for _ in 0..3 {
+            component.update(Action::Tick).unwrap();
+            assert!(rx.try_recv().is_err());
+        }
+        component.update(Action::Tick).unwrap();
+        assert!(matches!(rx.try_recv(), Ok(Action::ProxyDetailLayoutChanged)));
+        ProxyDetailSetting::update(|setting| *setting = previous);
+    }
+
+    #[test]
+    fn quit_flushes_pending_card_width_save() {
+        let (tx, mut rx) = unbounded_channel();
+        let mut component = ProxyDetailComponent {
+            action_tx: Some(tx),
+            card_width_save_ticks: CARD_WIDTH_SAVE_TICKS,
+            ..Default::default()
+        };
+        component.update(Action::Quit).unwrap();
+        assert!(matches!(rx.try_recv(), Ok(Action::ProxyDetailLayoutChanged)));
     }
 }

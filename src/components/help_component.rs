@@ -139,6 +139,7 @@ impl HelpComponent {
             HelpRow::Empty,
             HelpRow::key_title("## Proxy Detail"),
             HelpRow::key_entry("Enter", "update selected proxy"),
+            HelpRow::key_entry("-, +", "decrease/increase card width"),
             HelpRow::key_entry("c", "jump to current selected proxy"),
             HelpRow::key_entry("[, ]", "navigate nested groups"),
             HelpRow::key_entry("s", "switch sort by: none, latency, name"),

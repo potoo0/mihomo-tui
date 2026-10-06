@@ -38,9 +38,11 @@ pub enum Action {
     ConnectionTerminateRequest(Arc<Connection>),
     ConnectionBatchTerminateRequest(Vec<String>),
     ProxyDetail(String),
+    ProxyDetailLayoutChanged,
     ProxySetting,
     ProxySettingChanged,
     ProxyProviderDetail(String),
+    ProxyProviderDetailLayoutChanged,
     DnsQuery,
     DnsQueryResultReady,
 }
