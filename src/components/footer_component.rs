@@ -7,22 +7,10 @@ use crate::action::Action;
 use crate::components::{Component, ComponentId};
 use crate::widgets::shortcut::{Shortcut, ShortcutMode, shortcuts_full_width};
 
+#[derive(Default)]
 pub struct FooterComponent {
     shortcuts: Vec<Shortcut>,
     full_width: usize,
-}
-
-fn default_shortcuts() -> Vec<Shortcut> {
-    vec![Shortcut::from("?", 0).unwrap(), Shortcut::from("quit", 0).unwrap()]
-}
-
-impl Default for FooterComponent {
-    fn default() -> Self {
-        let shortcuts = default_shortcuts();
-        let full_width = shortcuts_full_width(&shortcuts, 2);
-
-        Self { shortcuts, full_width }
-    }
 }
 
 impl FooterComponent {
@@ -50,10 +38,8 @@ impl Component for FooterComponent {
 
     fn update(&mut self, action: Action) -> anyhow::Result<Option<Action>> {
         if let Action::Shortcuts(shortcuts) = action {
-            let mut sc = default_shortcuts();
-            sc.extend(shortcuts);
-            self.full_width = shortcuts_full_width(&sc, 2);
-            self.shortcuts = sc;
+            self.full_width = shortcuts_full_width(&shortcuts, 2);
+            self.shortcuts = shortcuts;
         }
         Ok(None)
     }

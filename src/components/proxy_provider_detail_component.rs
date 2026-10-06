@@ -226,6 +226,7 @@ impl Component for ProxyProviderDetailComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
+            Shortcut::new(vec![Fragment::hl("q"), Fragment::raw("/"), Fragment::hl("Esc")]),
             Shortcut::new(vec![
                 Fragment::hl(arrow::LEFT),
                 Fragment::raw("/"),

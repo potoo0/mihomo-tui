@@ -497,8 +497,18 @@ impl Component for ConnectionsComponent {
                 Fragment::raw(" sort "),
                 Fragment::hl("r"),
             ]),
-            Shortcut::new(vec![Fragment::hl("-/+"), Fragment::raw(" width")])
-                .compact(vec![Fragment::hl("-/+"), Fragment::raw(" w")]),
+            Shortcut::new(vec![
+                Fragment::hl("-"),
+                Fragment::raw("/"),
+                Fragment::hl("+"),
+                Fragment::raw(" width"),
+            ])
+            .compact(vec![
+                Fragment::hl("-"),
+                Fragment::raw("/"),
+                Fragment::hl("+"),
+                Fragment::raw(" w"),
+            ]),
             Shortcut::new(vec![Fragment::hl("Del"), Fragment::raw(" reset")])
                 .compact(vec![Fragment::hl("Del"), Fragment::raw(" rst")]),
             Shortcut::new(vec![

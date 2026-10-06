@@ -13,7 +13,7 @@ use crate::config::get_config_path;
 use crate::config::runtime::runtime_path_for;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::scrollbar::Scroller;
-use crate::widgets::shortcut::DEFAULT_HL_COLOR;
+use crate::widgets::shortcut::{DEFAULT_HL_COLOR, Fragment, Shortcut};
 
 const REPOSITORY_URL: &str =
     concat!(env!("CARGO_PKG_REPOSITORY"), "/tree/v", env!("CARGO_PKG_VERSION"));
@@ -67,8 +67,9 @@ impl HelpComponent {
             HelpRow::entry(Span::raw("Key").bold(), Span::raw("Description").bold()),
             // common key bindings
             HelpRow::key_title("common"),
-            HelpRow::key_entry("?", "Toggle help"),
-            HelpRow::key_entry("q / Ctrl+c", "Quits program"),
+            HelpRow::key_entry("?", "Open help from the main view / close help"),
+            HelpRow::key_entry("q", "Quit from the main view / close help"),
+            HelpRow::key_entry("Ctrl+c", "Quit program"),
             HelpRow::key_entry("Number", "switch to tab"),
             HelpRow::key_entry("k / Up, j / Down", "vertical navigation where available"),
             HelpRow::key_entry("h / Left, l / Right", "horizontal navigation where available"),

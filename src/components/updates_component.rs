@@ -223,6 +223,7 @@ impl Component for UpdatesComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
+            Shortcut::new(vec![Fragment::hl("q"), Fragment::raw("/"), Fragment::hl("Esc")]),
             Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav "), Fragment::hl("⇥")]),
             Shortcut::new(vec![Fragment::raw("toggle "), Fragment::hl("Space")]),
             Shortcut::new(vec![Fragment::raw("update "), Fragment::hl("↵")]),
