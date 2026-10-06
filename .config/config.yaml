@@ -44,17 +44,22 @@ log-level: error
 # connections.column-widths:
 #   - optional fixed widths keyed by Connections column title, case-insensitive.
 #   - example: { Host: 28, Process: 14 }
-# proxy-detail.sort:
+# proxy-detail.sort / proxy-provider-detail.sort:
 #   - field currently supports: latency, name
 #   - dir: asc | desc, default is asc
+# proxy-detail.card-width / proxy-provider-detail.card-width:
+#   - minimum card width, at least 18; extra row space is shared between cards.
+#   - default: 25; each detail view has its own width.
 ui:
   startup-tab: Overview
   connections:
     columns: ["Host", "Rule", "Chains", "DownRate", "UpRate", "DownTotal", "UpTotal", "SourceIP"]
     sort: { field: "DownRate", dir: "desc" }
   proxy-detail:
+    card-width: 25
     sort: { field: "Latency", dir: "asc" }
   proxy-provider-detail:
+    card-width: 25
     sort: { field: "Latency", dir: "asc" }
 
 # Default proxy settings.

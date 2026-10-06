@@ -7,8 +7,10 @@ use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use tracing::error;
 
-use crate::config::{Config, ConnectionsUiConfig, ProxySetting, UiConfig};
+use crate::config::{Config, ConnectionsUiConfig, ProxyDetailUiConfig, ProxySetting, UiConfig};
 use crate::store::connections_setting::ConnectionsSetting;
+use crate::store::proxy_detail_setting::ProxyDetailSetting;
+use crate::store::proxy_provider_detail_setting::ProxyProviderDetailSetting;
 
 const SCHEMA_VERSION: u16 = 1;
 
@@ -22,14 +24,23 @@ pub struct RuntimeConfig {
 }
 
 impl RuntimeConfig {
-    fn new(connections: &ConnectionsSetting, proxy_setting: &ProxySetting) -> Result<Self> {
+    fn new(
+        connections: &ConnectionsSetting,
+        proxy_setting: &ProxySetting,
+        proxy_detail: ProxyDetailSetting,
+        proxy_provider_detail: ProxyProviderDetailSetting,
+    ) -> Result<Self> {
         Ok(Self {
             schema_version: SCHEMA_VERSION,
             ui: Some(UiConfig {
                 startup_tab: None,
                 connections: Some(ConnectionsUiConfig::try_from(connections)?),
-                proxy_detail: None,
-                proxy_provider_detail: None,
+                proxy_detail: proxy_detail
+                    .card_width
+                    .map(|width| ProxyDetailUiConfig { sort: None, card_width: Some(width) }),
+                proxy_provider_detail: proxy_provider_detail
+                    .card_width
+                    .map(|width| ProxyDetailUiConfig { sort: None, card_width: Some(width) }),
             }),
             proxy_setting: Some(proxy_setting.clone()),
         })
@@ -44,28 +55,45 @@ impl RuntimeConfig {
             );
         }
 
-        if let Some(runtime_connections) = self.ui.and_then(|ui| ui.connections) {
+        if let Some(runtime_ui) = self.ui {
             let ui = config.ui.get_or_insert(UiConfig {
                 startup_tab: None,
                 connections: None,
                 proxy_detail: None,
                 proxy_provider_detail: None,
             });
-            if let Some(connections) = &mut ui.connections {
-                if let Some(columns) = runtime_connections.columns {
-                    connections.columns = Some(columns);
+            if let Some(runtime_connections) = runtime_ui.connections {
+                if let Some(connections) = &mut ui.connections {
+                    if let Some(columns) = runtime_connections.columns {
+                        connections.columns = Some(columns);
+                    }
+                    if let Some(sort) = runtime_connections.sort {
+                        connections.sort = Some(sort);
+                    }
+                    if let Some(column_widths) = runtime_connections.column_widths {
+                        connections.column_widths = Some(column_widths);
+                    }
+                    if let Some(source_ip_alias) = runtime_connections.source_ip_alias {
+                        connections.source_ip_alias = Some(source_ip_alias);
+                    }
+                } else {
+                    ui.connections = Some(runtime_connections);
                 }
-                if let Some(sort) = runtime_connections.sort {
-                    connections.sort = Some(sort);
-                }
-                if let Some(column_widths) = runtime_connections.column_widths {
-                    connections.column_widths = Some(column_widths);
-                }
-                if let Some(source_ip_alias) = runtime_connections.source_ip_alias {
-                    connections.source_ip_alias = Some(source_ip_alias);
-                }
-            } else {
-                ui.connections = Some(runtime_connections);
+            }
+
+            if let Some(width) = runtime_ui.proxy_detail.and_then(|detail| detail.card_width) {
+                let detail = ui
+                    .proxy_detail
+                    .get_or_insert(ProxyDetailUiConfig { sort: None, card_width: None });
+                detail.card_width = Some(width);
+            }
+            if let Some(width) =
+                runtime_ui.proxy_provider_detail.and_then(|detail| detail.card_width)
+            {
+                let detail = ui
+                    .proxy_provider_detail
+                    .get_or_insert(ProxyDetailUiConfig { sort: None, card_width: None });
+                detail.card_width = Some(width);
             }
         }
 
@@ -130,6 +158,8 @@ pub fn save(
     runtime_path: &Path,
     connections: &ConnectionsSetting,
     proxy_setting: &ProxySetting,
+    proxy_detail: ProxyDetailSetting,
+    proxy_provider_detail: ProxyProviderDetailSetting,
 ) -> Result<()> {
     let parent = runtime_path
         .parent()
@@ -138,7 +168,8 @@ pub fn save(
     fs::create_dir_all(parent)
         .with_context(|| format!("Fail to create directory `{}`", parent.display()))?;
 
-    let runtime = RuntimeConfig::new(connections, proxy_setting)?;
+    let runtime =
+        RuntimeConfig::new(connections, proxy_setting, proxy_detail, proxy_provider_detail)?;
     let raw = yaml_serde::to_string(&runtime).context("Fail to serialize runtime config")?;
     let mut temp = NamedTempFile::new_in(parent)
         .with_context(|| format!("Fail to create temporary file in `{}`", parent.display()))?;
@@ -194,7 +225,13 @@ mod tests {
             latency_threshold: LatencyThreshold { medium: 200, high: 800 },
             auto_terminate_connections: true,
         };
-        let runtime = RuntimeConfig::new(&setting, &proxy).unwrap();
+        let runtime = RuntimeConfig::new(
+            &setting,
+            &proxy,
+            ProxyDetailSetting { card_width: Some(40) },
+            ProxyProviderDetailSetting { card_width: Some(32) },
+        )
+        .unwrap();
         let raw = yaml_serde::to_string(&runtime).unwrap();
 
         assert!(raw.contains("$schema-version: 1"));
@@ -205,6 +242,8 @@ mod tests {
         assert!(raw.contains("dir: desc"));
         assert!(raw.contains("column-widths:"));
         assert!(raw.contains("Host: 24"));
+        assert!(raw.contains("card-width: 40"));
+        assert!(raw.contains("proxy-provider-detail:\n    card-width: 32"));
         assert!(!raw.contains("startup-tab:"));
         assert!(raw.contains("test-url: https://example.com/generate_204"));
         assert!(raw.contains("latency-threshold: 200,800"));
@@ -221,9 +260,11 @@ mod tests {
         };
         let mut proxy = ProxySetting::default();
 
-        save(&runtime_path, &setting, &proxy).unwrap();
+        let detail = ProxyDetailSetting { card_width: Some(40) };
+        let provider_detail = ProxyProviderDetailSetting { card_width: Some(32) };
+        save(&runtime_path, &setting, &proxy, detail, provider_detail).unwrap();
         proxy.test_url = "https://example.com/updated".into();
-        save(&runtime_path, &setting, &proxy).unwrap();
+        save(&runtime_path, &setting, &proxy, detail, provider_detail).unwrap();
         let raw = fs::read_to_string(&runtime_path).unwrap();
         fs::remove_file(&runtime_path).unwrap();
 
@@ -231,6 +272,8 @@ mod tests {
         assert!(raw.contains("proxy-setting:"));
         assert!(raw.contains("column-widths: {}"));
         assert!(raw.contains("source-ip-alias: {}"));
+        assert!(raw.contains("card-width: 40"));
+        assert!(raw.contains("proxy-provider-detail:\n    card-width: 32"));
         assert!(raw.contains("test-url: https://example.com/updated"));
         assert!(!raw.contains("startup-tab:"));
     }

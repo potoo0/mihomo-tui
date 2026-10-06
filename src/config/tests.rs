@@ -137,6 +137,12 @@ ui:
     columns: ["Host"]
     source-ip-alias:
       192.168.1.11: laptop
+  proxy-detail:
+    sort: { field: Name }
+    card-width: 22
+  proxy-provider-detail:
+    sort: { field: Name }
+    card-width: 21
 proxy-setting:
   test-url: https://example.com/base
   test-timeout: 1000
@@ -151,6 +157,10 @@ ui:
     sort: { field: "SourceIP", dir: "desc" }
     source-ip-alias:
       192.168.1.10: phone
+  proxy-detail:
+    card-width: 40
+  proxy-provider-detail:
+    card-width: 32
 proxy-setting:
   test-url: https://example.com/runtime
   test-timeout: 3000
@@ -172,6 +182,12 @@ proxy-setting:
     let aliases = connections.source_ip_alias.as_ref().unwrap();
     assert_eq!(aliases.get("192.168.1.10"), Some(&"phone".to_owned()));
     assert_eq!(aliases.len(), 1);
+    let detail = config.ui.as_ref().unwrap().proxy_detail.as_ref().unwrap();
+    assert_eq!(detail.card_width, Some(40));
+    assert_eq!(detail.sort.as_ref().map(|sort| sort.field), Some(ProxySortField::Name));
+    let provider_detail = config.ui.as_ref().unwrap().proxy_provider_detail.as_ref().unwrap();
+    assert_eq!(provider_detail.card_width, Some(32));
+    assert_eq!(provider_detail.sort.as_ref().map(|sort| sort.field), Some(ProxySortField::Name));
     assert_eq!(config.proxy_setting.test_url, "https://example.com/runtime");
     assert_eq!(config.proxy_setting.test_timeout.get(), 3000);
     assert_eq!(config.proxy_setting.latency_threshold, LatencyThreshold { medium: 200, high: 800 });
@@ -691,9 +707,64 @@ ui:
 
     assert_eq!(sort.field, ProxySortField::Latency);
     assert_eq!(sort.dir, SortDir::Asc);
+    assert_eq!(proxy_detail.card_width, None);
     assert!(ui.connections.is_none());
 
     drop(cfg_path);
+}
+
+#[test]
+fn test_config_ui_proxy_detail_card_width_minimum() {
+    let cfg_path = TempFile::new(temp_config_path());
+    for width in [0, 17] {
+        fs::write(
+            &cfg_path.0,
+            format!(
+                "mihomo-api: http://localhost\nui:\n  proxy-detail:\n    card-width: {width}\n"
+            ),
+        )
+        .unwrap();
+        let error = load(Some(cfg_path.0.clone())).unwrap_err();
+        assert!(format!("{error:#}").contains("`ui.proxy-detail.card-width` must be at least 18"));
+    }
+
+    fs::write(
+        &cfg_path.0,
+        "mihomo-api: http://localhost\nui:\n  proxy-detail:\n    card-width: 18\n",
+    )
+    .unwrap();
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+    assert_eq!(config.ui.as_ref().unwrap().proxy_detail.as_ref().unwrap().card_width, Some(18));
+}
+
+#[test]
+fn test_config_ui_proxy_provider_detail_card_width_minimum() {
+    let cfg_path = TempFile::new(temp_config_path());
+    for width in [0, 17] {
+        fs::write(
+            &cfg_path.0,
+            format!(
+                "mihomo-api: http://localhost\nui:\n  proxy-provider-detail:\n    card-width: {width}\n"
+            ),
+        )
+        .unwrap();
+        let error = load(Some(cfg_path.0.clone())).unwrap_err();
+        assert!(
+            format!("{error:#}")
+                .contains("`ui.proxy-provider-detail.card-width` must be at least 18")
+        );
+    }
+
+    fs::write(
+        &cfg_path.0,
+        "mihomo-api: http://localhost\nui:\n  proxy-provider-detail:\n    card-width: 18\n",
+    )
+    .unwrap();
+    let config = load(Some(cfg_path.0.clone())).unwrap();
+    assert_eq!(
+        config.ui.as_ref().unwrap().proxy_provider_detail.as_ref().unwrap().card_width,
+        Some(18)
+    );
 }
 
 #[test]

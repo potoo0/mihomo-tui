@@ -17,6 +17,8 @@ use crate::components::root_component::RootComponent;
 use crate::config::{Config, runtime};
 use crate::render::RenderScheduler;
 use crate::store::connections_setting::ConnectionsSetting;
+use crate::store::proxy_detail_setting::ProxyDetailSetting;
+use crate::store::proxy_provider_detail_setting::ProxyProviderDetailSetting;
 use crate::store::proxy_setting::ProxySetting;
 use crate::tui::{Event, Tui};
 use crate::version_update;
@@ -59,11 +61,7 @@ impl App {
         let mut tui = Tui::new()?;
         tui.enter()?;
 
-        // initialize global settings
-        *ProxySetting::global().write().unwrap() = self.config.proxy_setting.clone();
-        if let Some(connections) = self.config.ui.as_ref().and_then(|ui| ui.connections.as_ref()) {
-            *ConnectionsSetting::global().write().unwrap() = Arc::new(connections.try_into()?);
-        }
+        self.init_global_settings()?;
         // initialize root component
         self.root.init(Arc::clone(&self.api))?;
         self.root.register_action_handler(self.action_tx.clone())?;
@@ -111,6 +109,24 @@ impl App {
         Ok(())
     }
 
+    fn init_global_settings(&self) -> Result<()> {
+        let ui = self.config.ui.as_ref();
+        *ProxySetting::global().write().unwrap() = self.config.proxy_setting.clone();
+        ProxyDetailSetting::update(|setting| {
+            setting.card_width =
+                ui.and_then(|ui| ui.proxy_detail.as_ref()).and_then(|detail| detail.card_width);
+        });
+        ProxyProviderDetailSetting::update(|setting| {
+            setting.card_width = ui
+                .and_then(|ui| ui.proxy_provider_detail.as_ref())
+                .and_then(|detail| detail.card_width);
+        });
+        if let Some(connections) = ui.and_then(|ui| ui.connections.as_ref()) {
+            *ConnectionsSetting::global().write().unwrap() = Arc::new(connections.try_into()?);
+        }
+        Ok(())
+    }
+
     fn handle_event(&mut self, event: Event) -> Result<Option<Action>> {
         trace!("handle_event: {event:?}");
         let action = match event {
@@ -135,6 +151,8 @@ impl App {
             }
             Action::ConnectionsSettingChanged
             | Action::ConnectionsLayoutChanged
+            | Action::ProxyDetailLayoutChanged
+            | Action::ProxyProviderDetailLayoutChanged
             | Action::ProxySettingChanged => {
                 if let Err(e) = self.save_runtime_config() {
                     error!(error = ?e, "Failed to save runtime config");
@@ -157,7 +175,13 @@ impl App {
     fn save_runtime_config(&self) -> Result<()> {
         let connections = ConnectionsSetting::snapshot();
         let proxy_setting = ProxySetting::global().read().unwrap().clone();
-        runtime::save(&self.runtime_path, &connections, &proxy_setting)
+        runtime::save(
+            &self.runtime_path,
+            &connections,
+            &proxy_setting,
+            ProxyDetailSetting::snapshot(),
+            ProxyProviderDetailSetting::snapshot(),
+        )
     }
 
     fn handle_self_update(&mut self, tui: &mut Tui, restart: bool) -> Result<()> {
