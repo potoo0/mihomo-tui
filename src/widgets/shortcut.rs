@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 use ratatui::style::{Color, Style};
 use ratatui::text::Span;
 
-const DEFAULT_HL_COLOR: Color = Color::Indexed(130);
+pub const DEFAULT_HL_COLOR: Color = Color::Indexed(130);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Fragment {
