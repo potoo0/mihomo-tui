@@ -1,3 +1,9 @@
+## 0.5.3 - 2026-10-08
+
+### Features
+
+- **Config**: Add `runtime-config` to control loading and saving runtime UI/proxy settings, enabled by default. Override it for the current launch with `--runtime-config [true|false]`; using the flag without a value enables it, while omitting the flag follows the main config. When disabled, changes apply only to the current session and existing runtime files are preserved.
+
 ## 0.5.2 - 2026-10-06
 
 ### Features
