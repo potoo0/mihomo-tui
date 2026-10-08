@@ -26,6 +26,10 @@ pub struct Config {
     /// - `"mihomo_tui::api=debug"` — enable logs only for a specific module
     pub log_level: Option<String>,
 
+    /// Load and save runtime UI/proxy settings in the sidecar file.
+    #[serde(default = "default_runtime_config")]
+    pub runtime_config: bool,
+
     pub ui: Option<UiConfig>,
 
     #[serde(default)]
@@ -175,6 +179,10 @@ impl Default for OverviewBufferConfig {
             traffic: NonZeroUsize::new(100).unwrap(),
         }
     }
+}
+
+fn default_runtime_config() -> bool {
+    true
 }
 
 fn default_proxy_detail_sort_dir() -> SortDir {

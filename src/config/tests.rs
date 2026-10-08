@@ -198,6 +198,50 @@ proxy-setting:
 }
 
 #[test]
+fn test_runtime_config_boolean_and_default() {
+    for (setting, expected) in
+        [("", true), ("runtime-config: true", true), ("runtime-config: false", false)]
+    {
+        let yaml = format!("mihomo-api: http://localhost\n{setting}\n");
+        let config: Config = yaml_serde::from_str(&yaml).unwrap();
+        assert_eq!(config.runtime_config, expected);
+    }
+    for value in ["null", "1", "[]", "{}", "'false'"] {
+        let yaml = format!("mihomo-api: http://localhost\nruntime-config: {value}\n");
+        assert!(yaml_serde::from_str::<Config>(&yaml).is_err(), "accepted {value}");
+    }
+}
+
+#[test]
+fn test_disabled_runtime_config_skips_sidecar_and_can_be_reenabled() {
+    let dir = tempfile::tempdir().unwrap();
+    let cfg_path = dir.path().join("config.yaml");
+    let runtime_path = runtime::runtime_path_for(&cfg_path);
+    fs::write(&cfg_path, "mihomo-api: http://localhost\nruntime-config: false\nproxy-setting:\n  test-url: https://example.com/base\n").unwrap();
+    let sidecar = "$schema-version: 1\nproxy-setting:\n  test-url: https://example.com/runtime\n";
+    fs::write(&runtime_path, sidecar).unwrap();
+
+    let mut config = load(Some(cfg_path)).unwrap();
+    config.try_apply_runtime();
+    assert_eq!(config.proxy_setting.test_url, "https://example.com/base");
+    assert_eq!(fs::read_to_string(&runtime_path).unwrap(), sidecar);
+
+    config.config.runtime_config = true;
+    config.try_apply_runtime();
+    assert_eq!(config.proxy_setting.test_url, "https://example.com/runtime");
+
+    config.config.runtime_config = false;
+    fs::write(&runtime_path, "invalid: [").unwrap();
+    config.try_apply_runtime();
+    assert_eq!(config.proxy_setting.test_url, "https://example.com/runtime");
+
+    // A directory cannot be read as a sidecar; disabling must skip even that read.
+    fs::remove_file(&runtime_path).unwrap();
+    fs::create_dir(&runtime_path).unwrap();
+    config.try_apply_runtime();
+}
+
+#[test]
 fn test_config_runtime_sidecar_error_does_not_block_loading() {
     let cfg_path = TempFile::new(temp_config_path());
     let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));

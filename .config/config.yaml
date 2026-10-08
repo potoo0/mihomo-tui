@@ -27,6 +27,11 @@ log-file: mihomo-tui.log
 #   info,mihomo_tui=trace,mihomo_tui::app=debug
 log-level: error
 
+# Load and save runtime UI/proxy settings in the sidecar file, default is true.
+# Set false to keep changes only for the current session. Existing sidecar files are preserved.
+# Override for one launch with --runtime-config true/false.
+runtime-config: true
+
 # UI settings, Optional
 # startup-tab:
 #   - initial tab on launch; matching is case-insensitive.

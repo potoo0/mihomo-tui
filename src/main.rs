@@ -57,6 +57,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let mut loaded_config = config::load(args.config)?;
+    if let Some(enabled) = args.runtime_config {
+        loaded_config.config.runtime_config = enabled;
+    }
     logging::init(&loaded_config)?;
     loaded_config.try_apply_runtime();
     tracing::info!(

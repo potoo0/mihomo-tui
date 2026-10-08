@@ -38,6 +38,9 @@ impl Deref for LoadedConfig {
 
 impl LoadedConfig {
     pub fn try_apply_runtime(&mut self) {
+        if !self.config.runtime_config {
+            return;
+        }
         runtime::try_load_and_apply(&mut self.config, &self.runtime_path);
     }
 }

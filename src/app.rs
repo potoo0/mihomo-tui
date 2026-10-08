@@ -173,6 +173,9 @@ impl App {
     }
 
     fn save_runtime_config(&self) -> Result<()> {
+        if !self.config.runtime_config {
+            return Ok(());
+        }
         let connections = ConnectionsSetting::snapshot();
         let proxy_setting = ProxySetting::global().read().unwrap().clone();
         runtime::save(
@@ -287,5 +290,35 @@ impl App {
             }
         })?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn disabled_runtime_config_does_not_create_or_modify_sidecar() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.runtime.yaml");
+        let mut config = crate::config::default_config().unwrap();
+        config.runtime_config = false;
+        let api = Api::new(&config).unwrap();
+        let app = App::new(config, path.clone(), api).unwrap();
+
+        app.save_runtime_config().unwrap();
+        assert!(!path.exists());
+
+        let existing = "existing runtime settings";
+        std::fs::write(&path, existing).unwrap();
+        let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+        app.save_runtime_config().unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), existing);
+        assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), modified);
+
+        // An invalid destination would fail if saving were attempted.
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        app.save_runtime_config().unwrap();
     }
 }

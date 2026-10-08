@@ -69,7 +69,9 @@ Usage: mihomo-tui [OPTIONS]
 Options:
   -c, --config <CONFIG_FILE>
           Path to config file (default: /home/wsl/.config/mihomo-tui/config.yaml). Runtime UI/proxy settings are saved
-          to the sidecar file next to it (default: /home/wsl/.config/mihomo-tui/config.runtime.yaml)
+          to the sidecar file next to it (default: /home/wsl/.config/mihomo-tui/config.runtime.yaml), unless runtime-config is false
+      --runtime-config [<BOOL>]
+          Load and save runtime UI/proxy settings (no value means true; omitted uses config) [possible values: true, false]
       --update
           Self-update before starting
   -h, --help
@@ -86,7 +88,19 @@ The default location of the file depends on your OS:
 - macOS: `$HOME/Library/Application Support/io.github.potoo0.mihomo-tui/config.yaml`
 - Windows: `%APPDATA%/potoo0/mihomo-tui/config/config.yaml`
 
-The following is a sample config.toml file:
+Runtime UI/proxy settings are loaded from and saved to the sidecar next to the main
+configuration file (for example, `config.runtime.yaml`). Set `runtime-config: false`
+in the main configuration to disable both loading and saving. Changes made in the
+UI still apply for the current session, and existing sidecar files are preserved.
+The option defaults to `true` when omitted and takes effect on startup. Re-enabling
+it loads the existing sidecar again. It does not affect Mihomo core configuration.
+
+Use `mihomo-tui --runtime-config true` or `mihomo-tui --runtime-config false` to
+override this setting for the current launch. `mihomo-tui --runtime-config` is
+equivalent to `mihomo-tui --runtime-config true`. When the argument is omitted,
+the main configuration's `runtime-config` value is used.
+
+The following is a sample config.yaml file:
 
 ```yaml
 # Mihomo external controller, Required.
@@ -113,6 +127,9 @@ log-file: /tmp/mihomo-tui.log
 #   info,mihomo_tui=debug
 #   info,mihomo_tui=trace,mihomo_tui::app=debug
 log-level: error
+
+# Load and save runtime UI/proxy settings in the sidecar file, default is true.
+runtime-config: true
 
 # UI settings, Optional
 # startup-tab:
