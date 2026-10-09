@@ -1,0 +1,53 @@
+# Public, local-only fixture for the terminal demo.
+mixed-port: 17892
+external-controller: 127.0.0.1:19093
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: false
+geo-auto-update: false
+profile:
+  store-selected: false
+  store-fake-ip: false
+dns:
+  enable: false
+
+proxies:
+  - { name: Demo Direct A, type: direct }
+  - { name: Demo Direct B, type: direct }
+
+proxy-providers:
+  Demo Provider:
+    type: http
+    url: http://127.0.0.1:18080/proxy-provider.yaml
+    path: ./providers/demo.yaml
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://127.0.0.1:18080/health
+      interval: 86400
+      timeout: 1500
+      lazy: true
+      expected-status: 204
+
+proxy-groups:
+  - name: Demo Route
+    type: select
+    proxies: [Demo Direct A, Demo Direct B, DIRECT, REJECT]
+    use: [Demo Provider]
+  - name: Demo Backup
+    type: select
+    proxies: [Demo Direct B, Demo Direct A, DIRECT]
+
+rule-providers:
+  Demo Rules:
+    type: http
+    behavior: classical
+    format: yaml
+    url: http://127.0.0.1:18080/rule-provider.yaml
+    path: ./rules/demo.yaml
+    interval: 86400
+
+rules:
+  - RULE-SET,Demo Rules,Demo Route
+  - MATCH,Demo Backup

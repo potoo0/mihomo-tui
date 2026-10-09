@@ -14,8 +14,9 @@
 
 [screenshots](./docs/screenshots)
 
-![demo](https://vhs.charm.sh/vhs-6s7YehgTuudJ3Rgn4XiNKA.gif)
-> The terminal font shown in demo GIFs is [Sarasa Gothic](https://github.com/be5invis/Sarasa-Gothic),
+![demo](./docs/demo/demo.gif)
+> Generated with [Betamax](https://github.com/joshka/betamax).
+> The terminal font shown in the demo GIF is [Sarasa Gothic](https://github.com/be5invis/Sarasa-Gothic),
 > licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
 
 ## Limitations

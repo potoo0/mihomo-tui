@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+    <dir prefix="relative">../../../target/demo-tools/sarasa</dir>
+    <cachedir prefix="xdg">fontconfig</cachedir>
+</fontconfig>

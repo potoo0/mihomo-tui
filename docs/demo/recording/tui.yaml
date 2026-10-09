@@ -1,0 +1,15 @@
+mihomo-api: http://127.0.0.1:19093
+runtime-config: false
+log-level: error
+ui:
+  connections:
+    columns: [Host, Rule, Chains, DownRate, DownTotal, SourceIP, ConnectTime]
+    sort: { field: DownRate, dir: desc }
+  proxy-detail:
+    sort: { field: Name, dir: asc }
+  proxy-provider-detail:
+    sort: { field: Name, dir: asc }
+proxy-setting:
+  test-url: http://127.0.0.1:18080/health
+  test-timeout: 1500
+  latency-threshold: "100,500"
