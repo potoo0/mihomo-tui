@@ -191,6 +191,16 @@ impl Tui {
     pub async fn next_event(&mut self) -> Option<Event> {
         self.event_rx.recv().await
     }
+
+    pub fn clear_screen(&mut self) -> Result<()> {
+        // In ratatui 0.30, Terminal::clear queries the cursor position before
+        // clearing. Our fullscreen UI does not need to preserve that position.
+        // Resizing to the existing area clears the viewport and resets the
+        // previous buffer without a cursor query, ensuring a full redraw.
+        let area = self.terminal.get_frame().area();
+        self.terminal.resize(area)?;
+        Ok(())
+    }
 }
 
 impl Deref for Tui {

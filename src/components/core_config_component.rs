@@ -34,14 +34,18 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 /// schema for core config JSON
 const DEFAULT_SCHEMA: &str = include_str!("../../.config/core-config.schema.json");
 /// ui hints displayed above the editor.
-const CORE_CONFIG_EDIT_HINTS: [&str; 2] = [
-    r#" 1. Partial updates are supported: include only the fields you want to change (e.g. {"tun": {"enable": true}})."#,
-    " 2. Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.",
-];
+const CORE_CONFIG_EDIT_HINTS: [&str; 2] =
+    ["config.edit_hint.partial_update", "config.edit_hint.supported_fields"];
 const COMMENT_STYLE: Style = Style::new().fg(Color::DarkGray);
 
 /// Action button labels and constraints
-const ACTIONS: [&str; 5] = ["Reload", "Restart", "Flush FakeIP", "Flush DNS", "Update GEO"];
+const ACTIONS: [(&str, &str); 5] = [
+    ("Reload", "config.actions.reload"),
+    ("Restart", "config.actions.restart"),
+    ("Flush FakeIP", "config.actions.flush_fake_ip"),
+    ("Flush DNS", "config.actions.flush_dns"),
+    ("Update GEO", "config.actions.update_geo"),
+];
 const ACTION_CONSTRAINTS: [Constraint; ACTIONS.len()] = [Constraint::Min(1); ACTIONS.len()];
 
 #[derive(Debug, Default)]
@@ -259,7 +263,7 @@ impl CoreConfigComponent {
                 }
                 Err(e) => {
                     error!(error = ?e, "Failed to submit core config to mihomo API");
-                    let _ = action_tx.send(Action::Error(("Submit core config", e).into()));
+                    let _ = action_tx.send(Action::Error(("actions.submit_core_config", e).into()));
                     ctx.loading.store(false, Ordering::Relaxed);
                     ctx.render_requester.request_render();
                 }
@@ -270,7 +274,7 @@ impl CoreConfigComponent {
 
     fn handle_action_button(&mut self, idx: usize) -> Result<()> {
         let action_name = match ACTIONS.get(idx) {
-            Some(name) => *name,
+            Some((name, _)) => *name,
             None => return Ok(()),
         };
         if self.loading.load(Ordering::Relaxed) {
@@ -334,7 +338,7 @@ impl CoreConfigComponent {
     fn render_edit_hints(&mut self, frame: &mut Frame, area: Rect) {
         let notes = CORE_CONFIG_EDIT_HINTS
             .iter()
-            .map(|note| Line::styled(*note, COMMENT_STYLE))
+            .map(|note| Line::styled(rust_i18n::t!(*note), COMMENT_STYLE))
             .collect::<Vec<Line>>();
         let paragraph = Paragraph::new(notes);
         frame.render_widget(paragraph, area);
@@ -346,9 +350,12 @@ impl CoreConfigComponent {
             area.height.saturating_sub(2) as usize,
         );
         let title = if self.modified.load(Ordering::Relaxed) {
-            Span::styled(" core config * ", Style::default().fg(Color::Yellow))
+            Span::styled(
+                rust_i18n::t!("headers.core_config_modified"),
+                Style::default().fg(Color::Yellow),
+            )
         } else {
-            Span::raw(" core config ")
+            Span::raw(rust_i18n::t!("headers.core_config"))
         };
         let block_style = match (self.active_pane, &self.editor_state) {
             (ActivePane::Editor, _) => Style::default().fg(Color::LightBlue),
@@ -395,7 +402,7 @@ impl CoreConfigComponent {
             return;
         }
         let symbol = Throbber::default()
-            .label("Loading")
+            .label(rust_i18n::t!("status.loading"))
             .style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_set(BRAILLE_SIX)
@@ -410,11 +417,11 @@ impl CoreConfigComponent {
     fn render_actions(&mut self, frame: &mut Frame, area: Rect) {
         let [title_area, buttons_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(area);
-        let title = dashed_title_line("actions", area.width - 4).centered();
+        let title = dashed_title_line(rust_i18n::t!("titles.actions"), area.width - 4).centered();
         frame.render_widget(title, title_area);
 
         let chunks = Layout::horizontal(ACTION_CONSTRAINTS).spacing(1).split(buttons_area);
-        for (idx, label) in ACTIONS.into_iter().enumerate() {
+        for (idx, (_, label)) in ACTIONS.into_iter().enumerate() {
             let active =
                 matches!(self.active_pane, ActivePane::Action(active_idx) if active_idx == idx);
             frame.render_widget(Button::new(label).active(active), chunks[idx]);
@@ -432,55 +439,55 @@ impl Component for CoreConfigComponent {
             ActivePane::Editor => {
                 vec![
                     Shortcut::new(vec![
-                        Fragment::hl("⇧⇤"),
-                        Fragment::raw(" nav "),
-                        Fragment::hl("⇥"),
+                        Fragment::key("⇧⇤"),
+                        Fragment::label("shortcuts.nav"),
+                        Fragment::key("⇥"),
                     ])
                     .compact(vec![
-                        Fragment::hl("⇧⇤"),
-                        Fragment::raw("/"),
-                        Fragment::hl("⇥"),
+                        Fragment::key("⇧⇤"),
+                        Fragment::sep("/"),
+                        Fragment::key("⇥"),
                     ]),
                     Shortcut::new(vec![
-                        Fragment::hl(arrow::UP),
-                        Fragment::raw(" scroll "),
-                        Fragment::hl(arrow::DOWN),
+                        Fragment::key(arrow::UP),
+                        Fragment::label("shortcuts.scroll"),
+                        Fragment::key(arrow::DOWN),
                     ])
                     .compact(vec![
-                        Fragment::hl(arrow::UP),
-                        Fragment::raw("/"),
-                        Fragment::hl(arrow::DOWN),
-                        Fragment::raw(" scroll"),
+                        Fragment::key(arrow::UP),
+                        Fragment::sep("/"),
+                        Fragment::key(arrow::DOWN),
+                        Fragment::label("shortcuts.scroll"),
                     ]),
                     Shortcut::new(vec![
-                        Fragment::hl("PgUp"),
-                        Fragment::raw(" page "),
-                        Fragment::hl("PgDn"),
+                        Fragment::key("PgUp"),
+                        Fragment::label("shortcuts.page"),
+                        Fragment::key("PgDn"),
                     ])
                     .compact(vec![
-                        Fragment::hl("PgUp"),
-                        Fragment::raw("/"),
-                        Fragment::hl("PgDn"),
+                        Fragment::key("PgUp"),
+                        Fragment::sep("/"),
+                        Fragment::key("PgDn"),
                     ]),
                     Shortcut::from("edit", 0).unwrap(),
                     Shortcut::from("discard", 0).unwrap(),
-                    Shortcut::new(vec![Fragment::raw("submit "), Fragment::hl("↵")]),
+                    Shortcut::new(vec![Fragment::label("shortcuts.submit"), Fragment::key("↵")]),
                     Shortcut::from("dns", 1).unwrap(),
                 ]
             }
             ActivePane::Action(_) => {
                 vec![
                     Shortcut::new(vec![
-                        Fragment::hl("⇧⇤"),
-                        Fragment::raw(" nav "),
-                        Fragment::hl("⇥"),
+                        Fragment::key("⇧⇤"),
+                        Fragment::label("shortcuts.nav"),
+                        Fragment::key("⇥"),
                     ])
                     .compact(vec![
-                        Fragment::hl("⇧⇤"),
-                        Fragment::raw("/"),
-                        Fragment::hl("⇥"),
+                        Fragment::key("⇧⇤"),
+                        Fragment::sep("/"),
+                        Fragment::key("⇥"),
                     ]),
-                    Shortcut::new(vec![Fragment::raw("execute "), Fragment::hl("↵")]),
+                    Shortcut::new(vec![Fragment::label("shortcuts.execute"), Fragment::key("↵")]),
                     Shortcut::from("dns", 1).unwrap(),
                 ]
             }
@@ -529,7 +536,7 @@ impl Component for CoreConfigComponent {
                     KeyCode::Char('d') => self.load_core_config()?,
                     KeyCode::Enter => {
                         return self.submit_core_config().map(|_| None).or_else(|e| {
-                            Ok(Some(Action::Error(("Submit core config", e).into())))
+                            Ok(Some(Action::Error(("actions.submit_core_config", e).into())))
                         });
                     }
                     _ => (),
@@ -551,7 +558,7 @@ impl Component for CoreConfigComponent {
             if let Err(err) = self.sync_core_config() {
                 self.editor_state = EditorState::SyncFailed;
                 error!(error = ?err, "Failed to sync config from external editor");
-                return Ok(Some(Action::Error(("Sync config from external editor", err).into())));
+                return Ok(Some(Action::Error(("actions.sync_external_config", err).into())));
             }
             if self.loading.load(Ordering::Relaxed) {
                 self.throbber.calc_next();
@@ -563,7 +570,7 @@ impl Component for CoreConfigComponent {
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         // render border and title
-        let title_line = top_title_line("config", Style::default());
+        let title_line = top_title_line("titles.config", Style::default());
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
         let inner = block.inner(area);
         frame.render_widget(block, area);

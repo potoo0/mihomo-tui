@@ -163,7 +163,7 @@ impl ProxyProviderDetailComponent {
         tokio::task::Builder::new().name("proxy-provider-update").spawn(async move {
             if let Err(e) = ProxyProviders::update_and_reload(api, &name).await {
                 error!(error = ?e, "Failed to update provider");
-                let _ = action_tx.send(Action::Error(("Update proxy provider", e).into()));
+                let _ = action_tx.send(Action::Error(("actions.update_proxy_provider", e).into()));
             }
             loading.store(false, Ordering::Relaxed);
             render_requester.request_render();
@@ -195,7 +195,11 @@ impl ProxyProviderDetailComponent {
             card_layout(content_area, preferred_width).first().map_or(0, |card| card.width);
         block.title_bottom(
             Line::styled(
-                format!(" Card width: {preferred_width} (actual: {actual_width}) "),
+                rust_i18n::t!(
+                    "proxies.card_width",
+                    preferred_width = preferred_width,
+                    actual_width = actual_width
+                ),
                 Color::LightCyan,
             )
             .centered(),
@@ -205,7 +209,7 @@ impl ProxyProviderDetailComponent {
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.health_checking.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Testing")
+                .label(rust_i18n::t!("status.testing"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BLACK_CIRCLE)
@@ -218,7 +222,7 @@ impl ProxyProviderDetailComponent {
         }
         if self.loading.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Loading")
+                .label(rust_i18n::t!("status.loading"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BRAILLE_SIX)
@@ -309,43 +313,43 @@ impl Component for ProxyProviderDetailComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("q"), Fragment::raw("/"), Fragment::hl("Esc")]),
+            Shortcut::new(vec![Fragment::key("q"), Fragment::sep("/"), Fragment::key("Esc")]),
             Shortcut::new(vec![
-                Fragment::hl(arrow::LEFT),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::RIGHT),
+                Fragment::key(arrow::LEFT),
+                Fragment::sep("/"),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
+                Fragment::sep("/"),
+                Fragment::key(arrow::RIGHT),
             ]),
             Shortcut::new(vec![
-                Fragment::hl("s"),
-                Fragment::raw("/"),
-                Fragment::hl("S"),
-                Fragment::raw("ort"),
+                Fragment::key("s"),
+                Fragment::sep("/"),
+                Fragment::key("S"),
+                Fragment::label("shortcuts.sort"),
             ]),
             Shortcut::new(vec![
-                Fragment::hl("-"),
-                Fragment::raw("/"),
-                Fragment::hl("+"),
-                Fragment::raw(" width"),
+                Fragment::key("-"),
+                Fragment::sep("/"),
+                Fragment::key("+"),
+                Fragment::label("shortcuts.width"),
             ])
             .compact(vec![
-                Fragment::hl("-"),
-                Fragment::raw("/"),
-                Fragment::hl("+"),
-                Fragment::raw(" w"),
+                Fragment::key("-"),
+                Fragment::sep("/"),
+                Fragment::key("+"),
+                Fragment::label("shortcuts.width_short"),
             ]),
-            Shortcut::new(vec![Fragment::raw("back "), Fragment::hl("Esc")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.back"), Fragment::key("Esc")]),
             Shortcut::from("test", 0).unwrap(),
             Shortcut::from("update", 0).unwrap(),
             Shortcut::from("refresh", 0).unwrap(),

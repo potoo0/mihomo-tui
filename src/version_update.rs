@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
@@ -29,12 +30,14 @@ impl VersionStatus {
         matches!(self, Self::Available { .. })
     }
 
-    pub fn summary(&self) -> String {
+    pub fn summary(&self) -> Cow<'_, str> {
         match self {
-            Self::Unknown => "unknown".to_string(),
-            Self::Refreshing => "refreshing...".to_string(),
-            Self::UpToDate { current, .. } => format!("up to date ({current})"),
-            Self::Available { current, latest } => format!("{current} -> {latest}"),
+            Self::Unknown => rust_i18n::t!("status.unknown"),
+            Self::Refreshing => rust_i18n::t!("status.refreshing"),
+            Self::UpToDate { current, .. } => {
+                rust_i18n::t!("updates.up_to_date", current = current)
+            }
+            Self::Available { current, latest } => Cow::Owned(format!("{current} -> {latest}")),
         }
     }
 }

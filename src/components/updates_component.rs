@@ -121,8 +121,8 @@ impl UpdatesComponent {
                     info!("Mihomo core upgrade requested successfully");
                     let _ = action_tx.send(Action::Info(
                         AppMessage::from((
-                            "Update mihomo core",
-                            "Mihomo core upgrade requested, waiting for service to restart...",
+                            "actions.update_mihomo_core",
+                            "updates.core_restart_waiting",
                         ))
                         .msg_box_size(45, 30),
                     ));
@@ -149,18 +149,14 @@ impl UpdatesComponent {
                         warn!(previous_version, "Timed out waiting for mihomo core upgrade");
                         update_state.lock().core = previous;
                         let _ = action_tx.send(Action::Error(
-                            (
-                                "Update mihomo core",
-                                "Timed out waiting for mihomo core to restart with a new version",
-                            )
-                                .into(),
+                            ("actions.update_mihomo_core", "updates.core_restart_timeout").into(),
                         ));
                     }
                 }
                 Err(e) => {
                     warn!(error = ?e, "Failed to upgrade mihomo core");
                     update_state.lock().core = previous;
-                    let _ = action_tx.send(Action::Error(("Update mihomo core", e).into()));
+                    let _ = action_tx.send(Action::Error(("actions.update_mihomo_core", e).into()));
                 }
             }
             render_requester.request_render();
@@ -223,10 +219,14 @@ impl Component for UpdatesComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("q"), Fragment::raw("/"), Fragment::hl("Esc")]),
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav "), Fragment::hl("⇥")]),
-            Shortcut::new(vec![Fragment::raw("toggle "), Fragment::hl("Space")]),
-            Shortcut::new(vec![Fragment::raw("update "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::key("q"), Fragment::sep("/"), Fragment::key("Esc")]),
+            Shortcut::new(vec![
+                Fragment::key("⇧⇤"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("⇥"),
+            ]),
+            Shortcut::new(vec![Fragment::label("shortcuts.toggle"), Fragment::key("Space")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.update"), Fragment::key("↵")]),
             Shortcut::from("refresh", 0).unwrap(),
         ]
     }
@@ -282,17 +282,17 @@ impl Component for UpdatesComponent {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(top_title_line("updates", Style::default()))
+            .title(top_title_line("titles.updates", Style::default()))
             .padding(Padding::symmetric(2, 1));
         let content_area = block.inner(area);
         frame.render_widget(block, area);
 
         let state = self.snapshot();
-        let restart = if self.auto_restart { "yes" } else { "no" };
+        let restart = if self.auto_restart { "common.yes" } else { "common.no" };
         let lines = vec![
             Line::from(vec![
-                Span::raw("TUI auto restart? "),
-                Span::styled(restart, Color::LightCyan),
+                Span::raw(rust_i18n::t!("updates.auto_restart_prompt")),
+                Span::styled(rust_i18n::t!(restart), Color::LightCyan),
             ]),
             Line::raw(""),
             self.item_line(UpdateTarget::App, "mihomo-tui ", &state.app),

@@ -57,22 +57,22 @@ impl SettingPane for SourceIpAliasSettingPane {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw(" nav "),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
             ])
             .compact(vec![
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
             ]),
         ]
     }
@@ -186,7 +186,7 @@ impl SourceIpAliasSettingPane {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(if active { Color::Cyan } else { Color::DarkGray })
-            .title(" Source IP Alias ");
+            .title(rust_i18n::t!("connections.settings.source_ip_alias_title"));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -198,8 +198,10 @@ impl SourceIpAliasSettingPane {
 
     fn render_list(&mut self, frame: &mut Frame, area: Rect, active: bool) {
         if self.source_ips.is_empty() {
-            let line =
-                Line::from(Span::styled("No source IPs from current connections", Color::DarkGray));
+            let line = Line::from(Span::styled(
+                rust_i18n::t!("connections.settings.no_source_ips"),
+                Color::DarkGray,
+            ));
             frame.render_widget(line, area);
             return;
         }

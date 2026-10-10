@@ -112,7 +112,7 @@ impl ConnectionsComponent {
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.capture_mode.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Capture")
+                .label(rust_i18n::t!("status.capture"))
                 .style(Style::default().fg(Color::White).bg(Color::Blue).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Blue).bold())
                 .throbber_set(CANADIAN)
@@ -124,9 +124,9 @@ impl ConnectionsComponent {
             );
         }
         let (throbber_label, throbber_color) = if self.live_mode.load(Ordering::Relaxed) {
-            ("Live  ", Color::Green)
+            ("status.live", Color::Green)
         } else {
-            ("Paused", Color::Red)
+            ("status.paused", Color::Red)
         };
         let symbol = Throbber::default()
             .label(throbber_label)
@@ -157,7 +157,7 @@ impl ConnectionsComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("connections ("),
+            Span::raw(rust_i18n::t!("headers.connections")),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
@@ -183,9 +183,11 @@ impl ConnectionsComponent {
                         SortDir::Asc => triangle::UP,
                         SortDir::Desc => triangle::DOWN,
                     };
-                    Cell::from(format!("{}{}", title, arrow)).bold().cyan()
+                    Cell::from(format!("{}{}", crate::i18n::column_title(title), arrow))
+                        .bold()
+                        .cyan()
                 } else {
-                    Cell::from(title).bold()
+                    Cell::from(crate::i18n::column_title(title)).bold()
                 }
             })
             .collect::<Row>()
@@ -465,61 +467,66 @@ impl Component for ConnectionsComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
             ])
             .compact(vec![
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PU"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw("/"),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PD"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PU"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::sep("/"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PD"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
             ]),
             Shortcut::new(vec![
-                Fragment::hl(arrow::LEFT),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::RIGHT),
-                Fragment::raw(" sort "),
-                Fragment::hl("r"),
+                Fragment::key(arrow::LEFT),
+                Fragment::sep("/"),
+                Fragment::key(arrow::RIGHT),
+                Fragment::label("shortcuts.sort"),
+                Fragment::key("r"),
             ]),
             Shortcut::new(vec![
-                Fragment::hl("-"),
-                Fragment::raw("/"),
-                Fragment::hl("+"),
-                Fragment::raw(" width"),
+                Fragment::key("-"),
+                Fragment::sep("/"),
+                Fragment::key("+"),
+                Fragment::label("shortcuts.width"),
             ])
             .compact(vec![
-                Fragment::hl("-"),
-                Fragment::raw("/"),
-                Fragment::hl("+"),
-                Fragment::raw(" w"),
+                Fragment::key("-"),
+                Fragment::sep("/"),
+                Fragment::key("+"),
+                Fragment::label("shortcuts.width_short"),
             ]),
-            Shortcut::new(vec![Fragment::hl("Del"), Fragment::raw(" reset")])
-                .compact(vec![Fragment::hl("Del"), Fragment::raw(" rst")]),
+            Shortcut::new(vec![Fragment::key("Del"), Fragment::label("shortcuts.reset")]),
             Shortcut::new(vec![
-                Fragment::hl("t"),
-                Fragment::raw("/"),
-                Fragment::hl("T"),
-                Fragment::raw("erm"),
+                Fragment::key("t"),
+                Fragment::sep("/"),
+                Fragment::key("T"),
+                Fragment::label("shortcuts.terminate"),
+            ])
+            .compact(vec![
+                Fragment::key("t"),
+                Fragment::sep("/"),
+                Fragment::key("T"),
+                Fragment::label("shortcuts.terminate_short"),
             ]),
             Shortcut::from("capture", 0).unwrap(),
-            Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
-            Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.detail"), Fragment::key("↵")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.live"), Fragment::key("Esc")]),
             Shortcut::from("setting", 0).unwrap(),
         ]
     }

@@ -1,0 +1,45 @@
+# Localization
+
+UI text uses `rust-i18n`; catalogs are embedded at compile time from
+`locales/en.yml` and `locales/zh-CN.yml`. English is the default and fallback.
+
+## Conventions
+
+- Use semantic keys (`tabs.config`, `shortcuts.nav`, `updates.up_to_date`);
+  do not use English source text as a key.
+- Keep a full sentence in one key. Use named placeholders (`%{count}`) for
+  parameters; do not concatenate translated fragments.
+- Never translate identifiers, configuration keys, filter grammar, API values
+  or user data.
+- Call `rust_i18n::t!` at render time so language switching applies
+  immediately; `i18n::set_language` updates the global locale.
+- Translations return `Cow<str>`; borrow when possible. Compute terminal
+  widths with Ratatui (`Span::width`), not byte lengths.
+
+## Shortcuts
+
+`Fragment::key` / `sep` / `label` describe keycaps, separators and translated
+labels. Locale values are plain words; spacing and the keycap/word fusion rule
+(`y` + `yes` → `yes` with `y` highlighted) are owned by the shortcut widget.
+`Shortcut::from` looks up `shortcuts.<word>`.
+
+## Language popup
+
+Uppercase `L` opens the popup; arrows or `j`/`k` navigate, Enter applies,
+Esc or `q` cancels. The choice persists through the existing runtime-config
+writer, or is session-only when runtime config is disabled.
+`language: en | zh-CN` in the config sets the startup language.
+
+## Adding a language
+
+1. Add `locales/<code>.yml` with the same keys and placeholders as English.
+2. Add the variant to `Language` in `src/i18n/mod.rs`; update the `code`,
+   `indicator` and `native_name` mappings.
+3. Run the catalog parity tests and check terminal widths in both languages.
+
+## Validation
+
+```sh
+cargo +nightly fmt-check && cargo clippy-strict
+cargo test --locked
+```

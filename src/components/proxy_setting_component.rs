@@ -26,13 +26,13 @@ const LINE_HEIGHT: u16 = 3;
 #[derive(Debug, Default, Copy, Clone, PartialEq, Display, EnumIter)]
 pub enum ProxySettingField {
     #[default]
-    #[strum(to_string = "Test URL")]
+    #[strum(to_string = "proxy_settings.test_url")]
     TestUrl,
-    #[strum(to_string = "Test Timeout (ms)")]
+    #[strum(to_string = "proxy_settings.test_timeout")]
     TestTimeout,
-    #[strum(to_string = "Threshold (medium,high)")]
+    #[strum(to_string = "proxy_settings.threshold")]
     Threshold,
-    #[strum(to_string = "Auto Terminate Connections")]
+    #[strum(to_string = "proxy_settings.auto_terminate")]
     AutoTerminateConnections,
 }
 
@@ -109,12 +109,12 @@ impl ProxySettingComponent {
             ProxySettingField::TestTimeout => match input.parse::<usize>() {
                 Ok(v) => {
                     let timeout = NonZeroUsize::new(v)
-                        .ok_or_else(|| "Timeout must be a valid number".to_string())?;
+                        .ok_or_else(|| "proxy_settings.timeout_invalid".to_string())?;
                     ProxySetting::validate_test_timeout(timeout).map_err(|e| e.to_string())?;
                     setting.test_timeout = timeout;
                     Ok(())
                 }
-                Err(_) => Err("Timeout must be a valid number".into()),
+                Err(_) => Err("proxy_settings.timeout_invalid".into()),
             },
 
             ProxySettingField::Threshold => {
@@ -128,7 +128,7 @@ impl ProxySettingComponent {
                 // TODO support "true"/"false" or "1"/"0"
                 setting.auto_terminate_connections = input
                     .parse::<bool>()
-                    .map_err(|_| "Auto terminate connections must be true or false".to_string())?;
+                    .map_err(|_| "proxy_settings.auto_terminate_invalid".to_string())?;
                 Ok(())
             }
         }
@@ -162,8 +162,9 @@ impl ProxySettingComponent {
             } else {
                 (Color::DarkGray, field.value().into())
             };
+            let field_label = field.to_string();
             let block = Block::bordered()
-                .title(field.to_string())
+                .title(rust_i18n::t!(field_label.as_str()).into_owned())
                 .border_type(BorderType::Rounded)
                 .border_style(border_color);
             let line = Line::raw(val);
@@ -179,7 +180,10 @@ impl ProxySettingComponent {
         }
         if let Some(err) = &self.error {
             let block = Block::bordered().border_type(BorderType::Rounded).border_style(Color::Red);
-            let line = Line::from(Span::styled(err, Style::default().fg(Color::Red)));
+            let line = Line::from(Span::styled(
+                rust_i18n::t!(err.as_str()),
+                Style::default().fg(Color::Red),
+            ));
             let paragraph = Paragraph::new(line).block(block);
             frame.render_widget(paragraph, area);
         }
@@ -193,25 +197,41 @@ impl Component for ProxySettingComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::raw("cancel "), Fragment::hl("Esc")])
-                .compact(vec![Fragment::hl("Esc")]),
-            Shortcut::new(vec![Fragment::raw("confirm "), Fragment::hl("↵")]),
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav "), Fragment::hl("⇥")])
-                .compact(vec![Fragment::hl("⇧⇤"), Fragment::raw("/"), Fragment::hl("⇥")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.cancel"), Fragment::key("Esc")])
+                .compact(vec![Fragment::key("Esc")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.confirm"), Fragment::key("↵")]),
             Shortcut::new(vec![
-                Fragment::hl("←/C-←"),
-                Fragment::raw(" move "),
-                Fragment::hl("→/C-→"),
+                Fragment::key("⇧⇤"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("⇥"),
             ])
-            .compact(vec![Fragment::hl("←/→"), Fragment::raw(" move")]),
+            .compact(vec![
+                Fragment::key("⇧⇤"),
+                Fragment::sep("/"),
+                Fragment::key("⇥"),
+            ]),
             Shortcut::new(vec![
-                Fragment::hl("Back/C-Back"),
-                Fragment::raw(" del "),
-                Fragment::hl("Del/C-Del"),
+                Fragment::key("←/C-←"),
+                Fragment::label("shortcuts.move"),
+                Fragment::key("→/C-→"),
             ])
-            .compact(vec![Fragment::hl("Back/Del")]),
-            Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")])
-                .compact(vec![Fragment::hl("Home"), Fragment::raw("/"), Fragment::hl("End")]),
+            .compact(vec![Fragment::key("←/→"), Fragment::label("shortcuts.move")]),
+            Shortcut::new(vec![
+                Fragment::key("Back/C-Back"),
+                Fragment::label("shortcuts.delete"),
+                Fragment::key("Del/C-Del"),
+            ])
+            .compact(vec![Fragment::key("Back/Del")]),
+            Shortcut::new(vec![
+                Fragment::key("Home"),
+                Fragment::label("shortcuts.jump"),
+                Fragment::key("End"),
+            ])
+            .compact(vec![
+                Fragment::key("Home"),
+                Fragment::sep("/"),
+                Fragment::key("End"),
+            ]),
         ]
     }
 
@@ -267,7 +287,7 @@ impl Component for ProxySettingComponent {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(top_title_line("proxy settings", Style::default()));
+            .title(top_title_line("titles.proxy_settings", Style::default()));
         let content_area = block.inner(area);
         frame.render_widget(block, area);
         self.render_settings(frame, content_area);
