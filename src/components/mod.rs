@@ -15,6 +15,7 @@ mod msg_box_component;
 mod overview_component;
 mod proxies_component;
 mod proxy_detail_component;
+mod proxy_inspect_component;
 mod proxy_provider_detail_component;
 mod proxy_providers_component;
 mod proxy_setting_component;
@@ -70,6 +71,7 @@ pub enum ComponentId {
     ConnectionsSetting,
     Proxies,
     ProxyDetail,
+    ProxyInspect,
     ProxySetting,
     ProxyProviders,
     ProxyProviderDetail,

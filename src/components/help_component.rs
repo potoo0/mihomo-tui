@@ -140,6 +140,7 @@ impl HelpComponent {
             HelpRow::key_entry("r", "help.proxies.refresh"),
             HelpRow::key_entry("s", "help.proxies.open_settings"),
             HelpRow::key_entry("t", "help.proxies.test"),
+            HelpRow::key_entry("i", "help.proxies.inspect"),
             // proxy detail
             HelpRow::Empty,
             HelpRow::key_title("help.section.proxy_detail"),
@@ -147,12 +148,14 @@ impl HelpComponent {
             HelpRow::key_entry("-, +", "help.proxy_detail.resize_card"),
             HelpRow::key_entry("c", "help.proxy_detail.jump_to_current"),
             HelpRow::key_entry("[, ]", "help.proxy_detail.navigate_groups"),
+            HelpRow::key_entry("i", "help.proxies.inspect"),
             HelpRow::key_entry("s", "help.proxy_detail.change_sort"),
             HelpRow::key_entry("S", "help.proxy_detail.reverse_sort"),
             // proxy providers / proxy provider detail
             HelpRow::Empty,
             HelpRow::key_title("help.section.proxy_providers"),
             HelpRow::key_entry("Enter", "help.proxy_providers.show_detail"),
+            HelpRow::key_entry("i", "help.proxies.inspect"),
             HelpRow::key_entry("u", "help.proxy_providers.update"),
             // `logs` key bindings
             HelpRow::Empty,

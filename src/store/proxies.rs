@@ -393,8 +393,12 @@ mod tests {
             hidden: None,
             children: children.map(|v| v.into_iter().map(str::to_string).collect()),
             selected: None,
-            history: vec![DelayHistory { delay: latency.unwrap_or_default() }],
+            history: vec![DelayHistory {
+                delay: latency.unwrap_or_default(),
+                unmodeled_fields: Default::default(),
+            }],
             latency: latency.into(),
+            unmodeled_fields: Default::default(),
         }
     }
 

@@ -238,6 +238,7 @@ impl Component for ProxiesComponent {
                 Fragment::key(arrow::RIGHT),
             ]),
             Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.detail")]),
+            shortcut!("inspect", 0),
             shortcut!("refresh", 0),
             shortcut!("setting", 0),
             shortcut!("test", 0),
@@ -278,6 +279,14 @@ impl Component for ProxiesComponent {
             KeyCode::Esc => self.navigator.focused = None,
             KeyCode::Char('r') => self.load_proxies()?,
             KeyCode::Char('s') => return Ok(Some(Action::ProxySetting)),
+            KeyCode::Char('i') => {
+                let action = self
+                    .navigator
+                    .focused
+                    .and_then(Proxies::get)
+                    .map(|proxy| Action::ProxyInspect(Arc::clone(&proxy.proxy)));
+                return Ok(action);
+            }
             KeyCode::Enter => {
                 let action = self
                     .navigator
@@ -322,5 +331,47 @@ impl Component for ProxiesComponent {
         self.navigator.render(frame, area.inner(Margin::new(0, 1)));
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crossterm::event::KeyModifiers;
+    use indexmap::IndexMap;
+    use serde_json::json;
+
+    use super::*;
+    use crate::utils::test::proxy_store_lock;
+
+    fn proxy(name: &str, children: Option<Vec<&str>>) -> crate::models::proxy::Proxy {
+        serde_json::from_value(json!({
+            "name": name,
+            "type": "Selector",
+            "all": children,
+            "history": []
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn i_inspects_focused_proxy() {
+        let _guard = proxy_store_lock();
+        let proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["node"]))),
+            ("node".to_string(), proxy("node", None)),
+        ]);
+        Proxies::global().write().unwrap().push(proxies);
+
+        let mut component = ProxiesComponent::default();
+        component.navigator.focused = Some(0);
+        let action = component
+            .handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE))
+            .unwrap();
+
+        match action {
+            Some(Action::ProxyInspect(proxy)) => assert_eq!(proxy.name, "group"),
+            other => panic!("unexpected action: {other:?}"),
+        }
+        Proxies::global().write().unwrap().clear();
     }
 }

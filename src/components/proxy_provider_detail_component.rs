@@ -335,6 +335,7 @@ impl Component for ProxyProviderDetailComponent {
                 Fragment::key(arrow::RIGHT),
             ]),
             shortcut!("sort", 0, Fragment::key("S")),
+            shortcut!("inspect", 0),
             Shortcut::new(vec![
                 Fragment::key("-"),
                 Fragment::label("shortcuts.width").compact("shortcuts.width_short"),
@@ -373,6 +374,16 @@ impl Component for ProxyProviderDetailComponent {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.hide();
                 return Ok(Some(self.unfocus_action()));
+            }
+            KeyCode::Char('i') => {
+                let focused = self.navigator.focused;
+                let action = self
+                    .get_provider()
+                    .and_then(|provider| {
+                        focused.and_then(|idx| provider.provider.proxies.get(idx).cloned())
+                    })
+                    .map(|proxy| Action::ProxyInspect(Arc::new(proxy)));
+                return Ok(action);
             }
             KeyCode::Char('r') => self.load_providers()?,
             KeyCode::Char('t') => self.provider_health_check(provider_name)?,
@@ -455,9 +466,14 @@ impl Component for ProxyProviderDetailComponent {
 
 #[cfg(test)]
 mod tests {
+    use crossterm::event::KeyModifiers;
+    use indexmap::IndexMap;
+    use serde_json::json;
     use tokio::sync::mpsc::unbounded_channel;
 
     use super::*;
+    use crate::models::proxy_provider::ProxyProvider;
+    use crate::utils::test::proxy_store_lock;
 
     #[test]
     fn card_layout_respects_width_limits() {
@@ -509,5 +525,41 @@ mod tests {
         };
         component.update(Action::Quit).unwrap();
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
+    }
+
+    #[test]
+    fn i_inspects_focused_provider_proxy() {
+        let _guard = proxy_store_lock();
+        let provider: ProxyProvider = serde_json::from_value(json!({
+            "name": "provider",
+            "vehicleType": "HTTP",
+            "proxies": [{
+                "name": "node",
+                "type": "Shadowsocks",
+                "history": [],
+                "udp": true
+            }]
+        }))
+        .unwrap();
+        ProxyProviders::global()
+            .write()
+            .unwrap()
+            .push(IndexMap::from([("provider".to_string(), provider)]));
+
+        let mut component = ProxyProviderDetailComponent {
+            show: true,
+            provider_name: Some("provider".to_string()),
+            ..Default::default()
+        };
+        component.navigator.focused = Some(0);
+        let action = component
+            .handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE))
+            .unwrap();
+
+        match action {
+            Some(Action::ProxyInspect(proxy)) => assert_eq!(proxy.name, "node"),
+            other => panic!("unexpected action: {other:?}"),
+        }
+        ProxyProviders::global().write().unwrap().clear();
     }
 }

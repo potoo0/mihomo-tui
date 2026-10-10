@@ -431,6 +431,7 @@ impl Component for ProxyDetailComponent {
             ]),
             shortcut!("cur", 0),
             Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.select")]),
+            shortcut!("inspect", 0),
             Shortcut::new(vec![
                 Fragment::key("-"),
                 Fragment::label("shortcuts.width").compact("shortcuts.width_short"),
@@ -497,6 +498,15 @@ impl Component for ProxyDetailComponent {
                     self.backup_navigator();
                     self.update_proxy(selector_name, name.clone())?;
                 }
+            }
+            KeyCode::Char('i') => {
+                let action = self
+                    .navigator
+                    .focused
+                    .and_then(|idx| proxy.children.as_ref().and_then(|children| children.get(idx)))
+                    .and_then(|name| Proxies::get_by_name(name))
+                    .unwrap_or_else(|| Arc::clone(&proxy));
+                return Ok(Some(Action::ProxyInspect(action)));
             }
             KeyCode::Char('t') => {
                 let (name, is_group, reset_pending) = self
@@ -610,9 +620,23 @@ impl Component for ProxyDetailComponent {
 
 #[cfg(test)]
 mod tests {
+    use crossterm::event::KeyModifiers;
+    use indexmap::IndexMap;
+    use serde_json::json;
     use tokio::sync::mpsc::unbounded_channel;
 
     use super::*;
+    use crate::utils::test::proxy_store_lock;
+
+    fn proxy(name: &str, children: Option<Vec<&str>>) -> Proxy {
+        serde_json::from_value(json!({
+            "name": name,
+            "type": "Selector",
+            "all": children,
+            "history": []
+        }))
+        .unwrap()
+    }
 
     #[test]
     fn card_layout_respects_width_limits() {
@@ -667,5 +691,34 @@ mod tests {
         };
         component.update(Action::Quit).unwrap();
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyDetailLayoutChanged)));
+    }
+
+    #[test]
+    fn i_inspects_focused_child_or_current_group() {
+        let _guard = proxy_store_lock();
+        let proxies = IndexMap::from([
+            ("group".to_string(), proxy("group", Some(vec!["node"]))),
+            ("node".to_string(), proxy("node", None)),
+        ]);
+        Proxies::global().write().unwrap().push(proxies);
+
+        let mut component = ProxyDetailComponent {
+            show: true,
+            proxy_name: Some("group".to_string()),
+            ..Default::default()
+        };
+
+        for (focused, expected_name) in [(Some(0), "node"), (None, "group")] {
+            component.navigator.focused = focused;
+            let action = component
+                .handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE))
+                .unwrap();
+
+            match action {
+                Some(Action::ProxyInspect(proxy)) => assert_eq!(proxy.name, expected_name),
+                other => panic!("unexpected action: {other:?}"),
+            }
+        }
+        Proxies::global().write().unwrap().clear();
     }
 }
