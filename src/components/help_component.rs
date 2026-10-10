@@ -265,7 +265,7 @@ impl Component for HelpComponent {
                     self.horizontal_offset.saturating_add(1).min(self.max_horizontal_offset);
             }
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('?') => {
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             _ => (),
         }

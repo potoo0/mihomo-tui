@@ -66,11 +66,11 @@ pub struct RootComponent {
     idle_tabs: HashMap<ComponentId, u16>,
     components: HashMap<ComponentId, Box<dyn Component>>,
 
-    /// UI priority (input & render): `msg_box` > `focused` > `popup` > `normal`.
+    /// UI priority (input & render): `msg_box` > `focused` > `popups` > normal.
     /// Message box lifecycle is owned and eagerly cleared by RootComponent
     msg_box: Option<MsgBoxComponent>,
     focused: Option<ComponentId>,
-    popup: Option<ComponentId>,
+    popups: Vec<ComponentId>,
 }
 
 #[derive(Default)]
@@ -100,7 +100,7 @@ impl RootComponent {
             api: Default::default(),
             config: Default::default(),
             current_tab: initial_tab,
-            popup: Default::default(),
+            popups: Default::default(),
             focused: Default::default(),
             idle_tabs: Default::default(),
             msg_box: Default::default(),
@@ -185,11 +185,12 @@ impl RootComponent {
     }
 
     fn open_popup(&mut self, id: ComponentId) -> Result<()> {
-        info!("Opening popup {:?}", id);
-        self.popup = Some(id);
+        info!(popup = ?id, depth = self.popups.len(), "Opening popup");
 
         // get and init component, send shortcuts of current tab to footer
         let shortcuts = self.get_or_start(id)?.shortcuts();
+        self.popups.retain(|popup| *popup != id);
+        self.popups.push(id);
         let tx = self.action_tx.as_ref().unwrap();
         tx.send(Action::Shortcuts(shortcuts))?;
 
@@ -199,9 +200,32 @@ impl RootComponent {
         Ok(())
     }
 
+    fn unfocus(&mut self, id: ComponentId) -> Result<()> {
+        let was_popup = self.popups.contains(&id);
+        self.popups.retain(|popup| *popup != id);
+        if self.focused != Some(id) {
+            return Ok(());
+        }
+
+        if !was_popup {
+            self.focused = None;
+            return Ok(());
+        }
+
+        let next_focus = self.popups.last().copied();
+        self.focused = next_focus;
+        let shortcuts = self.get_or_start(next_focus.unwrap_or(self.current_tab))?.shortcuts();
+        let tx = self.action_tx.as_ref().unwrap();
+        tx.send(Action::Shortcuts(shortcuts))?;
+        if let Some(next_focus) = next_focus {
+            tx.send(Action::Focus(next_focus))?;
+        }
+        Ok(())
+    }
+
     fn set_shortcuts(&mut self, shortcuts: Vec<Shortcut>) -> Result<()> {
         let mut visible = Vec::with_capacity(shortcuts.len() + 2);
-        if self.popup.is_none() {
+        if self.popups.is_empty() {
             visible.push(Shortcut::new(vec![Fragment::key("?")]));
             visible.push(shortcut!("quit", 0));
         }
@@ -275,7 +299,7 @@ impl RootComponent {
                 }
                 KeyCode::Char('u')
                     if key.modifiers == KeyModifiers::CONTROL
-                        && self.popup.is_none()
+                        && self.popups.is_empty()
                         && self.focused.is_none()
                         && self.msg_box.is_none() =>
                 {
@@ -554,16 +578,7 @@ impl Component for RootComponent {
             }
             Action::DnsQuery => self.open_popup(ComponentId::DnsQuery)?,
             Action::Focus(focused) => self.focused = Some(focused),
-            Action::Unfocus => {
-                self.focused = None;
-                // close popup when unfocused
-                if self.popup.is_some() {
-                    self.popup = None;
-                    // send shortcuts of current tab to footer
-                    let shortcuts = self.get_or_start(self.current_tab)?.shortcuts();
-                    action_tx.send(Action::Shortcuts(shortcuts))?;
-                }
-            }
+            Action::Unfocus(id) => self.unfocus(id)?,
             _ => {}
         }
 
@@ -613,8 +628,8 @@ impl Component for RootComponent {
             self.get_or_start(self.current_tab)?.draw(frame, chunks[1])?;
         }
 
-        // draw popup if any
-        if let Some(popup) = self.popup {
+        // Draw popup layers from bottom to top.
+        for popup in self.popups.clone() {
             self.get_or_start(popup)?.draw(frame, chunks[1])?;
         }
         self.msg_box.as_ref().map(|c| c.draw(frame, area)).transpose()?;
@@ -639,9 +654,32 @@ fn area_msg_line<'a>(width: u16, height: u16) -> Line<'a> {
 #[cfg(test)]
 mod tests {
     use futures_util::FutureExt;
+    use tokio::sync::mpsc::unbounded_channel;
 
     use super::*;
     use crate::render::RenderScheduler;
+
+    struct TestPopup(ComponentId);
+
+    impl Component for TestPopup {
+        fn id(&self) -> ComponentId {
+            self.0
+        }
+
+        fn draw(&mut self, _frame: &mut Frame, _area: Rect) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn popup_test_root() -> (RootComponent, tokio::sync::mpsc::UnboundedReceiver<Action>) {
+        let (tx, rx) = unbounded_channel();
+        let mut root = RootComponent::new(ComponentId::Proxies);
+        root.action_tx = Some(tx);
+        for id in [ComponentId::Proxies, ComponentId::Help, ComponentId::Language] {
+            root.components.insert(id, Box::new(TestPopup(id)));
+        }
+        (root, rx)
+    }
 
     fn has_render_request(scheduler: &RenderScheduler) -> bool {
         scheduler.wait_for_request().now_or_never().is_some()
@@ -733,5 +771,140 @@ mod tests {
 
         hub.stop_if_unused(ComponentId::Logs, false);
         assert!(!hub.is_active());
+    }
+
+    #[test]
+    fn popup_open_stack_cases() {
+        struct Case {
+            name: &'static str,
+            initial: &'static [ComponentId],
+            opened: &'static [ComponentId],
+            expected: &'static [ComponentId],
+        }
+
+        let cases = [
+            Case {
+                name: "opening a popup on an empty stack",
+                initial: &[],
+                opened: &[ComponentId::Help],
+                expected: &[ComponentId::Help],
+            },
+            Case {
+                name: "opening the active popup again",
+                initial: &[],
+                opened: &[ComponentId::Help, ComponentId::Help],
+                expected: &[ComponentId::Help],
+            },
+            Case {
+                name: "opening a child popup",
+                initial: &[ComponentId::Help],
+                opened: &[ComponentId::Language],
+                expected: &[ComponentId::Help, ComponentId::Language],
+            },
+            Case {
+                name: "reopening a popup below the active popup",
+                initial: &[ComponentId::Help, ComponentId::Language],
+                opened: &[ComponentId::Help],
+                expected: &[ComponentId::Language, ComponentId::Help],
+            },
+        ];
+
+        for case in cases {
+            let (mut root, _rx) = popup_test_root();
+            root.popups = case.initial.to_vec();
+            for id in case.opened {
+                root.open_popup(*id).unwrap();
+            }
+            assert_eq!(root.popups, case.expected, "{}", case.name);
+        }
+    }
+
+    #[test]
+    fn popup_unfocus_stack_cases() {
+        struct Case {
+            name: &'static str,
+            initial: &'static [ComponentId],
+            focused: ComponentId,
+            unfocused: ComponentId,
+            expected: &'static [ComponentId],
+            expected_focused: Option<ComponentId>,
+            expect_shortcuts: bool,
+            expected_focus: Option<ComponentId>,
+        }
+
+        let cases = [
+            Case {
+                name: "closing a child popup",
+                initial: &[ComponentId::Help, ComponentId::Language],
+                focused: ComponentId::Language,
+                unfocused: ComponentId::Language,
+                expected: &[ComponentId::Help],
+                expected_focused: Some(ComponentId::Help),
+                expect_shortcuts: true,
+                expected_focus: Some(ComponentId::Help),
+            },
+            Case {
+                name: "closing the last popup",
+                initial: &[ComponentId::Help],
+                focused: ComponentId::Help,
+                unfocused: ComponentId::Help,
+                expected: &[],
+                expected_focused: None,
+                expect_shortcuts: true,
+                expected_focus: None,
+            },
+            Case {
+                name: "unfocusing a non-popup component",
+                initial: &[ComponentId::Help],
+                focused: ComponentId::Filter,
+                unfocused: ComponentId::Filter,
+                expected: &[ComponentId::Help],
+                expected_focused: None,
+                expect_shortcuts: false,
+                expected_focus: None,
+            },
+            Case {
+                name: "closing an inactive popup below the focused popup",
+                initial: &[ComponentId::ProxyDetail, ComponentId::Language],
+                focused: ComponentId::Language,
+                unfocused: ComponentId::ProxyDetail,
+                expected: &[ComponentId::Language],
+                expected_focused: Some(ComponentId::Language),
+                expect_shortcuts: false,
+                expected_focus: None,
+            },
+        ];
+
+        for case in cases {
+            let (mut root, mut rx) = popup_test_root();
+            root.popups = case.initial.to_vec();
+            root.focused = Some(case.focused);
+
+            root.update(Action::Unfocus(case.unfocused)).unwrap();
+
+            assert_eq!(root.popups, case.expected, "{}: popup stack", case.name);
+            assert_eq!(root.focused, case.expected_focused, "{}: focused state", case.name);
+            if case.expect_shortcuts {
+                assert!(
+                    matches!(rx.try_recv(), Ok(Action::Shortcuts(_))),
+                    "{}: expected shortcut refresh",
+                    case.name
+                );
+            } else {
+                assert!(rx.try_recv().is_err(), "{}: unexpected shortcut refresh", case.name);
+            }
+            match case.expected_focus {
+                Some(focus) => {
+                    assert!(
+                        matches!(rx.try_recv(), Ok(Action::Focus(id)) if id == focus),
+                        "{}: expected focus {focus:?}",
+                        case.name
+                    );
+                }
+                None => {
+                    assert!(rx.try_recv().is_err(), "{}: unexpected focus action", case.name);
+                }
+            }
+        }
     }
 }

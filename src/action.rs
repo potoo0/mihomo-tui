@@ -14,7 +14,8 @@ pub enum Action {
     Resize(u16, u16),
     Quit,
     Focus(ComponentId),
-    Unfocus,
+    /// Release focus from the component that emitted this action.
+    Unfocus(ComponentId),
     Info(AppMessage),
     Error(AppMessage),
     AppUpdateRequest,

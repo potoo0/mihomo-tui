@@ -134,6 +134,12 @@ pub trait Component {
     /// Get the unique identifier for the component.
     fn id(&self) -> ComponentId;
 
+    /// Build the action that releases this component's focus.
+    #[must_use]
+    fn unfocus_action(&self) -> Action {
+        Action::Unfocus(self.id())
+    }
+
     /// Get a list of shortcuts associated with the component.
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![]
