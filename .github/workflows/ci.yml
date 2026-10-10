@@ -30,11 +30,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
       - name: Setup toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
       - name: Check formatting
-        run: cargo +nightly fmt-check
+        run: cargo fmt-check
 
   lint-clippy:
     name: Check Clippy

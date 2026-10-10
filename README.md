@@ -234,6 +234,7 @@ Contributions, issues and pull requests are welcome!
 ### Code style
 
 ```bash
-cargo +nightly fmt-check
+cargo fmt-style
+cargo fmt-check
 cargo clippy-strict
 ```
