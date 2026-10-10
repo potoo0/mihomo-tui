@@ -50,6 +50,6 @@ writer, or is session-only when runtime config is disabled.
 ## Validation
 
 ```sh
-cargo +nightly fmt-check && cargo clippy-strict
+cargo fmt-check && cargo clippy-strict
 cargo test --locked
 ```

@@ -1,7 +1,19 @@
 [alias]
 clippy-strict = ["clippy", "--locked", "--all-targets", "--all-features", "--", "-D", "warnings"]
-# using nightly: cargo +nightly fmt-check
-fmt-check = ["fmt", "--all", "--", "--check"]
+# Stable rustfmt only applies unstable options passed through command-line config.
+fmt-style = [
+    "fmt",
+    "--all",
+    "--",
+    "--config", "comment_width=100",
+    "--config", "format_code_in_doc_comments=true",
+    "--config", "format_macro_matchers=true",
+    "--config", "group_imports=StdExternalCrate",
+    "--config", "imports_granularity=Module",
+    "--config", "normalize_doc_attributes=true",
+    "--config", "wrap_comments=true",
+]
+fmt-check = ["fmt-style", "--check"]
 
 [build]
 rustflags = ["--cfg", "tokio_unstable"]
