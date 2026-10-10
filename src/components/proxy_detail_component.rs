@@ -137,7 +137,7 @@ impl ProxyDetailComponent {
 
     fn close(&mut self) {
         self.hide();
-        let _ = self.action_tx.as_ref().unwrap().send(Action::Unfocus);
+        let _ = self.action_tx.as_ref().unwrap().send(self.unfocus_action());
     }
 
     /// Sync navigation stack with proxy name:

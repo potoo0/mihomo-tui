@@ -149,7 +149,7 @@ impl Component for ConnectionTerminateComponent {
                 if self.phase.read().unwrap().ne(&Phase::Terminating) =>
             {
                 self.hide();
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             KeyCode::Char('y') | KeyCode::Enter => {
                 let should_term =

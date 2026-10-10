@@ -175,7 +175,7 @@ impl ConnectionsSettingComponent {
         if let Some(tx) = &self.action_tx {
             tx.send(Action::ConnectionsSettingChanged)?;
         }
-        Ok(Some(Action::Unfocus))
+        Ok(Some(self.unfocus_action()))
     }
 
     fn render_settings(&mut self, frame: &mut Frame, area: Rect) {
@@ -231,7 +231,7 @@ impl Component for ConnectionsSettingComponent {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
                 self.hide();
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             KeyCode::Tab => self.switch_pane(self.active_pane.next()),
             KeyCode::BackTab => self.switch_pane(self.active_pane.prev()),

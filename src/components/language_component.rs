@@ -85,7 +85,9 @@ impl Component for LanguageComponent {
             KeyCode::End | KeyCode::Char('G') if self.scrollable => {
                 self.selected = Language::COUNT - 1
             }
-            KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::Unfocus)),
+            KeyCode::Esc | KeyCode::Char('q') => {
+                return Ok(Some(self.unfocus_action()));
+            }
             KeyCode::Enter => {
                 let language = Language::iter().nth(self.selected).unwrap();
                 // Re-confirming the active language is a no-op: close the popup
@@ -95,7 +97,7 @@ impl Component for LanguageComponent {
                 {
                     tx.send(Action::LanguageChanged(language))?;
                 }
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             _ => {}
         }
@@ -183,7 +185,7 @@ mod tests {
         for key in [KeyCode::Esc, KeyCode::Char('q')] {
             assert!(matches!(
                 component.handle_key_event(KeyEvent::new(key, KeyModifiers::NONE)).unwrap(),
-                Some(Action::Unfocus)
+                Some(Action::Unfocus(ComponentId::Language))
             ));
         }
     }

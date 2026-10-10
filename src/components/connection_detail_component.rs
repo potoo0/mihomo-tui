@@ -89,7 +89,7 @@ impl Component for ConnectionDetailComponent {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter => {
                 self.hide();
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             _ => {}
         };

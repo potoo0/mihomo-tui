@@ -419,7 +419,7 @@ impl Component for DnsQueryComponent {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
                 self.hide();
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             KeyCode::Tab => self.set_focused(self.focused.next()),
             KeyCode::BackTab => self.set_focused(self.focused.prev()),

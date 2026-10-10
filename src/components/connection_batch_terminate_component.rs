@@ -154,7 +154,7 @@ impl Component for ConnectionBatchTerminateComponent {
                 if self.phase.read().unwrap().ne(&Phase::Terminating) =>
             {
                 self.hide();
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             KeyCode::Char('y') | KeyCode::Enter
                 if *self.phase.read().unwrap() == Phase::Confirm =>

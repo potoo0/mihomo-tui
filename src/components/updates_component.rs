@@ -258,7 +258,9 @@ impl Component for UpdatesComponent {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
-            KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::Unfocus)),
+            KeyCode::Esc | KeyCode::Char('q') => {
+                return Ok(Some(self.unfocus_action()));
+            }
             KeyCode::Tab | KeyCode::BackTab => self.selected = self.selected.next(),
             KeyCode::Char(' ') => self.toggle_auto_restart(),
             KeyCode::Char('r') => self.refresh_versions()?,

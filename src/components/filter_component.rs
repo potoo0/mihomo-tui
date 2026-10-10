@@ -105,7 +105,7 @@ impl Component for FilterComponent {
             KeyCode::Enter | KeyCode::Esc => {
                 self.is_active = false;
                 self.send()?;
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             _ => {
                 if let Some(req) = input_request(key) {

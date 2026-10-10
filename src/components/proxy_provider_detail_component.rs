@@ -116,7 +116,7 @@ impl ProxyProviderDetailComponent {
 
     fn close(&mut self) {
         self.hide();
-        let _ = self.action_tx.as_ref().unwrap().send(Action::Unfocus);
+        let _ = self.action_tx.as_ref().unwrap().send(self.unfocus_action());
     }
 
     fn load_providers(&self) -> anyhow::Result<()> {
@@ -372,7 +372,7 @@ impl Component for ProxyProviderDetailComponent {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.hide();
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             KeyCode::Char('r') => self.load_providers()?,
             KeyCode::Char('t') => self.provider_health_check(provider_name)?,

@@ -232,7 +232,7 @@ impl Component for ProxySettingComponent {
         match key.code {
             KeyCode::Esc => {
                 self.hide();
-                return Ok(Some(Action::Unfocus));
+                return Ok(Some(self.unfocus_action()));
             }
             KeyCode::Tab => self.next(),
             KeyCode::BackTab => self.prev(),
@@ -241,7 +241,7 @@ impl Component for ProxySettingComponent {
                 if self.error.is_none() {
                     self.hide();
                     self.action_tx.as_ref().unwrap().send(Action::ProxySettingChanged)?;
-                    return Ok(Some(Action::Unfocus));
+                    return Ok(Some(self.unfocus_action()));
                 }
             }
             _ => {
