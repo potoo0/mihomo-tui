@@ -63,21 +63,21 @@ impl Component for ConnectionDetailComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl("q"),
-                Fragment::raw("/"),
-                Fragment::hl("Esc"),
-                Fragment::raw("/"),
-                Fragment::hl("Enter"),
+                Fragment::key("q"),
+                Fragment::sep("/"),
+                Fragment::key("Esc"),
+                Fragment::sep("/"),
+                Fragment::key("Enter"),
             ]),
             Shortcut::new(vec![
-                Fragment::hl(arrow::UP),
-                Fragment::raw(" scroll "),
-                Fragment::hl(arrow::DOWN),
+                Fragment::key(arrow::UP),
+                Fragment::label("shortcuts.scroll"),
+                Fragment::key(arrow::DOWN),
             ]),
             Shortcut::new(vec![
-                Fragment::hl("PgUp"),
-                Fragment::raw(" page "),
-                Fragment::hl("PgDn"),
+                Fragment::key("PgUp"),
+                Fragment::label("shortcuts.page"),
+                Fragment::key("PgDn"),
             ]),
         ]
     }
@@ -116,7 +116,7 @@ impl Component for ConnectionDetailComponent {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(top_title_line("detail", Style::default()));
+            .title(top_title_line("titles.detail", Style::default()));
         let paragraph =
             Paragraph::new(self.data.as_str()).scroll((self.scroller.pos() as u16, 0)).block(block);
 

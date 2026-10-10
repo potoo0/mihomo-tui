@@ -145,10 +145,10 @@ impl OverviewComponent {
         };
 
         let header = Row::new([
-            Cell::from(Line::from("Rate").centered()),
-            Cell::from(Line::from("Total").centered()),
-            Cell::from(Line::from("Conns").centered()),
-            Cell::from(Line::from("Memory").centered()),
+            Cell::from(Line::from(rust_i18n::t!("overview.rate")).centered()),
+            Cell::from(Line::from(rust_i18n::t!("overview.total")).centered()),
+            Cell::from(Line::from(rust_i18n::t!("overview.connections")).centered()),
+            Cell::from(Line::from(rust_i18n::t!("overview.memory")).centered()),
         ]);
 
         let cells_content = vec![
@@ -234,7 +234,9 @@ impl OverviewComponent {
         let chunks =
             Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
         let blocks = [
-            Some(Block::default().title(Line::from("Traffic chart").cyan().bold().centered())),
+            Some(Block::default().title(
+                Line::from(rust_i18n::t!("overview.traffic_chart")).cyan().bold().centered(),
+            )),
             None,
         ];
         for index in 0..2 {
@@ -273,19 +275,18 @@ impl OverviewComponent {
             Dataset::default().marker(Marker::Braille).graph_type(GraphType::Line).data(&data);
 
         let bounds = axis_bounds(&data);
-        let chart = Chart::new(vec![dataset])
-            .block(
-                Block::default()
-                    .padding(Padding::left(1))
-                    .title(Line::from("Memory chart").cyan().bold().centered()),
-            )
-            .x_axis(Axis::default().bounds([0.0, data.len() as f64]))
-            .y_axis(
-                Axis::default()
-                    .style(Style::default().dark_gray())
-                    .bounds([bounds.0, bounds.1])
-                    .labels(axis_labels(bounds.0, bounds.1)),
-            );
+        let chart =
+            Chart::new(vec![dataset])
+                .block(Block::default().padding(Padding::left(1)).title(
+                    Line::from(rust_i18n::t!("overview.memory_chart")).cyan().bold().centered(),
+                ))
+                .x_axis(Axis::default().bounds([0.0, data.len() as f64]))
+                .y_axis(
+                    Axis::default()
+                        .style(Style::default().dark_gray())
+                        .bounds([bounds.0, bounds.1])
+                        .labels(axis_labels(bounds.0, bounds.1)),
+                );
         frame.render_widget(chart, area);
     }
 }

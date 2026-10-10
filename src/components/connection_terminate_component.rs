@@ -42,8 +42,8 @@ enum Phase {
 impl Phase {
     fn ui(&self) -> Option<(Color, &str)> {
         match self {
-            Phase::Terminating => Some((Color::Yellow, "Connection terminating...")),
-            Phase::DoneOk => Some((Color::Green, "Connection terminated successfully.")),
+            Phase::Terminating => Some((Color::Yellow, "connections.terminating")),
+            Phase::DoneOk => Some((Color::Green, "connections.terminated")),
             Phase::DoneErr(e) => Some((Color::Red, e.as_str())),
             Phase::Hidden | Phase::Confirm => None,
         }
@@ -127,13 +127,17 @@ impl Component for ConnectionTerminateComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("y"), Fragment::raw("es "), Fragment::hl("↵")]),
             Shortcut::new(vec![
-                Fragment::hl("n"),
-                Fragment::raw("o "),
-                Fragment::hl("q"),
-                Fragment::raw("/"),
-                Fragment::hl("Esc"),
+                Fragment::key("y"),
+                Fragment::label("shortcuts.yes"),
+                Fragment::key("↵"),
+            ]),
+            Shortcut::new(vec![
+                Fragment::key("n"),
+                Fragment::label("shortcuts.no"),
+                Fragment::key("q"),
+                Fragment::sep("/"),
+                Fragment::key("Esc"),
             ]),
         ]
     }
@@ -196,7 +200,7 @@ impl Component for ConnectionTerminateComponent {
         let border = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(top_title_line("terminate", Style::default()))
+            .title(top_title_line("titles.terminate", Style::default()))
             .padding(Padding::symmetric(2, 1));
         let inner = border.inner(area);
         frame.render_widget(border, area);
@@ -209,26 +213,25 @@ impl Component for ConnectionTerminateComponent {
                 let value = (def.accessor)(conn);
                 Line::from(vec![
                     Span::styled(
-                        format!("{:<12}", def.title),
+                        {
+                            let title = rust_i18n::t!(def.title);
+                            let padding = 12usize.saturating_sub(Span::raw(title.as_ref()).width());
+                            format!("{}{}", title, " ".repeat(padding))
+                        },
                         Style::default().add_modifier(Modifier::BOLD),
                     ),
                     Span::raw(value),
                 ])
             })
             .collect();
-        lines.insert(0, Line::from(Span::raw("Are you sure to terminate this connection?")));
+        lines.insert(0, Line::from(Span::raw(rust_i18n::t!("connections.confirm_terminate"))));
         lines.insert(1, Line::raw(""));
         let content = Paragraph::new(lines).wrap(Wrap { trim: true }).alignment(Alignment::Left);
         frame.render_widget(content, chunks[0]);
 
         // msg box
         if conn.inactive.load(Ordering::Relaxed) {
-            Self::render_msgbox(
-                frame,
-                chunks[1],
-                Color::DarkGray,
-                "Connection is already inactive.",
-            );
+            Self::render_msgbox(frame, chunks[1], Color::DarkGray, "connections.inactive");
             return Ok(());
         }
 

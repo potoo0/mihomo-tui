@@ -145,9 +145,10 @@ impl RuleProvidersComponent {
         if !self.is_busy() {
             return;
         }
-        let label = if self.loading.load(Ordering::Relaxed) { "Loading" } else { "Updating" };
+        let label =
+            if self.loading.load(Ordering::Relaxed) { "status.loading" } else { "status.updating" };
         let symbol = Throbber::default()
-            .label(label)
+            .label(rust_i18n::t!(label))
             .style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_set(BRAILLE_SIX)
@@ -177,7 +178,7 @@ impl RuleProvidersComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("rule providers ("),
+            Span::raw(rust_i18n::t!("headers.rule_providers")),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
@@ -191,7 +192,7 @@ impl RuleProvidersComponent {
         let header = RULE_PROVIDER_COLS
             .iter()
             .map(|def| def.col.title)
-            .map(|title| Cell::from(title).bold())
+            .map(|title| Cell::from(crate::i18n::column_title(title)).bold())
             .collect::<Row>()
             .height(1)
             .bottom_margin(1);
@@ -227,17 +228,17 @@ impl Component for RuleProvidersComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
             ]),
             Shortcut::from("refresh", 0).unwrap(),
             Shortcut::from("update", 0).unwrap(),

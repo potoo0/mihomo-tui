@@ -11,6 +11,7 @@ mod app_message;
 mod cli;
 mod components;
 mod config;
+mod i18n;
 mod logging;
 mod models;
 mod palette;
@@ -21,6 +22,8 @@ mod tui;
 mod utils;
 mod version_update;
 mod widgets;
+
+rust_i18n::i18n!("locales", fallback = "en");
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -62,6 +65,7 @@ async fn main() -> anyhow::Result<()> {
     }
     logging::init(&loaded_config)?;
     loaded_config.try_apply_runtime();
+    i18n::set_language(loaded_config.language);
     tracing::info!(
         config_path = %loaded_config.config_path.display(),
         runtime_path = %loaded_config.runtime_path.display(),

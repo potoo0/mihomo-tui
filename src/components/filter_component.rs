@@ -50,35 +50,47 @@ impl Component for FilterComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl("←/C-←"),
-                Fragment::raw(" move "),
-                Fragment::hl("→/C-→"),
+                Fragment::key("←/C-←"),
+                Fragment::label("shortcuts.move"),
+                Fragment::key("→/C-→"),
             ])
             .compact(vec![
-                Fragment::hl("←/C-←"),
-                Fragment::raw("/"),
-                Fragment::hl("→/C-→"),
+                Fragment::key("←/C-←"),
+                Fragment::sep("/"),
+                Fragment::key("→/C-→"),
             ]),
             Shortcut::new(vec![
-                Fragment::hl("Back/C-Back"),
-                Fragment::raw(" del "),
-                Fragment::hl("Del/C-Del"),
+                Fragment::key("Back/C-Back"),
+                Fragment::label("shortcuts.delete"),
+                Fragment::key("Del/C-Del"),
             ])
             .compact(vec![
-                Fragment::hl("Back"),
-                Fragment::raw("/"),
-                Fragment::hl("Del"),
+                Fragment::key("Back"),
+                Fragment::sep("/"),
+                Fragment::key("Del"),
             ]),
-            Shortcut::new(vec![Fragment::hl("C-Y"), Fragment::raw("ank")]),
-            Shortcut::new(vec![Fragment::hl("Home"), Fragment::raw(" jump "), Fragment::hl("End")])
-                .compact(vec![Fragment::hl("Home"), Fragment::raw("/"), Fragment::hl("End")]),
+            Shortcut::new(vec![Fragment::key("C-Y"), Fragment::label("shortcuts.yank")]),
             Shortcut::new(vec![
-                Fragment::raw("esc "),
-                Fragment::hl("Esc"),
-                Fragment::raw("/"),
-                Fragment::hl("↵"),
+                Fragment::key("Home"),
+                Fragment::label("shortcuts.jump"),
+                Fragment::key("End"),
             ])
-            .compact(vec![Fragment::hl("Esc"), Fragment::raw("/"), Fragment::hl("↵")]),
+            .compact(vec![
+                Fragment::key("Home"),
+                Fragment::sep("/"),
+                Fragment::key("End"),
+            ]),
+            Shortcut::new(vec![
+                Fragment::label("shortcuts.escape"),
+                Fragment::key("Esc"),
+                Fragment::sep("/"),
+                Fragment::key("↵"),
+            ])
+            .compact(vec![
+                Fragment::key("Esc"),
+                Fragment::sep("/"),
+                Fragment::key("↵"),
+            ]),
         ]
     }
 
@@ -112,6 +124,9 @@ impl Component for FilterComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Focus(ComponentId::Filter) => self.is_active = true,
+            Action::LanguageChanged(_) => {
+                self.shortcuts_full_width = shortcuts_full_width(&self.shortcuts(), 2);
+            }
             Action::Tick => self.send()?,
             Action::FilterSet(pattern) => {
                 debug!("handle Action::FilterSet, pattern={pattern:?}");

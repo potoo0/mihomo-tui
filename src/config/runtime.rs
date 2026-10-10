@@ -19,6 +19,8 @@ const SCHEMA_VERSION: u16 = 1;
 pub struct RuntimeConfig {
     #[serde(rename = "$schema-version")]
     schema_version: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    language: Option<crate::i18n::Language>,
     ui: Option<UiConfig>,
     proxy_setting: Option<ProxySetting>,
 }
@@ -32,6 +34,7 @@ impl RuntimeConfig {
     ) -> Result<Self> {
         Ok(Self {
             schema_version: SCHEMA_VERSION,
+            language: Some(crate::i18n::language()),
             ui: Some(UiConfig {
                 startup_tab: None,
                 connections: Some(ConnectionsUiConfig::try_from(connections)?),
@@ -53,6 +56,10 @@ impl RuntimeConfig {
                 self.schema_version,
                 SCHEMA_VERSION
             );
+        }
+
+        if let Some(language) = self.language {
+            config.language = language;
         }
 
         if let Some(runtime_ui) = self.ui {
@@ -194,6 +201,21 @@ mod tests {
     use crate::store::query::QueryState;
 
     #[test]
+    fn language_sidecar_is_optional_and_overrides_main_config() {
+        let mut config = crate::config::default_config().unwrap();
+        config.language = crate::i18n::Language::SimplifiedChinese;
+        let old: RuntimeConfig = yaml_serde::from_str("$schema-version: 1").unwrap();
+        old.apply_to(&mut config).unwrap();
+        assert_eq!(config.language, crate::i18n::Language::SimplifiedChinese);
+        let runtime: RuntimeConfig =
+            yaml_serde::from_str("$schema-version: 1\nlanguage: en").unwrap();
+        let raw = yaml_serde::to_string(&runtime).unwrap();
+        let restored: RuntimeConfig = yaml_serde::from_str(&raw).unwrap();
+        restored.apply_to(&mut config).unwrap();
+        assert_eq!(config.language, crate::i18n::Language::English);
+    }
+
+    #[test]
     fn runtime_path_for_config_with_yaml_extension() {
         assert_eq!(
             runtime_path_for(Path::new("/tmp/config.yaml")),
@@ -281,9 +303,10 @@ mod tests {
     #[test]
     fn apply_rejects_unknown_schema_version() {
         let mut config = crate::config::default_config().unwrap();
-        let err = RuntimeConfig { schema_version: 2, ui: None, proxy_setting: None }
-            .apply_to(&mut config)
-            .unwrap_err();
+        let err =
+            RuntimeConfig { schema_version: 2, language: None, ui: None, proxy_setting: None }
+                .apply_to(&mut config)
+                .unwrap_err();
 
         assert!(err.to_string().contains("Unsupported runtime config schema version"));
     }

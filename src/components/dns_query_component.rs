@@ -154,12 +154,12 @@ impl DnsQueryComponent {
 
         let name = self.input.value().trim();
         if name.is_empty() {
-            self.error = Some("Name is required".into());
+            self.error = Some("dns.name_required".into());
             return;
         }
 
         let Some(api) = self.api.as_ref().map(Arc::clone) else {
-            self.error = Some("API is not initialized".into());
+            self.error = Some("dns.api_not_initialized".into());
             return;
         };
 
@@ -200,7 +200,7 @@ impl DnsQueryComponent {
             }
             Err(oneshot::error::TryRecvError::Empty) => {}
             Err(oneshot::error::TryRecvError::Closed) => {
-                self.error = Some("DNS query task stopped".into());
+                self.error = Some("dns.task_stopped".into());
                 self.finish_query();
             }
         }
@@ -238,7 +238,7 @@ impl DnsQueryComponent {
             return;
         }
         let symbol = Throbber::default()
-            .label("Querying")
+            .label(rust_i18n::t!("status.querying"))
             .style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_set(BRAILLE_SIX)
@@ -271,7 +271,7 @@ impl DnsQueryComponent {
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(type_style)
-                .title(" Type "),
+                .title(rust_i18n::t!("dns.type_title")),
         );
         frame.render_widget(type_widget, type_area);
 
@@ -287,7 +287,7 @@ impl DnsQueryComponent {
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(name_style)
-                .title(" Name "),
+                .title(rust_i18n::t!("dns.name_title")),
         );
         frame.render_widget(name, name_area);
         if self.focused == FocusedField::Name {
@@ -298,7 +298,10 @@ impl DnsQueryComponent {
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
         if let Some(error) = &self.error {
-            let line = Line::from(Span::styled(error, Style::default().fg(Color::Red)));
+            let line = Line::from(Span::styled(
+                rust_i18n::t!(error.as_str()),
+                Style::default().fg(Color::Red),
+            ));
             frame.render_widget(Paragraph::new(line), area);
         }
     }
@@ -306,7 +309,7 @@ impl DnsQueryComponent {
     fn render_answers(&mut self, frame: &mut Frame, area: Rect) {
         let focused = self.focused == FocusedField::Answers;
         let block_style = if focused { Style::default().fg(Color::Cyan) } else { Style::default() };
-        let title = format!(" Answers ({}) ", self.answers.len());
+        let title = rust_i18n::t!("dns.answers", count = self.answers.len());
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(block_style)
@@ -321,12 +324,12 @@ impl DnsQueryComponent {
             self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
 
         if self.answers.is_empty() && !self.loading.load(Ordering::Relaxed) {
-            let message = if self.error.is_some() { "" } else { "No answer records" };
-            frame.render_widget(Paragraph::new(message).block(block), area);
+            let message = if self.error.is_some() { "" } else { "dns.no_answers" };
+            frame.render_widget(Paragraph::new(rust_i18n::t!(message)).block(block), area);
             return;
         }
 
-        let header = Row::new(["NAME", "DATA"])
+        let header = Row::new([rust_i18n::t!("dns.name_column"), rust_i18n::t!("dns.data_column")])
             .height(1)
             .bottom_margin(1)
             .style(Style::default().add_modifier(Modifier::BOLD));
@@ -364,29 +367,33 @@ impl Component for DnsQueryComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         let mut shortcuts = Vec::with_capacity(4);
         shortcuts.extend(vec![
-            Shortcut::new(vec![Fragment::hl("Esc")]),
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" focus "), Fragment::hl("⇥")]),
-            Shortcut::new(vec![Fragment::raw("query "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::key("Esc")]),
+            Shortcut::new(vec![
+                Fragment::key("⇧⇤"),
+                Fragment::label("shortcuts.focus"),
+                Fragment::key("⇥"),
+            ]),
+            Shortcut::new(vec![Fragment::label("shortcuts.query"), Fragment::key("↵")]),
         ]);
         match self.focused {
             FocusedField::Type => shortcuts.push(Shortcut::new(vec![
-                Fragment::hl("←"),
-                Fragment::raw(" type "),
-                Fragment::hl("→"),
+                Fragment::key("←"),
+                Fragment::label("shortcuts.type"),
+                Fragment::key("→"),
             ])),
             FocusedField::Name => shortcuts.push(Shortcut::new(vec![
-                Fragment::hl("←"),
-                Fragment::raw(" cursor "),
-                Fragment::hl("→"),
+                Fragment::key("←"),
+                Fragment::label("shortcuts.cursor"),
+                Fragment::key("→"),
             ])),
             FocusedField::Answers => shortcuts.push(Shortcut::new(vec![
-                Fragment::hl("←"),
-                Fragment::raw("/"),
-                Fragment::hl("↑"),
-                Fragment::raw(" nav "),
-                Fragment::hl("↓"),
-                Fragment::raw("/"),
-                Fragment::hl("→"),
+                Fragment::key("←"),
+                Fragment::sep("/"),
+                Fragment::key("↑"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("↓"),
+                Fragment::sep("/"),
+                Fragment::key("→"),
             ])),
         }
 
@@ -447,7 +454,7 @@ impl Component for DnsQueryComponent {
         let border = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(top_title_line("dns query", Style::default()))
+            .title(top_title_line("titles.dns_query", Style::default()))
             .padding(Padding::symmetric(2, 1));
         let content_area = border.inner(area);
         frame.render_widget(border, area);
@@ -476,26 +483,34 @@ mod tests {
 
         assert_eq!(
             component.shortcuts()[3],
-            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" type "), Fragment::hl("→")])
+            Shortcut::new(vec![
+                Fragment::key("←"),
+                Fragment::label("shortcuts.type"),
+                Fragment::key("→")
+            ])
         );
 
         component.set_focused(FocusedField::Name);
         assert_eq!(
             component.shortcuts()[3],
-            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" cursor "), Fragment::hl("→")])
+            Shortcut::new(vec![
+                Fragment::key("←"),
+                Fragment::label("shortcuts.cursor"),
+                Fragment::key("→")
+            ])
         );
 
         component.set_focused(FocusedField::Answers);
         assert_eq!(
             component.shortcuts()[3],
             Shortcut::new(vec![
-                Fragment::hl("←"),
-                Fragment::raw("/"),
-                Fragment::hl("↑"),
-                Fragment::raw(" nav "),
-                Fragment::hl("↓"),
-                Fragment::raw("/"),
-                Fragment::hl("→"),
+                Fragment::key("←"),
+                Fragment::sep("/"),
+                Fragment::key("↑"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("↓"),
+                Fragment::sep("/"),
+                Fragment::key("→"),
             ])
         );
     }
@@ -514,7 +529,11 @@ mod tests {
         };
         assert_eq!(
             shortcuts[3],
-            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" cursor "), Fragment::hl("→")])
+            Shortcut::new(vec![
+                Fragment::key("←"),
+                Fragment::label("shortcuts.cursor"),
+                Fragment::key("→")
+            ])
         );
     }
 

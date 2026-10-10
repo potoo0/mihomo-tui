@@ -166,7 +166,7 @@ impl LogsComponent {
             .collect();
         let mut title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("logs ("),
+            Span::raw(rust_i18n::t!("headers.logs")),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
@@ -185,12 +185,12 @@ impl LogsComponent {
         frame.render_stateful_widget(logs, area, &mut self.list_state);
 
         let (throbber_label, throbber_color) = if self.live_mode.load(Ordering::Relaxed) {
-            ("Live  ", Color::Green)
+            ("status.live", Color::Green)
         } else {
-            ("Paused", Color::Red)
+            ("status.paused", Color::Red)
         };
         let symbol = Throbber::default()
-            .label(throbber_label)
+            .label(rust_i18n::t!(throbber_label))
             .style(Style::default().bg(throbber_color).bold())
             .throbber_style(Style::default().bg(throbber_color).bold())
             .throbber_set(throbber_widgets_tui::BRAILLE_SIX)
@@ -242,23 +242,23 @@ impl Component for LogsComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl(arrow::LEFT),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::RIGHT),
+                Fragment::key(arrow::LEFT),
+                Fragment::sep("/"),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
+                Fragment::sep("/"),
+                Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.live"), Fragment::key("Esc")]),
         ]
     }
 

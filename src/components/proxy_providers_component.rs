@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 
@@ -91,7 +92,7 @@ impl ProxyProvidersComponent {
         tokio::task::Builder::new().name("proxy-provider-update").spawn(async move {
             if let Err(e) = ProxyProviders::update_and_reload(api, &name).await {
                 error!(error = ?e, "Failed to update provider");
-                let _ = action_tx.send(Action::Error(("Update proxy provider", e).into()));
+                let _ = action_tx.send(Action::Error(("actions.update_proxy_provider", e).into()));
             }
             loading.store(false, Ordering::Relaxed);
             render_requester.request_render();
@@ -103,7 +104,7 @@ impl ProxyProvidersComponent {
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.pending_test.load(Ordering::Relaxed) > 0 {
             let symbol = Throbber::default()
-                .label("Testing")
+                .label(rust_i18n::t!("status.testing"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BLACK_CIRCLE)
@@ -116,7 +117,7 @@ impl ProxyProvidersComponent {
         }
         if self.loading.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Loading")
+                .label(rust_i18n::t!("status.loading"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BRAILLE_SIX)
@@ -153,12 +154,12 @@ impl ProxyProvidersComponent {
                     .as_ref()
                     .filter(|v| v.download.is_some() || v.upload.is_some())
                     .map(|v| {
-                        human_bytes(
+                        Cow::Owned(human_bytes(
                             (v.download.unwrap_or_default() + v.upload.unwrap_or_default()) as f64,
                             None,
-                        )
+                        ))
                     })
-                    .unwrap_or("-".to_string()),
+                    .unwrap_or(Cow::Borrowed("-")),
                 Color::DarkGray,
             ),
             Span::styled(" / ", Color::DarkGray),
@@ -167,21 +168,19 @@ impl ProxyProvidersComponent {
                     .subscription_info
                     .as_ref()
                     .and_then(|v| v.total)
-                    .map(|t| human_bytes(t as f64, None))
-                    .unwrap_or("-".to_string()),
+                    .map(|t| Cow::Owned(human_bytes(t as f64, None)))
+                    .unwrap_or(Cow::Borrowed("-")),
                 Color::DarkGray,
             ),
         ];
+        let expiry = view
+            .provider
+            .subscription_info
+            .as_ref()
+            .and_then(|v| v.expire)
+            .and_then(format_timestamp);
         let right = Span::styled(
-            format!(
-                "Expire: {}",
-                view.provider
-                    .subscription_info
-                    .as_ref()
-                    .and_then(|v| v.expire)
-                    .and_then(format_timestamp)
-                    .unwrap_or("-".to_string())
-            ),
+            rust_i18n::t!("proxy_providers.expiry", value = expiry.as_deref().unwrap_or("-")),
             Color::DarkGray,
         );
         space_between_many(width, left, right)
@@ -207,14 +206,18 @@ impl ProxyProvidersComponent {
             .title(title_line);
         let inner_width = area.width - 2;
 
-        let mut lines = Vec::with_capacity(4);
-        lines.push(Self::build_usage_line(view, inner_width));
-        lines.push(Self::build_subscription_line(view, inner_width));
-        lines.push(Line::styled(
-            format!("Updated at: {}", view.provider.updated_at_str.as_deref().unwrap_or("-")),
-            Color::DarkGray,
-        ));
-        lines.push(view.quality_stats.as_line(inner_width, view.provider.proxies.len()));
+        let lines = vec![
+            Self::build_usage_line(view, inner_width),
+            Self::build_subscription_line(view, inner_width),
+            Line::styled(
+                rust_i18n::t!(
+                    "proxy_providers.updated_at",
+                    value = view.provider.updated_at_str.as_deref().unwrap_or("-")
+                ),
+                Color::DarkGray,
+            ),
+            view.quality_stats.as_line(inner_width, view.provider.proxies.len()),
+        ];
 
         let para = Paragraph::new(lines).block(block);
         frame.render_widget(para, area);
@@ -228,7 +231,7 @@ impl ProxyProvidersComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("proxy providers ("),
+            Span::raw(rust_i18n::t!("headers.proxy_providers")),
             Span::styled(format!("{}", providers.len()), Color::LightCyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),
@@ -269,23 +272,23 @@ impl Component for ProxyProvidersComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl(arrow::LEFT),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::RIGHT),
+                Fragment::key(arrow::LEFT),
+                Fragment::sep("/"),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
+                Fragment::sep("/"),
+                Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.detail"), Fragment::key("↵")]),
             Shortcut::from("setting", 0).unwrap(),
             Shortcut::from("test", 0).unwrap(),
             Shortcut::from("update", 0).unwrap(),

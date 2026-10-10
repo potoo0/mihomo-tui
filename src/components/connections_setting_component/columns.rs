@@ -55,43 +55,43 @@ impl SettingPane for ColumnsSettingPane {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl(arrow::LEFT),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::RIGHT),
+                Fragment::key(arrow::LEFT),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::RIGHT),
             ])
             .compact(vec![
-                Fragment::hl(arrow::LEFT),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw("/"),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::RIGHT),
+                Fragment::key(arrow::LEFT),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::sep("/"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::RIGHT),
             ]),
             Shortcut::new(vec![
-                Fragment::hl(concatcp!("C-", arrow::LEFT)),
-                Fragment::raw(" move "),
-                Fragment::hl(concatcp!("C-", arrow::RIGHT)),
+                Fragment::key(concatcp!("C-", arrow::LEFT)),
+                Fragment::label("shortcuts.move"),
+                Fragment::key(concatcp!("C-", arrow::RIGHT)),
             ])
             .compact(vec![
-                Fragment::hl(concatcp!("C-", arrow::LEFT)),
-                Fragment::raw("/"),
-                Fragment::hl(concatcp!("C-", arrow::RIGHT)),
-                Fragment::raw(" move"),
+                Fragment::key(concatcp!("C-", arrow::LEFT)),
+                Fragment::sep("/"),
+                Fragment::key(concatcp!("C-", arrow::RIGHT)),
+                Fragment::label("shortcuts.move"),
             ]),
-            Shortcut::new(vec![Fragment::raw("toggle "), Fragment::hl("Space")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.toggle"), Fragment::key("Space")]),
             Shortcut::from("all", 0).unwrap(),
             Shortcut::from("invert", 0).unwrap(),
         ]
@@ -172,7 +172,7 @@ impl ColumnsSettingPane {
         };
 
         if item.selected && selected_count == 1 {
-            self.set_error("At least one column must be selected");
+            self.set_error("connections.no_columns_selected");
             return;
         }
 
@@ -218,7 +218,7 @@ impl ColumnsSettingPane {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(if active { Color::Cyan } else { Color::DarkGray })
-            .title(" Columns ");
+            .title(rust_i18n::t!("connections.settings.columns_title"));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -226,7 +226,10 @@ impl ColumnsSettingPane {
         let last_index = self.items.len().saturating_sub(1);
         for (index, item) in self.items.iter().enumerate() {
             let focused = self.focused == index && active;
-            tokens.push(Span::styled(item.title, self.token_style(item.selected, focused)));
+            tokens.push(Span::styled(
+                crate::i18n::column_title(item.title),
+                self.token_style(item.selected, focused),
+            ));
             if index != last_index {
                 tokens.push(Span::raw(" "));
             }
@@ -297,7 +300,7 @@ mod tests {
 
         pane.toggle_selected_column();
 
-        assert_eq!(pane.error(), Some("At least one column must be selected"));
+        assert_eq!(pane.error(), Some("connections.no_columns_selected"));
         assert!(pane.items[0].selected);
     }
 

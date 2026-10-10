@@ -1,0 +1,286 @@
+_version: 1
+
+tabs.config: Config
+tabs.connections: Connections
+tabs.language: Language
+tabs.logs: Logs
+tabs.overview: Overview
+tabs.proxies: Proxies
+tabs.proxy_providers: ProxyProviders
+tabs.rule_providers: RuleProviders
+tabs.rules: Rules
+tabs.short.config: Cfg
+tabs.short.connections: Conn
+tabs.short.logs: Log
+tabs.short.overview: View
+tabs.short.proxies: Pxy
+tabs.short.proxy_providers: Pxy-Pr
+tabs.short.rule_providers: R-Pr
+tabs.short.rules: Rule
+
+titles.actions: actions
+titles.config: config
+titles.connections_settings: connections settings
+titles.detail: detail
+titles.dns_query: dns query
+titles.help: help
+titles.proxy_settings: proxy settings
+titles.terminate: terminate
+titles.updates: updates
+
+overview.connections: Conns
+overview.memory: Memory
+overview.memory_chart: Memory chart
+overview.rate: Rate
+overview.total: Total
+overview.traffic_chart: Traffic chart
+
+headers.connections: connections (
+headers.core_config: ' core config '
+headers.core_config_modified: ' core config * '
+headers.logs: logs (
+headers.proxies: proxies (
+headers.proxy_providers: proxy providers (
+headers.rule_providers: rule providers (
+headers.rules: rules (
+
+columns.alive: Alive
+columns.behavior: Behavior
+columns.chains: Chains
+columns.connect_time: ConnectTime
+columns.content: Content
+columns.destination: Dest
+columns.disabled: Disabled
+columns.down_rate: DownRate
+columns.down_total: DownTotal
+columns.hit_at: HitAt
+columns.hits: Hits
+columns.host: Host
+columns.inbound: Inbound
+columns.index: Index
+columns.level: Level
+columns.name: Name
+columns.process: Process
+columns.rule_count: RuleCount
+columns.size: Size
+columns.sniff_host: SniffHost
+columns.source_ip: SourceIP
+columns.source_port: SourcePort
+columns.type: Type
+columns.up_rate: UpRate
+columns.up_total: UpTotal
+columns.updated_at: UpdatedAt
+columns.vehicle_type: VehicleType
+
+status.capture: Capture
+status.live: 'Live  '
+status.loading: Loading
+status.paused: Paused
+status.querying: Querying
+status.refreshing: refreshing...
+status.testing: Testing
+status.unknown: unknown
+status.updating: Updating
+
+common.no: 'no'
+common.yes: 'yes'
+
+ui.expected_size: 'Expected:'
+ui.terminal_too_small: 'Terminal size too small:'
+
+language.preference_saved: Language preference is saved automatically.
+
+connections.confirm_filtered: Are you sure to terminate %{count} filtered connections?
+connections.confirm_terminate: Are you sure to terminate this connection?
+connections.inactive: Connection is already inactive.
+connections.no_columns_selected: At least one column must be selected
+connections.settings.columns_title: ' Columns '
+connections.settings.no_source_ips: No source IPs from current connections
+connections.settings.source_ip_alias_title: ' Source IP Alias '
+connections.terminated: Connection terminated successfully.
+connections.terminated_summary: Terminated %{ok} connections, %{err} failed.
+connections.terminating: Connection terminating...
+connections.terminating_filtered: Connections terminating...
+
+proxy_settings.auto_terminate: Auto Terminate Connections
+proxy_settings.auto_terminate_invalid: Auto terminate connections must be true or false
+proxy_settings.test_timeout: Test Timeout (ms)
+proxy_settings.test_url: Test URL
+proxy_settings.threshold: Threshold (medium,high)
+proxy_settings.timeout_invalid: Timeout must be a valid number
+
+proxies.card_width: ' Card width: %{preferred_width} (actual: %{actual_width}) '
+
+proxy_providers.expiry: 'Expire: %{value}'
+proxy_providers.updated_at: 'Updated at: %{value}'
+
+dns.answers: ' Answers (%{count}) '
+dns.api_not_initialized: API is not initialized
+dns.data_column: DATA
+dns.name_column: NAME
+dns.name_required: Name is required
+dns.name_title: ' Name '
+dns.no_answers: No answer records
+dns.task_stopped: DNS query task stopped
+dns.type_title: ' Type '
+
+config.actions.flush_dns: Flush DNS
+config.actions.flush_fake_ip: Flush FakeIP
+config.actions.reload: Reload
+config.actions.restart: Restart
+config.actions.update_geo: Update GEO
+config.edit_hint.partial_update: ' 1. Partial
+  updates are supported: include only the fields you want to change (e.g. {"tun": {"enable": true}}).'
+config.edit_hint.supported_fields: ' 2.
+  Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.'
+
+updates.auto_restart_prompt: 'TUI auto restart? '
+updates.core_restart_timeout: Timed out waiting for mihomo core to restart with a new version
+updates.core_restart_waiting: Mihomo core upgrade requested, waiting for service to restart...
+updates.up_to_date: up to date (%{current})
+
+actions.load_proxy: Load proxy
+actions.save_runtime_config: Save runtime config
+actions.submit_core_config: Submit core config
+actions.submit_disabled_rule_changes: Submit disabled rule changes
+actions.sync_external_config: Sync config from external editor
+actions.update_app: Update app
+actions.update_mihomo_core: Update mihomo core
+actions.update_proxy_provider: Update proxy provider
+actions.update_selected_proxy: Update selected proxy
+
+help.common.cancel_back_or_live: cancel / back / live toggle
+help.common.clear_idle_tabs: clear idle tabs
+help.common.confirm_or_detail: confirm / open detail
+help.common.first_or_last: go to first, last
+help.common.horizontal_navigation: horizontal navigation where available
+help.common.open_help: Open help from the main view / close help
+help.common.open_language: open language settings
+help.common.open_updates: open updates
+help.common.page_navigation: page up, down
+help.common.quit_or_close_help: Quit from the main view / close help
+help.common.quit_program: Quit program
+help.common.switch_tab: switch to tab
+help.common.vertical_navigation: vertical navigation where available
+help.config.discard_changes: discard changes and reload config
+help.config.execute: execute focused action / confirm
+help.config.open_dns_query: open DNS query dialog
+help.config.open_external_editor: open config in external editor ($EDITOR → vim → vi)
+help.config.switch_focus: move focus between editor and actions
+help.connection_settings.apply: apply settings
+help.connection_settings.cancel: cancel settings
+help.connection_settings.invert_columns: 'Columns:          invert selected columns'
+help.connection_settings.move_column: 'Columns:          move selected column'
+help.connection_settings.navigate_aliases: 'Source IP Alias:  navigate source IP aliases'
+help.connection_settings.navigate_columns: 'Columns:          navigate columns'
+help.connection_settings.navigate_panes: navigate settings panes
+help.connection_settings.select_all_columns: 'Columns:          select all columns'
+help.connection_settings.toggle_column: 'Columns:          toggle selected column'
+help.connections.capture: capture mode
+help.connections.open_settings: open connection settings
+help.connections.reset_sort_width: reset sort column width
+help.connections.resize_sort_column: decrease/increase sort column width
+help.connections.reverse_sort: reverse sort direction
+help.connections.sort_column: select sort column
+help.connections.terminate_filtered: terminate filtered connections
+help.connections.terminate_selected: terminate selected connection
+help.default_configuration: Default configuration
+help.description: Description
+help.dns.navigate_fields: navigate query fields
+help.dns.query_records: query DNS records
+help.dns.scroll_answers: scroll answers
+help.dns.select_type: select DNS record type
+help.filter.combine_fields: match named fields and remaining columns using AND
+help.filter.contains: match if the value contains substring 'str'
+help.filter.ends_with: match if the value ends with 'str'
+help.filter.exact: match exactly 'str'
+help.filter.fuzzy: match using fuzzy search for 'str'
+help.filter.named_column: match <pattern> only in the named column; field is case-insensitive
+help.filter.negate: 'negate the match of <pattern>, examples: !^str, !''str'
+help.filter.quote_pattern: quote plain patterns containing spaces or colons
+help.filter.quote_value: quote values containing spaces
+help.filter.starts_with: match if the value starts with 'str'
+help.input.delete: delete
+help.input.line_edges: jump to line start, end
+help.input.move_cursor: move cursor
+help.input.navigate_fields: navigate fields
+help.input.yank_deleted_word: yank last deleted word
+help.key: Key
+help.logs.filter_level: 'filter log level: error, warn, info, debug'
+help.proxies.open_settings: open proxy settings
+help.proxies.refresh: refresh proxies
+help.proxies.test: test proxy
+help.proxy_detail.change_sort: 'switch sort by: none, latency, name'
+help.proxy_detail.jump_to_current: jump to current selected proxy
+help.proxy_detail.navigate_groups: navigate nested groups
+help.proxy_detail.resize_card: decrease/increase card width
+help.proxy_detail.reverse_sort: toggle sort direction
+help.proxy_detail.select: update selected proxy
+help.proxy_providers.show_detail: show provider detail
+help.proxy_providers.update: update providers
+help.rule_providers.refresh: refresh rule providers
+help.rule_providers.update: update rule providers
+help.rules.refresh: refresh rules
+help.rules.submit_disabled: submit disabled state changes
+help.rules.toggle_disabled: toggle disabled state (selected or all filtered)
+help.runtime_configuration: Runtime configuration
+help.section.common: common
+help.section.config: '# Config (Cfg)'
+help.section.connection_settings: '## Connections Settings'
+help.section.connections: '# Connections (Conn)'
+help.section.dns_query: '## DNS Query'
+help.section.filter_syntax: filter syntax
+help.section.input_box: input box
+help.section.logs: '# Logs (Log)'
+help.section.proxies: '# Proxies (Pxy)'
+help.section.proxy_detail: '## Proxy Detail'
+help.section.proxy_providers: '# ProxyProviders (Pxy-Pr)'
+help.section.rule_providers: '# RuleProviders (R-Pr)'
+help.section.rules: '# Rules (Rule)'
+help.version: Version
+
+shortcuts.all: all
+shortcuts.apply: apply
+shortcuts.back: back
+shortcuts.cancel: cancel
+shortcuts.capture: capture
+shortcuts.confirm: confirm
+shortcuts.cur: cur
+shortcuts.cursor: cursor
+shortcuts.delete: del
+shortcuts.detail: detail
+shortcuts.discard: discard
+shortcuts.dns: dns
+shortcuts.edit: edit
+shortcuts.escape: esc
+shortcuts.execute: execute
+shortcuts.filter: filter
+shortcuts.focus: focus
+shortcuts.invert: invert
+shortcuts.jump: jump
+shortcuts.layer: layer
+shortcuts.live: live
+shortcuts.move: move
+shortcuts.nav: nav
+shortcuts.no: 'no'
+shortcuts.page: page
+shortcuts.pane: pane
+shortcuts.query: query
+shortcuts.quit: quit
+shortcuts.refresh: refresh
+shortcuts.reset: reset
+shortcuts.scroll: scroll
+shortcuts.select: sel
+shortcuts.setting: setting
+shortcuts.sort: sort
+shortcuts.submit: submit
+shortcuts.terminate: terminate
+shortcuts.terminate_short: term
+shortcuts.test: test
+shortcuts.toggle: toggle
+shortcuts.type: type
+shortcuts.update: update
+shortcuts.width: width
+shortcuts.width_short: w
+shortcuts.yank: yank
+shortcuts.yes: 'yes'
