@@ -147,7 +147,7 @@ impl RuleProvidersComponent {
         }
         let label = if self.loading.load(Ordering::Relaxed) { "Loading" } else { "Updating" };
         let symbol = Throbber::default()
-            .label(label)
+            .label(crate::i18n::tr(label))
             .style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_set(BRAILLE_SIX)
@@ -177,7 +177,7 @@ impl RuleProvidersComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("rule providers ("),
+            Span::raw(crate::i18n::tr("rule providers (")),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
@@ -191,7 +191,7 @@ impl RuleProvidersComponent {
         let header = RULE_PROVIDER_COLS
             .iter()
             .map(|def| def.col.title)
-            .map(|title| Cell::from(title).bold())
+            .map(|title| Cell::from(crate::i18n::tr(title)).bold())
             .collect::<Row>()
             .height(1)
             .bottom_margin(1);

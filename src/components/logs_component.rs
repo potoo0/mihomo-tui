@@ -166,7 +166,7 @@ impl LogsComponent {
             .collect();
         let mut title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("logs ("),
+            Span::raw(crate::i18n::tr("logs (")),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
@@ -190,7 +190,7 @@ impl LogsComponent {
             ("Paused", Color::Red)
         };
         let symbol = Throbber::default()
-            .label(throbber_label)
+            .label(crate::i18n::tr(throbber_label))
             .style(Style::default().bg(throbber_color).bold())
             .throbber_style(Style::default().bg(throbber_color).bold())
             .throbber_set(throbber_widgets_tui::BRAILLE_SIX)

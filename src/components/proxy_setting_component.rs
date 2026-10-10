@@ -163,7 +163,7 @@ impl ProxySettingComponent {
                 (Color::DarkGray, field.value().into())
             };
             let block = Block::bordered()
-                .title(field.to_string())
+                .title(crate::i18n::tr(&field.to_string()).into_owned())
                 .border_type(BorderType::Rounded)
                 .border_style(border_color);
             let line = Line::raw(val);
@@ -179,7 +179,8 @@ impl ProxySettingComponent {
         }
         if let Some(err) = &self.error {
             let block = Block::bordered().border_type(BorderType::Rounded).border_style(Color::Red);
-            let line = Line::from(Span::styled(err, Style::default().fg(Color::Red)));
+            let line =
+                Line::from(Span::styled(crate::i18n::tr(err), Style::default().fg(Color::Red)));
             let paragraph = Paragraph::new(line).block(block);
             frame.render_widget(paragraph, area);
         }

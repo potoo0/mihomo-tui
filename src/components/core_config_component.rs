@@ -334,7 +334,7 @@ impl CoreConfigComponent {
     fn render_edit_hints(&mut self, frame: &mut Frame, area: Rect) {
         let notes = CORE_CONFIG_EDIT_HINTS
             .iter()
-            .map(|note| Line::styled(*note, COMMENT_STYLE))
+            .map(|note| Line::styled(crate::i18n::tr(note), COMMENT_STYLE))
             .collect::<Vec<Line>>();
         let paragraph = Paragraph::new(notes);
         frame.render_widget(paragraph, area);
@@ -346,9 +346,9 @@ impl CoreConfigComponent {
             area.height.saturating_sub(2) as usize,
         );
         let title = if self.modified.load(Ordering::Relaxed) {
-            Span::styled(" core config * ", Style::default().fg(Color::Yellow))
+            Span::styled(crate::i18n::tr(" core config * "), Style::default().fg(Color::Yellow))
         } else {
-            Span::raw(" core config ")
+            Span::raw(crate::i18n::tr(" core config "))
         };
         let block_style = match (self.active_pane, &self.editor_state) {
             (ActivePane::Editor, _) => Style::default().fg(Color::LightBlue),
@@ -395,7 +395,7 @@ impl CoreConfigComponent {
             return;
         }
         let symbol = Throbber::default()
-            .label("Loading")
+            .label(crate::i18n::tr("Loading"))
             .style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_set(BRAILLE_SIX)

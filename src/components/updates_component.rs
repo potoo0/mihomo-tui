@@ -291,8 +291,8 @@ impl Component for UpdatesComponent {
         let restart = if self.auto_restart { "yes" } else { "no" };
         let lines = vec![
             Line::from(vec![
-                Span::raw("TUI auto restart? "),
-                Span::styled(restart, Color::LightCyan),
+                Span::raw(crate::i18n::tr("TUI auto restart? ")),
+                Span::styled(crate::i18n::tr(restart), Color::LightCyan),
             ]),
             Line::raw(""),
             self.item_line(UpdateTarget::App, "mihomo-tui ", &state.app),

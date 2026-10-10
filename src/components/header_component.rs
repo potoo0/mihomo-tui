@@ -1,5 +1,5 @@
 use std::ops::Range;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use const_format::concatcp;
@@ -23,17 +23,6 @@ use crate::widgets::shortcut::{Fragment, Shortcut};
 const TAB_SUPERSCRIPT_WIDTH: u16 = 1;
 const TAB_PADDING_WIDTH: u16 = 2;
 const TAB_DIVIDER_WIDTH: u16 = 1;
-
-static TABS_FULL_WIDTH: LazyLock<u16> = LazyLock::new(|| {
-    TABS.iter().map(|id| tab_width(id.full_name())).sum::<u16>() + divider_width(TABS.len())
-});
-
-static TAB_SHORT_WIDTHS: LazyLock<Vec<u16>> = LazyLock::new(|| {
-    TABS.iter().map(|id| tab_width(id.short_name().unwrap_or_else(|| id.full_name()))).collect()
-});
-
-static TABS_SHORT_WIDTH: LazyLock<u16> =
-    LazyLock::new(|| TAB_SHORT_WIDTHS.iter().sum::<u16>() + divider_width(TAB_SHORT_WIDTHS.len()));
 
 const RELEASE_CHECK_INTERVAL: Duration = Duration::from_hours(12);
 
@@ -141,7 +130,7 @@ impl HeaderComponent {
         frame.render_widget(tabs, rect);
     }
 
-    fn render_version(&self, frame: &mut Frame, rect: Rect) {
+    fn version_line(&self) -> Line<'static> {
         let version = {
             let guard = self.version.lock().unwrap();
             guard.as_deref().unwrap_or("-").to_string()
@@ -166,8 +155,7 @@ impl HeaderComponent {
         spans.push(Fragment::hl("C-u").into_span(None));
         spans.push(Span::styled("]", Style::default().fg(Color::Blue)));
 
-        let line = Line::from(spans).alignment(Alignment::Right);
-        frame.render_widget(line, rect);
+        Line::from(spans).alignment(Alignment::Right)
     }
 }
 
@@ -219,11 +207,22 @@ impl Component for HeaderComponent {
     }
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> anyhow::Result<()> {
-        let chunks = Layout::horizontal([Constraint::Percentage(70), Constraint::Percentage(30)])
-            .split(area);
+        let indicator = Line::from(vec![
+            Span::styled("[L] ", Style::default().fg(Color::Indexed(130))),
+            Span::raw(crate::i18n::language().indicator()),
+            Span::raw("  "),
+        ]);
+        let version = self.version_line();
+        let [tabs_area, language_area, version_area] = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Length(indicator.width() as u16),
+            Constraint::Length(version.width() as u16),
+        ])
+        .areas(area);
 
-        self.render_tab(frame, chunks[0]);
-        self.render_version(frame, chunks[1]);
+        self.render_tab(frame, tabs_area);
+        frame.render_widget(indicator, language_area);
+        frame.render_widget(version, version_area);
         Ok(())
     }
 }
@@ -233,30 +232,42 @@ fn divider_width(tab_count: usize) -> u16 {
 }
 
 fn tab_width(name: &str) -> u16 {
-    TAB_SUPERSCRIPT_WIDTH + name.len() as u16 + TAB_PADDING_WIDTH
+    TAB_SUPERSCRIPT_WIDTH + Span::raw(crate::i18n::tr(name)).width() as u16 + TAB_PADDING_WIDTH
 }
 
-fn tab_name(id: ComponentId, mode: TabNameMode) -> &'static str {
+fn tab_name(id: ComponentId, mode: TabNameMode) -> std::borrow::Cow<'static, str> {
     match mode {
-        TabNameMode::Full => id.full_name(),
-        TabNameMode::Short => id.short_name().unwrap_or_else(|| id.full_name()),
+        TabNameMode::Full => crate::i18n::tr(id.full_name()),
+        TabNameMode::Short => crate::i18n::tr(id.short_name().unwrap_or_else(|| id.full_name())),
     }
+}
+
+fn tabs_full_width() -> u16 {
+    TABS.iter().map(|id| tab_width(id.full_name())).sum::<u16>() + divider_width(TABS.len())
+}
+
+fn tab_short_widths() -> Vec<u16> {
+    TABS.iter().map(|id| tab_width(id.short_name().unwrap_or_else(|| id.full_name()))).collect()
+}
+
+fn tabs_short_width() -> u16 {
+    tab_short_widths().iter().sum::<u16>() + divider_width(TABS.len())
 }
 
 fn visible_tabs(available_width: u16, selected: usize) -> (TabNameMode, Range<usize>) {
-    if available_width >= *TABS_FULL_WIDTH {
+    if available_width >= tabs_full_width() {
         return (TabNameMode::Full, 0..TABS.len());
     }
-    if available_width >= *TABS_SHORT_WIDTH {
+    if available_width >= tabs_short_width() {
         return (TabNameMode::Short, 0..TABS.len());
     }
 
     (
         TabNameMode::Short,
         visible_tab_range(
-            TAB_SHORT_WIDTHS.as_slice(),
+            tab_short_widths().as_slice(),
             selected,
-            TABS_SHORT_WIDTH.saturating_sub(available_width),
+            tabs_short_width().saturating_sub(available_width),
         ),
     )
 }
@@ -339,8 +350,8 @@ mod tests {
     #[test]
     fn visible_tabs_mode_cases() {
         let cases = [
-            (*TABS_FULL_WIDTH, TabNameMode::Full, 0..TABS.len()),
-            (*TABS_SHORT_WIDTH, TabNameMode::Short, 0..TABS.len()),
+            (tabs_full_width(), TabNameMode::Full, 0..TABS.len()),
+            (tabs_short_width(), TabNameMode::Short, 0..TABS.len()),
         ];
 
         for (available_width, expected_mode, expected_range) in cases {
@@ -354,11 +365,11 @@ mod tests {
     #[test]
     fn visible_tabs_clips_short_tabs_when_short_width_does_not_fit() {
         let selected = 6;
-        let (mode, range) = visible_tabs(*TABS_SHORT_WIDTH - 1, selected);
+        let (mode, range) = visible_tabs(tabs_short_width() - 1, selected);
 
         assert_eq!(mode, TabNameMode::Short);
         assert!(range.contains(&selected));
         assert!(range.end < TABS.len() || range.start > 0);
-        assert!(width_for(TAB_SHORT_WIDTHS.as_slice(), range) < *TABS_SHORT_WIDTH);
+        assert!(width_for(tab_short_widths().as_slice(), range) < tabs_short_width());
     }
 }

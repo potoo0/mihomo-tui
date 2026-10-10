@@ -33,16 +33,25 @@ enum HelpRow<'a> {
 
 impl<'a> HelpRow<'a> {
     fn key_title(s: impl Into<Span<'a>>) -> Self {
-        Self::Title(Line::from(vec!["--- ".into(), s.into().italic().bold(), " ---".into()]))
+        Self::Title(Line::from(vec![
+            "--- ".into(),
+            localized_span(s.into()).italic().bold(),
+            " ---".into(),
+        ]))
     }
 
     fn entry(left: impl Into<Span<'a>>, right: impl Into<Span<'a>>) -> Self {
-        Self::Entry { left: left.into(), right: right.into() }
+        Self::Entry { left: localized_span(left.into()), right: localized_span(right.into()) }
     }
 
     fn key_entry(key: &'a str, description: &'a str) -> Self {
         Self::entry(Span::styled(key, Style::default().fg(DEFAULT_HL_COLOR)), description)
     }
+}
+
+fn localized_span(span: Span<'_>) -> Span<'_> {
+    let content = crate::i18n::tr(&span.content).into_owned();
+    Span::styled(content, span.style)
 }
 
 impl HelpComponent {
@@ -79,6 +88,7 @@ impl HelpComponent {
             HelpRow::key_entry("Enter", "confirm / open detail"),
             HelpRow::key_entry("Ctrl+l", "clear idle tabs"),
             HelpRow::key_entry("Ctrl+u", "open updates"),
+            HelpRow::key_entry("L", "open language settings"),
             // filter / proxy setting input keys
             HelpRow::Empty,
             HelpRow::key_title("input box"),

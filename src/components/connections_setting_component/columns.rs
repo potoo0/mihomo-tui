@@ -218,7 +218,7 @@ impl ColumnsSettingPane {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(if active { Color::Cyan } else { Color::DarkGray })
-            .title(" Columns ");
+            .title(crate::i18n::tr(" Columns "));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -226,7 +226,10 @@ impl ColumnsSettingPane {
         let last_index = self.items.len().saturating_sub(1);
         for (index, item) in self.items.iter().enumerate() {
             let focused = self.focused == index && active;
-            tokens.push(Span::styled(item.title, self.token_style(item.selected, focused)));
+            tokens.push(Span::styled(
+                crate::i18n::tr(item.title),
+                self.token_style(item.selected, focused),
+            ));
             if index != last_index {
                 tokens.push(Span::raw(" "));
             }

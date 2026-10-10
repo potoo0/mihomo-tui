@@ -32,7 +32,7 @@ pub fn dashed_title_line<'a, S: Into<Span<'a>>>(title: S, width: u16) -> Line<'a
 pub fn top_title_line<S: Into<Style>>(title: &'_ str, title_style: S) -> Line<'_> {
     Line::from(vec![
         Span::raw(TOP_TITLE_LEFT),
-        Span::styled(title, title_style),
+        Span::styled(crate::i18n::tr(title), title_style),
         Span::raw(TOP_TITLE_RIGHT),
     ])
 }

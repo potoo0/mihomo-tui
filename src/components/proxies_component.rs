@@ -97,7 +97,7 @@ impl ProxiesComponent {
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.pending_test.load(Ordering::Relaxed) > 0 {
             let symbol = Throbber::default()
-                .label("Testing")
+                .label(crate::i18n::tr("Testing"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BLACK_CIRCLE)
@@ -110,7 +110,7 @@ impl ProxiesComponent {
         }
         if self.loading.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Loading")
+                .label(crate::i18n::tr("Loading"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BRAILLE_SIX)
@@ -173,7 +173,7 @@ impl ProxiesComponent {
         let proxies_len = Proxies::with_view(|p| p.len());
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("proxies ("),
+            Span::raw(crate::i18n::tr("proxies (")),
             Span::styled(format!("{}", proxies_len), Color::LightCyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),

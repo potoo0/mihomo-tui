@@ -140,6 +140,9 @@ impl RootComponent {
             ComponentId::Rules => Box::new(RulesComponent::default()),
             ComponentId::RuleProviders => Box::new(RuleProvidersComponent::default()),
             ComponentId::Config => Box::new(CoreConfigComponent::default()),
+            ComponentId::Language => {
+                Box::new(super::language_component::LanguageComponent::default())
+            }
             ComponentId::Updates => Box::new(UpdatesComponent::new(self.update_state.clone())),
             ComponentId::Help => Box::new(HelpComponent::default()),
             ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::default()),
@@ -476,6 +479,11 @@ impl Component for RootComponent {
         match key.code {
             KeyCode::Char('q') => return Ok(Some(Action::Quit)),
             KeyCode::Char('?') => return Ok(Some(Action::Help)),
+            KeyCode::Char('L')
+                if !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+            {
+                return Ok(Some(Action::LanguageSelect));
+            }
             KeyCode::Char(c) if c.is_ascii_digit() => {
                 let index = (c as u8 - b'0') as usize;
                 if let Some(component_id) = TABS.get(index.saturating_sub(1)) {
@@ -495,6 +503,9 @@ impl Component for RootComponent {
             Action::Shortcuts(shortcuts) => {
                 self.set_shortcuts(shortcuts)?;
                 return Ok(None);
+            }
+            Action::LanguageChanged(_) if self.popup == Some(ComponentId::Language) => {
+                action_tx.send(Action::Unfocus)?;
             }
             Action::Quit => self.connections.stop(),
             Action::Tick => self.on_tick(),
@@ -523,6 +534,7 @@ impl Component for RootComponent {
             }
             Action::AppUpdateRequest => self.open_popup(ComponentId::Updates)?,
             Action::Help => self.open_popup(ComponentId::Help)?,
+            Action::LanguageSelect => self.open_popup(ComponentId::Language)?,
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
             Action::ConnectionsSetting(_) => self.open_popup(ComponentId::ConnectionsSetting)?,
             Action::ProxyDetail(_) => self.open_popup(ComponentId::ProxyDetail)?,
@@ -564,10 +576,10 @@ impl Component for RootComponent {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         if area.width < MIN_AREA.0 || area.height < MIN_AREA.1 {
             let lines = vec![
-                Line::from("Terminal size too small:").centered(),
+                Line::from(crate::i18n::tr("Terminal size too small:")).centered(),
                 area_msg_line(area.width, area.height).centered(),
                 Line::raw(""),
-                Line::from("Expected:").centered(),
+                Line::from(crate::i18n::tr("Expected:")).centered(),
                 area_msg_line(MIN_AREA.0, MIN_AREA.1).centered(),
             ];
             let block = Block::default()
@@ -625,6 +637,33 @@ mod tests {
 
     fn has_render_request(scheduler: &RenderScheduler) -> bool {
         scheduler.wait_for_request().now_or_never().is_some()
+    }
+
+    #[test]
+    fn language_shortcut_respects_focused_input_and_modifiers() {
+        let mut root = RootComponent::new(ComponentId::Proxies);
+        assert!(matches!(
+            root.handle_key_event(KeyEvent::new(KeyCode::Char('L'), KeyModifiers::SHIFT)).unwrap(),
+            Some(Action::LanguageSelect)
+        ));
+
+        root.components.insert(ComponentId::Filter, Box::new(FilterComponent::default()));
+        root.focused = Some(ComponentId::Filter);
+        assert!(
+            root.handle_key_event(KeyEvent::new(KeyCode::Char('L'), KeyModifiers::NONE))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            root.handle_key_event(KeyEvent::new(KeyCode::Char('L'), KeyModifiers::ALT))
+                .unwrap()
+                .is_none()
+        );
+        assert!(matches!(
+            root.handle_key_event(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::CONTROL))
+                .unwrap(),
+            Some(Action::Tick)
+        ));
     }
 
     #[test]

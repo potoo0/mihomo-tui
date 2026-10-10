@@ -30,6 +30,9 @@ impl Widget for Button<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        Paragraph::new(Line::from(self.label)).style(style).centered().render(inner, buf);
+        Paragraph::new(Line::from(crate::i18n::tr(self.label)))
+            .style(style)
+            .centered()
+            .render(inner, buf);
     }
 }

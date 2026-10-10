@@ -195,7 +195,7 @@ impl ProxyProviderDetailComponent {
             card_layout(content_area, preferred_width).first().map_or(0, |card| card.width);
         block.title_bottom(
             Line::styled(
-                format!(" Card width: {preferred_width} (actual: {actual_width}) "),
+                crate::i18n::messages::card_width(preferred_width, actual_width),
                 Color::LightCyan,
             )
             .centered(),
@@ -205,7 +205,7 @@ impl ProxyProviderDetailComponent {
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.health_checking.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Testing")
+                .label(crate::i18n::tr("Testing"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BLACK_CIRCLE)
@@ -218,7 +218,7 @@ impl ProxyProviderDetailComponent {
         }
         if self.loading.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Loading")
+                .label(crate::i18n::tr("Loading"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BRAILLE_SIX)

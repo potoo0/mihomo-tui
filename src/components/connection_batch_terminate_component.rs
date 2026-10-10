@@ -34,7 +34,7 @@ impl Phase {
             Phase::Terminating => Some((Color::Yellow, "Connections terminating...".to_string())),
             Phase::Done { ok, err } => {
                 let color = if *err == 0 { Color::Green } else { Color::Yellow };
-                Some((color, format!("Terminated {ok} connections, {err} failed.")))
+                Some((color, crate::i18n::messages::terminated(*ok, *err)))
             }
             Phase::Hidden | Phase::Confirm => None,
         }
@@ -105,7 +105,7 @@ impl ConnectionBatchTerminateComponent {
 
     fn render_msgbox(frame: &mut Frame, area: Rect, color: Color, msg: &str) {
         let block = Block::bordered().border_type(BorderType::Rounded).border_style(color);
-        let paragraph = Paragraph::new(msg)
+        let paragraph = Paragraph::new(crate::i18n::tr(msg))
             .style(Style::default().fg(color))
             .block(block)
             .alignment(Alignment::Center);
@@ -188,9 +188,9 @@ impl Component for ConnectionBatchTerminateComponent {
         let chunks = Layout::vertical([Constraint::Min(3), Constraint::Length(3)]).split(inner);
 
         let content = Paragraph::new(Line::from(vec![
-            Span::raw("Are you sure to terminate "),
+            Span::raw(crate::i18n::tr("Are you sure to terminate ")),
             Span::styled(self.targets.len().to_string(), Style::default().fg(Color::Yellow).bold()),
-            Span::raw(" filtered connections?"),
+            Span::raw(crate::i18n::tr(" filtered connections?")),
         ]))
         .alignment(Alignment::Center);
         frame.render_widget(content, chunks[0]);

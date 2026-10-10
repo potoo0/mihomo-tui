@@ -10,6 +10,9 @@ use crate::models::sort::{ProxySortField, SortDir};
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
+    /// UI language; stable identifiers remain English.
+    #[serde(default)]
+    pub language: crate::i18n::Language,
     pub mihomo_api: MihomoApiEndpoint,
     pub mihomo_secret: Option<String>,
     pub mihomo_config_schema: Option<String>,

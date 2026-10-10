@@ -145,10 +145,10 @@ impl OverviewComponent {
         };
 
         let header = Row::new([
-            Cell::from(Line::from("Rate").centered()),
-            Cell::from(Line::from("Total").centered()),
-            Cell::from(Line::from("Conns").centered()),
-            Cell::from(Line::from("Memory").centered()),
+            Cell::from(Line::from(crate::i18n::tr("Rate")).centered()),
+            Cell::from(Line::from(crate::i18n::tr("Total")).centered()),
+            Cell::from(Line::from(crate::i18n::tr("Conns")).centered()),
+            Cell::from(Line::from(crate::i18n::tr("Memory")).centered()),
         ]);
 
         let cells_content = vec![
@@ -234,7 +234,10 @@ impl OverviewComponent {
         let chunks =
             Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
         let blocks = [
-            Some(Block::default().title(Line::from("Traffic chart").cyan().bold().centered())),
+            Some(
+                Block::default()
+                    .title(Line::from(crate::i18n::tr("Traffic chart")).cyan().bold().centered()),
+            ),
             None,
         ];
         for index in 0..2 {
@@ -277,7 +280,7 @@ impl OverviewComponent {
             .block(
                 Block::default()
                     .padding(Padding::left(1))
-                    .title(Line::from("Memory chart").cyan().bold().centered()),
+                    .title(Line::from(crate::i18n::tr("Memory chart")).cyan().bold().centered()),
             )
             .x_axis(Axis::default().bounds([0.0, data.len() as f64]))
             .y_axis(
