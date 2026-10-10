@@ -103,7 +103,7 @@ impl ProxyProvidersComponent {
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.pending_test.load(Ordering::Relaxed) > 0 {
             let symbol = Throbber::default()
-                .label("Testing")
+                .label(crate::i18n::tr("Testing"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BLACK_CIRCLE)
@@ -116,7 +116,7 @@ impl ProxyProvidersComponent {
         }
         if self.loading.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Loading")
+                .label(crate::i18n::tr("Loading"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BRAILLE_SIX)
@@ -173,14 +173,14 @@ impl ProxyProvidersComponent {
             ),
         ];
         let right = Span::styled(
-            format!(
-                "Expire: {}",
-                view.provider
+            crate::i18n::messages::expiry(
+                &view
+                    .provider
                     .subscription_info
                     .as_ref()
                     .and_then(|v| v.expire)
                     .and_then(format_timestamp)
-                    .unwrap_or("-".to_string())
+                    .unwrap_or("-".to_string()),
             ),
             Color::DarkGray,
         );
@@ -207,14 +207,17 @@ impl ProxyProvidersComponent {
             .title(title_line);
         let inner_width = area.width - 2;
 
-        let mut lines = Vec::with_capacity(4);
-        lines.push(Self::build_usage_line(view, inner_width));
-        lines.push(Self::build_subscription_line(view, inner_width));
-        lines.push(Line::styled(
-            format!("Updated at: {}", view.provider.updated_at_str.as_deref().unwrap_or("-")),
-            Color::DarkGray,
-        ));
-        lines.push(view.quality_stats.as_line(inner_width, view.provider.proxies.len()));
+        let lines = vec![
+            Self::build_usage_line(view, inner_width),
+            Self::build_subscription_line(view, inner_width),
+            Line::styled(
+                crate::i18n::messages::updated_at(
+                    view.provider.updated_at_str.as_deref().unwrap_or("-"),
+                ),
+                Color::DarkGray,
+            ),
+            view.quality_stats.as_line(inner_width, view.provider.proxies.len()),
+        ];
 
         let para = Paragraph::new(lines).block(block);
         frame.render_widget(para, area);
@@ -228,7 +231,7 @@ impl ProxyProvidersComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("proxy providers ("),
+            Span::raw(crate::i18n::tr("proxy providers (")),
             Span::styled(format!("{}", providers.len()), Color::LightCyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),

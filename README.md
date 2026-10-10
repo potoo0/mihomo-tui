@@ -80,6 +80,24 @@ Options:
           Print version
 ```
 
+## Interface language
+
+The header shows `[L] EN` or `[L] 中文` to the left of the version. Press uppercase
+`L` from the main view to open the language selector,
+use `↑` / `↓` (or `k` / `j`) to select English or 简体中文, and press `Enter`
+to apply and close the dialog. Press `Esc` or `q` to cancel. The filled circle marks the active language; the highlighted
+row marks the selection. Language changes are saved to the existing runtime sidecar
+when `runtime-config` is enabled. With it disabled, changes last for the session.
+
+English remains the default. Set `language: zh-CN` in the main YAML configuration
+to start in Simplified Chinese, or `language: en` for English. A saved runtime
+language takes precedence. Language selection is a popup, not a navigation tab.
+Configuration keys, filter field names, API values, node names and log content
+retain their original form in every language.
+
+See [localization maintenance](docs/localization.md) for the module design and how
+to add a language.
+
 ## Configuration
 
 The default location of the file depends on your OS:

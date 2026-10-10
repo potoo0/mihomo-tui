@@ -61,7 +61,7 @@ impl MsgBoxComponent {
             Span::raw(TOP_TITLE_LEFT),
             Span::styled(self.icon, self.icon_style),
             Span::raw("  "),
-            Span::raw(self.title),
+            Span::raw(crate::i18n::tr(self.title)),
             Span::raw(TOP_TITLE_RIGHT),
         ]);
         let block = Block::bordered()
@@ -69,7 +69,9 @@ impl MsgBoxComponent {
             .border_style(Color::LightBlue)
             .title(title_line)
             .padding(Padding::symmetric(2, 1));
-        let paragraph = Paragraph::new(self.content.as_ref()).wrap(Wrap::default()).block(block);
+        let paragraph = Paragraph::new(crate::i18n::tr(self.content.as_ref()))
+            .wrap(Wrap::default())
+            .block(block);
 
         frame.render_widget(paragraph, area);
 

@@ -112,7 +112,7 @@ impl ConnectionsComponent {
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.capture_mode.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Capture")
+                .label(crate::i18n::tr("Capture"))
                 .style(Style::default().fg(Color::White).bg(Color::Blue).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Blue).bold())
                 .throbber_set(CANADIAN)
@@ -157,7 +157,7 @@ impl ConnectionsComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("connections ("),
+            Span::raw(crate::i18n::tr("connections (")),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
@@ -183,9 +183,9 @@ impl ConnectionsComponent {
                         SortDir::Asc => triangle::UP,
                         SortDir::Desc => triangle::DOWN,
                     };
-                    Cell::from(format!("{}{}", title, arrow)).bold().cyan()
+                    Cell::from(format!("{}{}", crate::i18n::tr(title), arrow)).bold().cyan()
                 } else {
-                    Cell::from(title).bold()
+                    Cell::from(crate::i18n::tr(title)).bold()
                 }
             })
             .collect::<Row>()

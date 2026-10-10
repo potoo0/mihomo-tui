@@ -31,9 +31,9 @@ impl VersionStatus {
 
     pub fn summary(&self) -> String {
         match self {
-            Self::Unknown => "unknown".to_string(),
-            Self::Refreshing => "refreshing...".to_string(),
-            Self::UpToDate { current, .. } => format!("up to date ({current})"),
+            Self::Unknown => crate::i18n::tr("unknown").to_string(),
+            Self::Refreshing => crate::i18n::tr("refreshing...").to_string(),
+            Self::UpToDate { current, .. } => crate::i18n::messages::up_to_date(current),
             Self::Available { current, latest } => format!("{current} -> {latest}"),
         }
     }

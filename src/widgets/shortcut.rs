@@ -23,9 +23,9 @@ impl Fragment {
 
     pub fn into_span<'a>(self, hl_style: Option<Style>) -> Span<'a> {
         match self {
-            Self::Raw(s) if !s.is_empty() => Span::raw(s.into_string()),
+            Self::Raw(s) if !s.is_empty() => Span::raw(crate::i18n::tr(&s).into_owned()),
             Self::Hl(s) if !s.is_empty() => Span::styled(
-                s.into_string(),
+                crate::i18n::tr(&s).into_owned(),
                 hl_style.unwrap_or(Style::default().fg(DEFAULT_HL_COLOR)),
             ),
             _ => Span::raw(""),
@@ -34,10 +34,11 @@ impl Fragment {
 
     pub fn span(&'_ self, hl_style: Option<Style>) -> Span<'_> {
         match self {
-            Self::Raw(s) if !s.is_empty() => Span::raw(s.as_ref()),
-            Self::Hl(s) if !s.is_empty() => {
-                Span::styled(s.as_ref(), hl_style.unwrap_or(Style::default().fg(DEFAULT_HL_COLOR)))
-            }
+            Self::Raw(s) if !s.is_empty() => Span::raw(crate::i18n::tr(s.as_ref())),
+            Self::Hl(s) if !s.is_empty() => Span::styled(
+                crate::i18n::tr(s.as_ref()),
+                hl_style.unwrap_or(Style::default().fg(DEFAULT_HL_COLOR)),
+            ),
             _ => Span::raw(""),
         }
     }
@@ -53,11 +54,12 @@ pub enum ShortcutMode {
 pub struct Shortcut {
     full: Vec<Fragment>,
     compact: Option<Vec<Fragment>>,
+    label_key: Option<(Box<str>, usize)>,
 }
 
 impl Shortcut {
     pub fn new(parts: Vec<Fragment>) -> Self {
-        Self { full: parts, compact: None }
+        Self { full: parts, compact: None, label_key: None }
     }
 
     pub fn compact(mut self, parts: Vec<Fragment>) -> Self {
@@ -100,7 +102,9 @@ impl Shortcut {
             parts.push(Fragment::raw(&text[pivot..]));
         }
 
-        Ok(Self::new(parts))
+        let mut shortcut = Self::new(parts);
+        shortcut.label_key = Some((text.into(), hl_idx));
+        Ok(shortcut)
     }
 
     pub fn into_spans<'a>(self, hl_style: Option<Style>) -> Vec<Span<'a>> {
@@ -108,19 +112,31 @@ impl Shortcut {
     }
 
     pub fn into_spans_for<'a>(self, mode: ShortcutMode, hl_style: Option<Style>) -> Vec<Span<'a>> {
-        let parts = match mode {
-            ShortcutMode::Full => self.full,
-            ShortcutMode::Compact => self.compact.unwrap_or(self.full),
-        };
-        parts.into_iter().map(|v| v.into_span(hl_style)).collect()
+        self.spans_for(mode, hl_style)
+            .into_iter()
+            .map(|span| Span::styled(span.content.into_owned(), span.style))
+            .collect()
     }
 
     pub fn spans_for(&'_ self, mode: ShortcutMode, hl_style: Option<Style>) -> Vec<Span<'_>> {
+        if (mode == ShortcutMode::Full || self.compact.is_none())
+            && let Some((key, index)) = &self.label_key
+            && let Some(label) = crate::i18n::shortcut_label(key)
+        {
+            return vec![
+                Span::raw(format!("{label}(")),
+                Span::styled(
+                    &key[*index..*index + 1],
+                    hl_style.unwrap_or(Style::default().fg(DEFAULT_HL_COLOR)),
+                ),
+                Span::raw(")"),
+            ];
+        }
         self.parts(mode).iter().map(|v| v.span(hl_style)).collect()
     }
 
     pub fn width_for(&self, mode: ShortcutMode) -> usize {
-        self.parts(mode).iter().map(|v| v.span(None).width()).sum()
+        self.spans_for(mode, None).iter().map(Span::width).sum()
     }
 }
 

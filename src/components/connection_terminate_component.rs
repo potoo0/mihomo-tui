@@ -209,14 +209,21 @@ impl Component for ConnectionTerminateComponent {
                 let value = (def.accessor)(conn);
                 Line::from(vec![
                     Span::styled(
-                        format!("{:<12}", def.title),
+                        {
+                            let title = crate::i18n::tr(def.title);
+                            let padding = 12usize.saturating_sub(Span::raw(title.as_ref()).width());
+                            format!("{}{}", title, " ".repeat(padding))
+                        },
                         Style::default().add_modifier(Modifier::BOLD),
                     ),
                     Span::raw(value),
                 ])
             })
             .collect();
-        lines.insert(0, Line::from(Span::raw("Are you sure to terminate this connection?")));
+        lines.insert(
+            0,
+            Line::from(Span::raw(crate::i18n::tr("Are you sure to terminate this connection?"))),
+        );
         lines.insert(1, Line::raw(""));
         let content = Paragraph::new(lines).wrap(Wrap { trim: true }).alignment(Alignment::Left);
         frame.render_widget(content, chunks[0]);

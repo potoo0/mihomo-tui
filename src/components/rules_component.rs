@@ -176,7 +176,7 @@ impl RulesComponent {
         }
 
         let symbol = Throbber::default()
-            .label("Loading")
+            .label(crate::i18n::tr("Loading"))
             .style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_set(BRAILLE_SIX)
@@ -206,7 +206,7 @@ impl RulesComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("rules ("),
+            Span::raw(crate::i18n::tr("rules (")),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
@@ -220,7 +220,7 @@ impl RulesComponent {
         let header = RULE_COLS
             .iter()
             .map(|def| def.col.title)
-            .map(|title| Cell::from(title).bold())
+            .map(|title| Cell::from(crate::i18n::tr(title)).bold())
             .collect::<Row>()
             .height(1)
             .bottom_margin(1);

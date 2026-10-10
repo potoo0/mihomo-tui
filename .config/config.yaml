@@ -32,6 +32,10 @@ log-level: error
 # Override for one launch with --runtime-config true/false.
 runtime-config: true
 
+# UI language (en, zh-CN), Optional, default is en.
+# Saved runtime language takes precedence when runtime-config is enabled.
+#language: en
+
 # UI settings, Optional
 # startup-tab:
 #   - initial tab on launch; matching is case-insensitive.

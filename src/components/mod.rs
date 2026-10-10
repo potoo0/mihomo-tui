@@ -9,6 +9,7 @@ mod filter_component;
 mod footer_component;
 mod header_component;
 mod help_component;
+mod language_component;
 mod logs_component;
 mod msg_box_component;
 mod overview_component;
@@ -76,6 +77,7 @@ pub enum ComponentId {
     Rules,
     RuleProviders,
     Config,
+    Language,
     DnsQuery,
     Filter,
 }

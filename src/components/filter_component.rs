@@ -112,6 +112,9 @@ impl Component for FilterComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Focus(ComponentId::Filter) => self.is_active = true,
+            Action::LanguageChanged(_) => {
+                self.shortcuts_full_width = shortcuts_full_width(&self.shortcuts(), 2);
+            }
             Action::Tick => self.send()?,
             Action::FilterSet(pattern) => {
                 debug!("handle Action::FilterSet, pattern={pattern:?}");

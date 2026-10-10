@@ -1,0 +1,299 @@
+_version: 1
+Overview: Overview
+Connections: Connections
+Proxies: Proxies
+ProxyProviders: ProxyProviders
+Logs: Logs
+Rules: Rules
+RuleProviders: RuleProviders
+Config: Config
+Language: Language
+View: View
+Conn: Conn
+Pxy: Pxy
+Pxy-Pr: Pxy-Pr
+Log: Log
+Rule: Rule
+R-Pr: R-Pr
+Cfg: Cfg
+Lang: Lang
+Rate: Rate
+Total: Total
+Conns: Conns
+Memory: Memory
+Traffic chart: Traffic chart
+Memory chart: Memory chart
+Loading: Loading
+Testing: Testing
+Updating: Updating
+Submitting: Submitting
+Capture: Capture
+'Live  ': 'Live  '
+Paused: Paused
+Querying: Querying
+Name is required: Name is required
+API is not initialized: API is not initialized
+DNS query task stopped: DNS query task stopped
+No answer records: No answer records
+' Type ': ' Type '
+' Name ': ' Name '
+NAME: NAME
+DATA: DATA
+' Columns ': ' Columns '
+' Source IP Alias ': ' Source IP Alias '
+No source IPs from current connections: No source IPs from current connections
+'Terminal size too small:': 'Terminal size too small:'
+'Expected:': 'Expected:'
+Default configuration: Default configuration
+Runtime configuration: Runtime configuration
+Version: Version
+Key: Key
+Description: Description
+common: common
+input box: input box
+filter syntax: filter syntax
+help: help
+detail: detail
+terminate: terminate
+config: config
+actions: actions
+connections settings: connections settings
+proxy settings: proxy settings
+dns query: dns query
+updates: updates
+core config: core config
+Test URL: Test URL
+Test Timeout (ms): Test Timeout (ms)
+Threshold (medium,high): Threshold (medium,high)
+Auto Terminate Connections: Auto Terminate Connections
+Timeout must be a valid number: Timeout must be a valid number
+Auto terminate connections must be true or false: Auto terminate connections must be true or false
+At least one column must be selected: At least one column must be selected
+Connection terminating...: Connection terminating...
+Connection terminated successfully.: Connection terminated successfully.
+Connections terminating...: Connections terminating...
+Are you sure to terminate this connection?: Are you sure to terminate this connection?
+Connection is already inactive.: Connection is already inactive.
+'Are you sure to terminate ': 'Are you sure to terminate '
+' filtered connections?': ' filtered connections?'
+Reload: Reload
+Restart: Restart
+Flush FakeIP: Flush FakeIP
+Flush DNS: Flush DNS
+Update GEO: Update GEO
+'TUI auto restart? ': 'TUI auto restart? '
+'yes': 'yes'
+'no': 'no'
+unknown: unknown
+Alive: Alive
+Host: Host
+Chains: Chains
+DownRate: DownRate
+UpRate: UpRate
+DownTotal: DownTotal
+UpTotal: UpTotal
+SourceIP: SourceIP
+Type: Type
+Process: Process
+SniffHost: SniffHost
+ConnectTime: ConnectTime
+SourcePort: SourcePort
+Dest: Dest
+Inbound: Inbound
+Level: Level
+Content: Content
+Index: Index
+Size: Size
+Disabled: Disabled
+Hits: Hits
+HitAt: HitAt
+Name: Name
+VehicleType: VehicleType
+Behavior: Behavior
+RuleCount: RuleCount
+UpdatedAt: UpdatedAt
+Update proxy provider: Update proxy provider
+Load proxy: Load proxy
+Update selected proxy: Update selected proxy
+Submit core config: Submit core config
+Sync config from external editor: Sync config from external editor
+Update mihomo core: Update mihomo core
+Select a language. Changes apply immediately.: Select a language. Changes apply immediately.
+Language preference is saved automatically.: Language preference is saved automatically.
+' nav ': ' nav '
+' scroll ': ' scroll '
+' page ': ' page '
+' sort ': ' sort '
+' width': ' width'
+' w': ' w'
+' reset': ' reset'
+' rst': ' rst'
+' detail ': ' detail '
+'detail ': 'detail '
+' confirm ': ' confirm '
+'confirm ': 'confirm '
+'cancel ': 'cancel '
+'apply ': 'apply '
+'submit ': 'submit '
+'execute ': 'execute '
+'query ': 'query '
+'toggle ': 'toggle '
+'update ': 'update '
+' type ': ' type '
+' cursor ': ' cursor '
+' focus ': ' focus '
+' move ': ' move '
+' move': ' move'
+' del ': ' del '
+' jump ': ' jump '
+' pane nav ': ' pane nav '
+' pane': ' pane'
+' layer ': ' layer '
+' layer': ' layer'
+'sel ': 'sel '
+'back ': 'back '
+'live ': 'live '
+'es ': 'es '
+'o ': 'o '
+erm: erm
+ort: ort
+ank: ank
+connections (: connections (
+proxies (: proxies (
+proxy providers (: proxy providers (
+rule providers (: rule providers (
+rules (: rules (
+logs (: logs (
+' core config * ': ' core config * '
+' core config ': ' core config '
+Open help from the main view / close help: Open help from the main view / close help
+Quit from the main view / close help: Quit from the main view / close help
+Quit program: Quit program
+switch to tab: switch to tab
+vertical navigation where available: vertical navigation where available
+horizontal navigation where available: horizontal navigation where available
+go to first, last: go to first, last
+page up, down: page up, down
+cancel / back / live toggle: cancel / back / live toggle
+confirm / open detail: confirm / open detail
+clear idle tabs: clear idle tabs
+open updates: open updates
+navigate fields: navigate fields
+move cursor: move cursor
+delete: delete
+yank last deleted word: yank last deleted word
+jump to line start, end: jump to line start, end
+match using fuzzy search for 'str': match using fuzzy search for 'str'
+match if the value starts with 'str': match if the value starts with 'str'
+match if the value ends with 'str': match if the value ends with 'str'
+match exactly 'str': match exactly 'str'
+match if the value contains substring 'str': match if the value contains substring 'str'
+'negate the match of <pattern>, examples: !^str, !''str': 'negate the match of <pattern>, examples: !^str, !''str'
+quote plain patterns containing spaces or colons: quote plain patterns containing spaces or colons
+match <pattern> only in the named column; field is case-insensitive: match <pattern> only in the named column; field is case-insensitive
+quote values containing spaces: quote values containing spaces
+match named fields and remaining columns using AND: match named fields and remaining columns using AND
+select sort column: select sort column
+terminate selected connection: terminate selected connection
+terminate filtered connections: terminate filtered connections
+reverse sort direction: reverse sort direction
+capture mode: capture mode
+open connection settings: open connection settings
+decrease/increase sort column width: decrease/increase sort column width
+reset sort column width: reset sort column width
+navigate settings panes: navigate settings panes
+apply settings: apply settings
+cancel settings: cancel settings
+'Columns:          navigate columns': 'Columns:          navigate columns'
+'Columns:          move selected column': 'Columns:          move selected column'
+'Columns:          toggle selected column': 'Columns:          toggle selected column'
+'Columns:          select all columns': 'Columns:          select all columns'
+'Columns:          invert selected columns': 'Columns:          invert selected columns'
+'Source IP Alias:  navigate source IP aliases': 'Source IP Alias:  navigate source IP aliases'
+refresh proxies: refresh proxies
+open proxy settings: open proxy settings
+test proxy: test proxy
+update selected proxy: update selected proxy
+decrease/increase card width: decrease/increase card width
+jump to current selected proxy: jump to current selected proxy
+navigate nested groups: navigate nested groups
+'switch sort by: none, latency, name': 'switch sort by: none, latency, name'
+toggle sort direction: toggle sort direction
+show provider detail: show provider detail
+update providers: update providers
+'filter log level: error, warn, info, debug': 'filter log level: error, warn, info, debug'
+refresh rules: refresh rules
+toggle disabled state (selected or all filtered): toggle disabled state (selected or all filtered)
+submit disabled state changes: submit disabled state changes
+refresh rule providers: refresh rule providers
+update rule providers: update rule providers
+move focus between editor and actions: move focus between editor and actions
+execute focused action / confirm: execute focused action / confirm
+open config in external editor ($EDITOR → vim → vi): open config in external editor ($EDITOR → vim → vi)
+discard changes and reload config: discard changes and reload config
+open DNS query dialog: open DNS query dialog
+navigate query fields: navigate query fields
+query DNS records: query DNS records
+select DNS record type: select DNS record type
+scroll answers: scroll answers
+'# Connections (Conn)': '# Connections (Conn)'
+'## Connections (Conn)': '## Connections (Conn)'
+'# Connections Settings': '# Connections Settings'
+'## Connections Settings': '## Connections Settings'
+'# Proxies (Pxy)': '# Proxies (Pxy)'
+'## Proxies (Pxy)': '## Proxies (Pxy)'
+'# Proxy Detail': '# Proxy Detail'
+'## Proxy Detail': '## Proxy Detail'
+'# ProxyProviders (Pxy-Pr)': '# ProxyProviders (Pxy-Pr)'
+'## ProxyProviders (Pxy-Pr)': '## ProxyProviders (Pxy-Pr)'
+'# Logs (Log)': '# Logs (Log)'
+'## Logs (Log)': '## Logs (Log)'
+'# Rules (Rule)': '# Rules (Rule)'
+'## Rules (Rule)': '## Rules (Rule)'
+'# RuleProviders (R-Pr)': '# RuleProviders (R-Pr)'
+'## RuleProviders (R-Pr)': '## RuleProviders (R-Pr)'
+'# Config (Cfg)': '# Config (Cfg)'
+'## Config (Cfg)': '## Config (Cfg)'
+'# DNS Query': '# DNS Query'
+'## DNS Query': '## DNS Query'
+open language settings: open language settings
+refreshing...: refreshing...
+Loading proxy: Loading proxy
+Save runtime config: Save runtime config
+Update app: Update app
+' nav': ' nav'
+' scroll': ' scroll'
+' page': ' page'
+'esc ': 'esc '
+' submit ': ' submit '
+' test ': ' test '
+' 1. Partial updates are supported: include only the fields you want to change (e.g. {"tun": {"enable": true}}).': ' 1. Partial
+  updates are supported: include only the fields you want to change (e.g. {"tun": {"enable": true}}).'
+' 2. Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.': ' 2.
+  Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.'
+Mihomo core upgrade requested, waiting for service to restart...: Mihomo core upgrade requested, waiting for service to restart...
+Timed out waiting for mihomo core to restart with a new version: Timed out waiting for mihomo core to restart with a new version
+Mihomo core upgrade successfully: Mihomo core upgrade successfully
+Submit disabled rule changes: Submit disabled rule changes
+shortcuts.quit: quit
+shortcuts.filter: filter
+shortcuts.refresh: refresh
+shortcuts.update: update
+shortcuts.test: test
+shortcuts.setting: setting
+shortcuts.capture: capture
+shortcuts.edit: edit
+shortcuts.discard: discard
+shortcuts.dns: dns
+shortcuts.cur: cur
+shortcuts.all: all
+shortcuts.invert: invert
+shortcuts.submit: submit
+shortcuts.toggle: toggle
+messages.expiry: 'Expire: %{value}'
+messages.updated_at: 'Updated at: %{value}'
+messages.card_width: ' Card width: %{preferred_width} (actual: %{actual_width}) '
+messages.terminated: Terminated %{ok} connections, %{err} failed.
+messages.answers: ' Answers (%{count}) '
+messages.up_to_date: up to date (%{current})
+Select a language and press Enter to apply.: Select a language and press Enter to apply.

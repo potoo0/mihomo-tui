@@ -146,14 +146,20 @@ impl App {
             Action::Tick => {}
             Action::Quit => self.token.cancel(),
             Action::Resize(w, h) => self.handle_resize(tui, *w, *h)?,
+            // Repaint page transitions to remove terminal artifacts outside the diff buffer.
+            Action::TabSwitch(_) => tui.clear_screen()?,
             Action::SpawnExternalEditor(editor, filepath) => {
                 self.handle_spawn_external_editor(tui, editor, filepath)?
             }
-            Action::ConnectionsSettingChanged
+            Action::LanguageChanged(_)
+            | Action::ConnectionsSettingChanged
             | Action::ConnectionsLayoutChanged
             | Action::ProxyDetailLayoutChanged
             | Action::ProxyProviderDetailLayoutChanged
             | Action::ProxySettingChanged => {
+                if let Action::LanguageChanged(language) = action {
+                    crate::i18n::set_language(language);
+                }
                 if let Err(e) = self.save_runtime_config() {
                     error!(error = ?e, "Failed to save runtime config");
                     self.action_tx.send(Action::Error(
@@ -234,7 +240,7 @@ impl App {
         };
 
         tui.enter()?;
-        tui.terminal.clear()?;
+        tui.clear_screen()?;
         self.action_tx.send(action)?;
         self.action_tx.send(Action::RefreshVersion)?;
 
@@ -272,7 +278,7 @@ impl App {
         }
 
         tui.enter()?;
-        tui.terminal.clear()?;
+        tui.clear_screen()?;
 
         Ok(())
     }

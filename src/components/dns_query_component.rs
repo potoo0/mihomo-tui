@@ -238,7 +238,7 @@ impl DnsQueryComponent {
             return;
         }
         let symbol = Throbber::default()
-            .label("Querying")
+            .label(crate::i18n::tr("Querying"))
             .style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_set(BRAILLE_SIX)
@@ -271,7 +271,7 @@ impl DnsQueryComponent {
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(type_style)
-                .title(" Type "),
+                .title(crate::i18n::tr(" Type ")),
         );
         frame.render_widget(type_widget, type_area);
 
@@ -287,7 +287,7 @@ impl DnsQueryComponent {
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(name_style)
-                .title(" Name "),
+                .title(crate::i18n::tr(" Name ")),
         );
         frame.render_widget(name, name_area);
         if self.focused == FocusedField::Name {
@@ -298,7 +298,8 @@ impl DnsQueryComponent {
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
         if let Some(error) = &self.error {
-            let line = Line::from(Span::styled(error, Style::default().fg(Color::Red)));
+            let line =
+                Line::from(Span::styled(crate::i18n::tr(error), Style::default().fg(Color::Red)));
             frame.render_widget(Paragraph::new(line), area);
         }
     }
@@ -306,7 +307,7 @@ impl DnsQueryComponent {
     fn render_answers(&mut self, frame: &mut Frame, area: Rect) {
         let focused = self.focused == FocusedField::Answers;
         let block_style = if focused { Style::default().fg(Color::Cyan) } else { Style::default() };
-        let title = format!(" Answers ({}) ", self.answers.len());
+        let title = crate::i18n::messages::answers(self.answers.len());
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(block_style)
@@ -322,11 +323,11 @@ impl DnsQueryComponent {
 
         if self.answers.is_empty() && !self.loading.load(Ordering::Relaxed) {
             let message = if self.error.is_some() { "" } else { "No answer records" };
-            frame.render_widget(Paragraph::new(message).block(block), area);
+            frame.render_widget(Paragraph::new(crate::i18n::tr(message)).block(block), area);
             return;
         }
 
-        let header = Row::new(["NAME", "DATA"])
+        let header = Row::new([crate::i18n::tr("NAME"), crate::i18n::tr("DATA")])
             .height(1)
             .bottom_margin(1)
             .style(Style::default().add_modifier(Modifier::BOLD));

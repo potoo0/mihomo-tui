@@ -193,7 +193,8 @@ impl ConnectionsSettingComponent {
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
         if let Some(error) = self.active_error() {
-            let msg = Line::from(Span::styled(error, Style::default().fg(Color::Red)));
+            let msg =
+                Line::from(Span::styled(crate::i18n::tr(error), Style::default().fg(Color::Red)));
             frame.render_widget(Paragraph::new(msg), area);
         }
     }

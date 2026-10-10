@@ -1,0 +1,299 @@
+_version: 1
+Overview: 概览
+Connections: 连接
+Proxies: 代理
+ProxyProviders: 代理提供者
+Logs: 日志
+Rules: 规则
+RuleProviders: 规则提供者
+Config: 配置
+Language: 语言
+View: 概览
+Conn: 连接
+Pxy: 代理
+Pxy-Pr: 订阅
+Log: 日志
+Rule: 规则
+R-Pr: 规则集
+Cfg: 配置
+Lang: 语言
+Rate: 速率
+Total: 总量
+Conns: 连接数
+Memory: 内存
+Traffic chart: 流量图表
+Memory chart: 内存图表
+Loading: 加载中
+Testing: 测试中
+Updating: 更新中
+Submitting: 提交中
+Capture: 快照
+'Live  ': '实时  '
+Paused: 暂停
+Querying: 查询中
+Name is required: 请输入域名
+API is not initialized: API 尚未初始化
+DNS query task stopped: DNS 查询任务已停止
+No answer records: 无应答记录
+' Type ': ' 类型 '
+' Name ': ' 域名 '
+NAME: 名称
+DATA: 数据
+' Columns ': ' 显示列 '
+' Source IP Alias ': ' 来源 IP 别名 '
+No source IPs from current connections: 当前连接没有来源 IP
+'Terminal size too small:': 终端尺寸过小：
+'Expected:': 需要尺寸：
+Default configuration: 默认配置
+Runtime configuration: 运行时配置
+Version: 版本
+Key: 按键
+Description: 说明
+common: 通用
+input box: 输入框
+filter syntax: 筛选语法
+help: 帮助
+detail: 详情
+terminate: 终止连接
+config: 配置
+actions: 操作
+connections settings: 连接设置
+proxy settings: 代理设置
+dns query: DNS 查询
+updates: 更新
+core config: 内核配置
+Test URL: 测试地址
+Test Timeout (ms): 测试超时（毫秒）
+Threshold (medium,high): 延迟阈值（中,高）
+Auto Terminate Connections: 自动终止相关连接
+Timeout must be a valid number: 超时必须为有效数字
+Auto terminate connections must be true or false: 自动终止连接必须为 true 或 false
+At least one column must be selected: 至少选择一列
+Connection terminating...: 正在终止连接…
+Connection terminated successfully.: 连接已终止。
+Connections terminating...: 正在终止连接…
+Are you sure to terminate this connection?: 确定终止此连接？
+Connection is already inactive.: 此连接已结束。
+'Are you sure to terminate ': '确定终止 '
+' filtered connections?': ' 个筛选出的连接？'
+Reload: 重新加载
+Restart: 重启内核
+Flush FakeIP: 清空 FakeIP
+Flush DNS: 清空 DNS
+Update GEO: 更新 GEO
+'TUI auto restart? ': '自动重启界面？ '
+'yes': 是
+'no': 否
+unknown: 未知
+Alive: 活动
+Host: 主机
+Chains: 代理链
+DownRate: 下载速率
+UpRate: 上传速率
+DownTotal: 下载总量
+UpTotal: 上传总量
+SourceIP: 来源 IP
+Type: 类型
+Process: 进程
+SniffHost: 嗅探主机
+ConnectTime: 连接时间
+SourcePort: 来源端口
+Dest: 目标
+Inbound: 入站
+Level: 级别
+Content: 内容
+Index: 序号
+Size: 大小
+Disabled: 禁用
+Hits: 命中数
+HitAt: 命中时间
+Name: 名称
+VehicleType: 载入方式
+Behavior: 行为
+RuleCount: 规则数
+UpdatedAt: 更新时间
+Update proxy provider: 更新代理提供者
+Load proxy: 加载代理
+Update selected proxy: 切换代理
+Submit core config: 提交内核配置
+Sync config from external editor: 从编辑器同步配置
+Update mihomo core: 更新 Mihomo 内核
+Select a language. Changes apply immediately.: 选择语言，立即生效。
+Language preference is saved automatically.: 语言偏好会自动保存。
+' nav ': ' 移动 '
+' scroll ': ' 滚动 '
+' page ': ' 翻页 '
+' sort ': ' 排序 '
+' width': ' 宽度'
+' w': ' 宽'
+' reset': ' 重置'
+' rst': ' 重置'
+' detail ': ' 详情 '
+'detail ': '详情 '
+' confirm ': ' 确认 '
+'confirm ': '确认 '
+'cancel ': '取消 '
+'apply ': '应用 '
+'submit ': '提交 '
+'execute ': '执行 '
+'query ': '查询 '
+'toggle ': '切换 '
+'update ': '更新 '
+' type ': ' 类型 '
+' cursor ': ' 光标 '
+' focus ': ' 焦点 '
+' move ': ' 移动 '
+' move': ' 移动'
+' del ': ' 删除 '
+' jump ': ' 跳转 '
+' pane nav ': ' 面板 '
+' pane': ' 面板'
+' layer ': ' 层级 '
+' layer': ' 层级'
+'sel ': '选择 '
+'back ': '返回 '
+'live ': '实时 '
+'es ': ' 确定 '
+'o ': ' 取消 '
+erm: ' 终止'
+ort: ' 排序'
+ank: ' 粘贴'
+connections (: 连接 (
+proxies (: 代理 (
+proxy providers (: 代理提供者 (
+rule providers (: 规则提供者 (
+rules (: 规则 (
+logs (: 日志 (
+' core config * ': ' 内核配置 * '
+' core config ': ' 内核配置 '
+Open help from the main view / close help: 打开 / 关闭帮助
+Quit from the main view / close help: 退出主界面 / 关闭帮助
+Quit program: 退出程序
+switch to tab: 切换页签
+vertical navigation where available: 上下移动
+horizontal navigation where available: 左右移动
+go to first, last: 跳转到首项 / 末项
+page up, down: 向上 / 向下翻页
+cancel / back / live toggle: 取消 / 返回 / 切换实时模式
+confirm / open detail: 确认 / 查看详情
+clear idle tabs: 清理闲置页签
+open updates: 打开更新页
+navigate fields: 切换输入项
+move cursor: 移动光标
+delete: 删除
+yank last deleted word: 粘贴上次删除的词
+jump to line start, end: 跳转到行首 / 行尾
+match using fuzzy search for 'str': 模糊匹配 str
+match if the value starts with 'str': 匹配以 str 开头的值
+match if the value ends with 'str': 匹配以 str 结尾的值
+match exactly 'str': 精确匹配 str
+match if the value contains substring 'str': 匹配包含 str 的值
+'negate the match of <pattern>, examples: !^str, !''str': 反向匹配 <pattern>，例如 !^str、!'str
+quote plain patterns containing spaces or colons: 包含空格或冒号的模式需要引号
+match <pattern> only in the named column; field is case-insensitive: 仅匹配指定列，字段名不区分大小写
+quote values containing spaces: 包含空格的值需要引号
+match named fields and remaining columns using AND: 多个字段与其余列的条件同时满足
+select sort column: 选择排序列
+terminate selected connection: 终止选中连接
+terminate filtered connections: 终止筛选出的连接
+reverse sort direction: 反转排序方向
+capture mode: 快照模式
+open connection settings: 打开连接设置
+decrease/increase sort column width: 缩小 / 增大排序列宽
+reset sort column width: 重置排序列宽
+navigate settings panes: 切换设置面板
+apply settings: 应用设置
+cancel settings: 取消设置
+'Columns:          navigate columns': 显示列：移动选择
+'Columns:          move selected column': 显示列：调整列顺序
+'Columns:          toggle selected column': 显示列：切换选中列
+'Columns:          select all columns': 显示列：全部选中
+'Columns:          invert selected columns': 显示列：反选
+'Source IP Alias:  navigate source IP aliases': 来源 IP 别名：上下移动
+refresh proxies: 刷新代理
+open proxy settings: 打开代理设置
+test proxy: 测试代理延迟
+update selected proxy: 切换到选中代理
+decrease/increase card width: 缩小 / 增大卡片宽度
+jump to current selected proxy: 定位当前使用的代理
+navigate nested groups: 切换嵌套代理组
+'switch sort by: none, latency, name': 切换排序：默认、延迟、名称
+toggle sort direction: 切换排序方向
+show provider detail: 查看提供者详情
+update providers: 更新提供者
+'filter log level: error, warn, info, debug': 筛选日志级别：错误、警告、信息、调试
+refresh rules: 刷新规则
+toggle disabled state (selected or all filtered): 切换禁用状态（选中项或筛选结果）
+submit disabled state changes: 提交禁用状态变更
+refresh rule providers: 刷新规则提供者
+update rule providers: 更新规则提供者
+move focus between editor and actions: 切换编辑器与操作区
+execute focused action / confirm: 执行选中操作 / 确认
+open config in external editor ($EDITOR → vim → vi): 使用外部编辑器打开配置（$EDITOR → vim → vi）
+discard changes and reload config: 放弃修改并重新加载
+open DNS query dialog: 打开 DNS 查询
+navigate query fields: 切换查询输入项
+query DNS records: 查询 DNS 记录
+select DNS record type: 选择 DNS 记录类型
+scroll answers: 滚动查询结果
+'# Connections (Conn)': '# 连接'
+'## Connections (Conn)': '## 连接'
+'# Connections Settings': '# 连接设置'
+'## Connections Settings': '## 连接设置'
+'# Proxies (Pxy)': '# 代理'
+'## Proxies (Pxy)': '## 代理'
+'# Proxy Detail': '# 代理详情'
+'## Proxy Detail': '## 代理详情'
+'# ProxyProviders (Pxy-Pr)': '# 代理提供者'
+'## ProxyProviders (Pxy-Pr)': '## 代理提供者'
+'# Logs (Log)': '# 日志'
+'## Logs (Log)': '## 日志'
+'# Rules (Rule)': '# 规则'
+'## Rules (Rule)': '## 规则'
+'# RuleProviders (R-Pr)': '# 规则提供者'
+'## RuleProviders (R-Pr)': '## 规则提供者'
+'# Config (Cfg)': '# 配置'
+'## Config (Cfg)': '## 配置'
+'# DNS Query': '# DNS 查询'
+'## DNS Query': '## DNS 查询'
+open language settings: 打开语言设置
+refreshing...: 刷新中…
+Loading proxy: 加载代理
+Save runtime config: 保存运行时配置
+Update app: 更新程序
+' nav': ' 移动'
+' scroll': ' 滚动'
+' page': ' 翻页'
+'esc ': '取消 '
+' submit ': ' 提交 '
+' test ': ' 测速 '
+' 1. Partial updates are supported: include only the fields you want to change (e.g. {"tun": {"enable": true}}).': ' 1. 支持部分更新：仅填写需要修改的字段（例如
+  {"tun": {"enable": true}}）。'
+' 2. Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.': ' 2.
+  可修改的字段：有注释的字段，以及 `tun` 和 `tuic-server` 下的所有字段。'
+Mihomo core upgrade requested, waiting for service to restart...: 已请求更新 Mihomo 内核，等待服务重启…
+Timed out waiting for mihomo core to restart with a new version: 等待 Mihomo 内核重启到新版本超时
+Mihomo core upgrade successfully: Mihomo 内核更新成功
+Submit disabled rule changes: 提交规则禁用状态
+shortcuts.quit: 退出
+shortcuts.filter: 筛选
+shortcuts.refresh: 刷新
+shortcuts.update: 更新
+shortcuts.test: 测速
+shortcuts.setting: 设置
+shortcuts.capture: 快照
+shortcuts.edit: 编辑
+shortcuts.discard: 放弃
+shortcuts.dns: DNS 查询
+shortcuts.cur: 当前
+shortcuts.all: 全选
+shortcuts.invert: 反选
+shortcuts.submit: 提交
+shortcuts.toggle: 切换
+messages.expiry: 到期：%{value}
+messages.updated_at: 更新时间：%{value}
+messages.card_width: ' 卡片宽度：%{preferred_width}（实际：%{actual_width}） '
+messages.terminated: 已终止 %{ok} 个连接，%{err} 个失败。
+messages.answers: ' 应答（%{count}） '
+messages.up_to_date: 已是最新版本（%{current}）
+Select a language and press Enter to apply.: 选择语言，按 Enter 应用。
