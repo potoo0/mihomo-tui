@@ -4,6 +4,7 @@ pub mod columns;
 pub mod editor;
 pub mod filter;
 pub mod input;
+pub mod json;
 pub mod json5_formatter;
 pub mod symbols;
 #[cfg(test)]

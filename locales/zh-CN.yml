@@ -26,6 +26,7 @@ titles.detail: 详情
 titles.dns_query: DNS 查询
 titles.error: 错误
 titles.help: 帮助
+titles.inspect: 检查
 titles.proxy_settings: 代理设置
 titles.terminate: 终止连接
 titles.updates: 更新
@@ -213,6 +214,7 @@ help.logs.filter_level: 筛选日志级别：error、warn、info、debug
 help.proxies.open_settings: 打开代理设置
 help.proxies.refresh: 刷新代理
 help.proxies.test: 测试代理延迟
+help.proxies.inspect: 查看当前代理的完整 JSON
 help.proxy_detail.change_sort: 切换排序：默认、延迟、名称
 help.proxy_detail.jump_to_current: 定位当前使用的代理
 help.proxy_detail.navigate_groups: 切换嵌套代理组
@@ -259,6 +261,7 @@ shortcuts.escape: 取消
 shortcuts.execute: 执行
 shortcuts.filter: 筛选
 shortcuts.focus: 焦点
+shortcuts.inspect: 检查
 shortcuts.invert: 反选
 shortcuts.jump: 跳转
 shortcuts.layer: 层级

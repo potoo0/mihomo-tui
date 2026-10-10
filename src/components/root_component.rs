@@ -34,6 +34,7 @@ use crate::components::msg_box_component::MsgBoxComponent;
 use crate::components::overview_component::OverviewComponent;
 use crate::components::proxies_component::ProxiesComponent;
 use crate::components::proxy_detail_component::ProxyDetailComponent;
+use crate::components::proxy_inspect_component::ProxyInspectComponent;
 use crate::components::proxy_provider_detail_component::ProxyProviderDetailComponent;
 use crate::components::proxy_providers_component::ProxyProvidersComponent;
 use crate::components::proxy_setting_component::ProxySettingComponent;
@@ -134,6 +135,7 @@ impl RootComponent {
             ComponentId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::default()),
             ComponentId::Proxies => Box::new(ProxiesComponent::default()),
             ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::default()),
+            ComponentId::ProxyInspect => Box::new(ProxyInspectComponent::default()),
             ComponentId::ProxySetting => Box::new(ProxySettingComponent::default()),
             ComponentId::ProxyProviders => Box::new(ProxyProvidersComponent::default()),
             ComponentId::ProxyProviderDetail => Box::new(ProxyProviderDetailComponent::default()),
@@ -568,6 +570,7 @@ impl Component for RootComponent {
             Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
             Action::ConnectionsSetting(_) => self.open_popup(ComponentId::ConnectionsSetting)?,
             Action::ProxyDetail(_) => self.open_popup(ComponentId::ProxyDetail)?,
+            Action::ProxyInspect(_) => self.open_popup(ComponentId::ProxyInspect)?,
             Action::ProxySetting => self.open_popup(ComponentId::ProxySetting)?,
             Action::ProxyProviderDetail(_) => self.open_popup(ComponentId::ProxyProviderDetail)?,
             Action::ConnectionTerminateRequest(_) => {
@@ -675,12 +678,17 @@ mod tests {
         let (tx, rx) = unbounded_channel();
         let mut root = RootComponent::new(ComponentId::Proxies);
         root.action_tx = Some(tx);
-        for id in [ComponentId::Proxies, ComponentId::Help, ComponentId::Language] {
+        for id in [
+            ComponentId::Proxies,
+            ComponentId::Help,
+            ComponentId::Language,
+            ComponentId::ProxyDetail,
+            ComponentId::ProxyInspect,
+        ] {
             root.components.insert(id, Box::new(TestPopup(id)));
         }
         (root, rx)
     }
-
     fn has_render_request(scheduler: &RenderScheduler) -> bool {
         scheduler.wait_for_request().now_or_never().is_some()
     }
@@ -872,6 +880,16 @@ mod tests {
                 expected_focused: Some(ComponentId::Language),
                 expect_shortcuts: false,
                 expected_focus: None,
+            },
+            Case {
+                name: "closing proxy inspect",
+                initial: &[ComponentId::ProxyDetail, ComponentId::ProxyInspect],
+                focused: ComponentId::ProxyInspect,
+                unfocused: ComponentId::ProxyInspect,
+                expected: &[ComponentId::ProxyDetail],
+                expected_focused: Some(ComponentId::ProxyDetail),
+                expect_shortcuts: true,
+                expected_focus: Some(ComponentId::ProxyDetail),
             },
         ];
 

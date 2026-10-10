@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::app_message::AppMessage;
 use crate::components::ComponentId;
+use crate::models::proxy::Proxy;
 use crate::models::{Connection, Version};
 use crate::widgets::shortcut::Shortcut;
 
@@ -42,6 +43,7 @@ pub enum Action {
     ConnectionBatchTerminateRequest(Vec<String>),
     ProxyDetail(String),
     ProxyDetailLayoutChanged,
+    ProxyInspect(Arc<Proxy>),
     ProxySetting,
     ProxySettingChanged,
     ProxyProviderDetail(String),

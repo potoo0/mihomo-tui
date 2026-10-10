@@ -5,19 +5,15 @@ use ratatui::layout::Rect;
 use ratatui::prelude::Style;
 use ratatui::style::Color;
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
-use serde::Serialize;
-use serde_json::Serializer;
-use serde_json::ser::PrettyFormatter;
 
 use crate::action::Action;
 use crate::components::{Component, ComponentId};
 use crate::models::Connection;
+use crate::utils::json::pretty_json;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::scrollbar::Scroller;
 use crate::widgets::shortcut::{Fragment, Shortcut};
-
-const INDENT: &[u8; 4] = b"    "; // 4 spaces
 
 #[derive(Debug, Default)]
 pub struct ConnectionDetailComponent {
@@ -32,7 +28,7 @@ impl ConnectionDetailComponent {
     fn show(&mut self, data: &Connection) {
         self.show = true;
 
-        let pretty = Self::pretty(data);
+        let pretty = pretty_json(data);
         self.total_lines = pretty.lines().count();
         self.data = pretty;
         self.scroller.position(0);
@@ -41,17 +37,6 @@ impl ConnectionDetailComponent {
     fn hide(&mut self) {
         self.show = false;
         self.data = String::default();
-    }
-
-    fn pretty(data: &Connection) -> String {
-        let mut buf = Vec::with_capacity(512);
-        let formatter = PrettyFormatter::with_indent(INDENT);
-        let mut ser = Serializer::with_formatter(&mut buf, formatter);
-        if data.serialize(&mut ser).is_ok() {
-            String::from_utf8(buf).unwrap_or_else(|_| "<utf8 error>".into())
-        } else {
-            "<invalid json>".into()
-        }
     }
 }
 

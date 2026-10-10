@@ -26,6 +26,7 @@ titles.detail: detail
 titles.dns_query: dns query
 titles.error: error
 titles.help: help
+titles.inspect: inspect
 titles.proxy_settings: proxy settings
 titles.terminate: terminate
 titles.updates: updates
@@ -213,6 +214,7 @@ help.logs.filter_level: 'filter log level: error, warn, info, debug'
 help.proxies.open_settings: open proxy settings
 help.proxies.refresh: refresh proxies
 help.proxies.test: test proxy
+help.proxies.inspect: inspect the current proxy JSON
 help.proxy_detail.change_sort: 'switch sort by: none, latency, name'
 help.proxy_detail.jump_to_current: jump to current selected proxy
 help.proxy_detail.navigate_groups: navigate nested groups
@@ -259,6 +261,7 @@ shortcuts.escape: esc
 shortcuts.execute: execute
 shortcuts.filter: filter
 shortcuts.focus: focus
+shortcuts.inspect: inspect
 shortcuts.invert: invert
 shortcuts.jump: jump
 shortcuts.layer: layer
