@@ -159,8 +159,8 @@ impl RulesComponent {
                 }
                 Err(e) => {
                     error!(error = ?e, "Failed to submit disabled rule changes");
-                    let _ =
-                        action_tx.send(Action::Error(("Submit disabled rule changes", e).into()));
+                    let _ = action_tx
+                        .send(Action::Error(("actions.submit_disabled_rule_changes", e).into()));
                 }
             }
             loading.store(false, Ordering::Relaxed);
@@ -176,7 +176,7 @@ impl RulesComponent {
         }
 
         let symbol = Throbber::default()
-            .label("Loading")
+            .label(rust_i18n::t!("status.loading"))
             .style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
             .throbber_set(BRAILLE_SIX)
@@ -206,7 +206,7 @@ impl RulesComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("rules ("),
+            Span::raw(rust_i18n::t!("headers.rules")),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,
@@ -220,7 +220,7 @@ impl RulesComponent {
         let header = RULE_COLS
             .iter()
             .map(|def| def.col.title)
-            .map(|title| Cell::from(title).bold())
+            .map(|title| Cell::from(crate::i18n::column_title(title)).bold())
             .collect::<Row>()
             .height(1)
             .bottom_margin(1);
@@ -254,17 +254,17 @@ impl Component for RulesComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
             ]),
             Shortcut::from("refresh", 0).unwrap(),
             Shortcut::from("toggle", 0).unwrap(),

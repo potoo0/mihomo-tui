@@ -33,16 +33,25 @@ enum HelpRow<'a> {
 
 impl<'a> HelpRow<'a> {
     fn key_title(s: impl Into<Span<'a>>) -> Self {
-        Self::Title(Line::from(vec!["--- ".into(), s.into().italic().bold(), " ---".into()]))
+        Self::Title(Line::from(vec![
+            "--- ".into(),
+            localized_span(s.into()).italic().bold(),
+            " ---".into(),
+        ]))
     }
 
     fn entry(left: impl Into<Span<'a>>, right: impl Into<Span<'a>>) -> Self {
-        Self::Entry { left: left.into(), right: right.into() }
+        Self::Entry { left: localized_span(left.into()), right: localized_span(right.into()) }
     }
 
     fn key_entry(key: &'a str, description: &'a str) -> Self {
         Self::entry(Span::styled(key, Style::default().fg(DEFAULT_HL_COLOR)), description)
     }
+}
+
+fn localized_span(span: Span<'_>) -> Span<'_> {
+    let content = rust_i18n::t!(span.content.as_ref()).into_owned();
+    Span::styled(content, span.style)
 }
 
 impl HelpComponent {
@@ -54,131 +63,126 @@ impl HelpComponent {
             HelpRow::Empty,
             HelpRow::Empty,
             HelpRow::entry(
-                Span::raw("Default configuration").bold(),
+                Span::raw("help.default_configuration").bold(),
                 format!("'{}'", config_path.display()),
             ),
             HelpRow::entry(
-                Span::raw("Runtime configuration").bold(),
+                Span::raw("help.runtime_configuration").bold(),
                 format!("'{}'", runtime_path.display()),
             ),
-            HelpRow::entry(Span::raw("Version").bold(), REPOSITORY_URL),
+            HelpRow::entry(Span::raw("help.version").bold(), REPOSITORY_URL),
             // >>> key bindings
             HelpRow::Empty,
-            HelpRow::entry(Span::raw("Key").bold(), Span::raw("Description").bold()),
+            HelpRow::entry(Span::raw("help.key").bold(), Span::raw("help.description").bold()),
             // common key bindings
-            HelpRow::key_title("common"),
-            HelpRow::key_entry("?", "Open help from the main view / close help"),
-            HelpRow::key_entry("q", "Quit from the main view / close help"),
-            HelpRow::key_entry("Ctrl+c", "Quit program"),
-            HelpRow::key_entry("Number", "switch to tab"),
-            HelpRow::key_entry("k / Up, j / Down", "vertical navigation where available"),
-            HelpRow::key_entry("h / Left, l / Right", "horizontal navigation where available"),
-            HelpRow::key_entry("g, G", "go to first, last"),
-            HelpRow::key_entry("PageUp, Space / PageDown", "page up, down"),
-            HelpRow::key_entry("Esc", "cancel / back / live toggle"),
-            HelpRow::key_entry("Enter", "confirm / open detail"),
-            HelpRow::key_entry("Ctrl+l", "clear idle tabs"),
-            HelpRow::key_entry("Ctrl+u", "open updates"),
+            HelpRow::key_title("help.section.common"),
+            HelpRow::key_entry("?", "help.common.open_help"),
+            HelpRow::key_entry("q", "help.common.quit_or_close_help"),
+            HelpRow::key_entry("Ctrl+c", "help.common.quit_program"),
+            HelpRow::key_entry("Number", "help.common.switch_tab"),
+            HelpRow::key_entry("k / Up, j / Down", "help.common.vertical_navigation"),
+            HelpRow::key_entry("h / Left, l / Right", "help.common.horizontal_navigation"),
+            HelpRow::key_entry("g, G", "help.common.first_or_last"),
+            HelpRow::key_entry("PageUp, Space / PageDown", "help.common.page_navigation"),
+            HelpRow::key_entry("Esc", "help.common.cancel_back_or_live"),
+            HelpRow::key_entry("Enter", "help.common.confirm_or_detail"),
+            HelpRow::key_entry("Ctrl+l", "help.common.clear_idle_tabs"),
+            HelpRow::key_entry("Ctrl+u", "help.common.open_updates"),
+            HelpRow::key_entry("L", "help.common.open_language"),
             // filter / proxy setting input keys
             HelpRow::Empty,
-            HelpRow::key_title("input box"),
-            HelpRow::key_entry("Shift+Tab, Tab", "navigate fields"),
-            HelpRow::key_entry("Left, Right, Ctrl+Left, Ctrl+Right", "move cursor"),
-            HelpRow::key_entry("Back, Ctrl+Back, Del, Ctrl-Del", "delete"),
-            HelpRow::key_entry("Ctrl+y", "yank last deleted word"),
-            HelpRow::key_entry("Home, End", "jump to line start, end"),
+            HelpRow::key_title("help.section.input_box"),
+            HelpRow::key_entry("Shift+Tab, Tab", "help.input.navigate_fields"),
+            HelpRow::key_entry("Left, Right, Ctrl+Left, Ctrl+Right", "help.input.move_cursor"),
+            HelpRow::key_entry("Back, Ctrl+Back, Del, Ctrl-Del", "help.input.delete"),
+            HelpRow::key_entry("Ctrl+y", "help.input.yank_deleted_word"),
+            HelpRow::key_entry("Home, End", "help.input.line_edges"),
             // filter syntax
             HelpRow::Empty,
-            HelpRow::key_title("filter syntax"),
-            HelpRow::entry("str", "match using fuzzy search for 'str'"),
-            HelpRow::entry("^str", "match if the value starts with 'str'"),
-            HelpRow::entry("str$", "match if the value ends with 'str'"),
-            HelpRow::entry("^str$", "match exactly 'str'"),
-            HelpRow::entry("'str", "match if the value contains substring 'str'"),
-            HelpRow::entry("!<pattern>", "negate the match of <pattern>, examples: !^str, !'str"),
-            HelpRow::entry("\"com:443\"", "quote plain patterns containing spaces or colons"),
-            HelpRow::entry(
-                "field:pattern",
-                "match <pattern> only in the named column; field is case-insensitive",
-            ),
-            HelpRow::entry("field:\"two words\"", "quote values containing spaces"),
-            HelpRow::entry(
-                "field1:pat1 field2:pat2 pat3",
-                "match named fields and remaining columns using AND",
-            ),
+            HelpRow::key_title("help.section.filter_syntax"),
+            HelpRow::entry("str", "help.filter.fuzzy"),
+            HelpRow::entry("^str", "help.filter.starts_with"),
+            HelpRow::entry("str$", "help.filter.ends_with"),
+            HelpRow::entry("^str$", "help.filter.exact"),
+            HelpRow::entry("'str", "help.filter.contains"),
+            HelpRow::entry("!<pattern>", "help.filter.negate"),
+            HelpRow::entry("\"com:443\"", "help.filter.quote_pattern"),
+            HelpRow::entry("field:pattern", "help.filter.named_column"),
+            HelpRow::entry("field:\"two words\"", "help.filter.quote_value"),
+            HelpRow::entry("field1:pat1 field2:pat2 pat3", "help.filter.combine_fields"),
             // `connections` key bindings
             HelpRow::Empty,
-            HelpRow::key_title("# Connections (Conn)"),
-            HelpRow::key_entry("Left, Right", "select sort column"),
-            HelpRow::key_entry("t", "terminate selected connection"),
-            HelpRow::key_entry("T", "terminate filtered connections"),
-            HelpRow::key_entry("r", "reverse sort direction"),
-            HelpRow::key_entry("c", "capture mode"),
-            HelpRow::key_entry("s", "open connection settings"),
-            HelpRow::key_entry("-, +", "decrease/increase sort column width"),
-            HelpRow::key_entry("Delete", "reset sort column width"),
+            HelpRow::key_title("help.section.connections"),
+            HelpRow::key_entry("Left, Right", "help.connections.sort_column"),
+            HelpRow::key_entry("t", "help.connections.terminate_selected"),
+            HelpRow::key_entry("T", "help.connections.terminate_filtered"),
+            HelpRow::key_entry("r", "help.connections.reverse_sort"),
+            HelpRow::key_entry("c", "help.connections.capture"),
+            HelpRow::key_entry("s", "help.connections.open_settings"),
+            HelpRow::key_entry("-, +", "help.connections.resize_sort_column"),
+            HelpRow::key_entry("Delete", "help.connections.reset_sort_width"),
             // connections settings
             HelpRow::Empty,
-            HelpRow::key_title("## Connections Settings"),
-            HelpRow::key_entry("Shift+Tab, Tab", "navigate settings panes"),
-            HelpRow::key_entry("Enter", "apply settings"),
-            HelpRow::key_entry("Esc", "cancel settings"),
-            HelpRow::key_entry("Left, Right", "Columns:          navigate columns"),
-            HelpRow::key_entry("Ctrl+Left, Ctrl+Right", "Columns:          move selected column"),
-            HelpRow::key_entry("Space", "Columns:          toggle selected column"),
-            HelpRow::key_entry("a", "Columns:          select all columns"),
-            HelpRow::key_entry("i", "Columns:          invert selected columns"),
-            HelpRow::key_entry("Up, Down", "Source IP Alias:  navigate source IP aliases"),
+            HelpRow::key_title("help.section.connection_settings"),
+            HelpRow::key_entry("Shift+Tab, Tab", "help.connection_settings.navigate_panes"),
+            HelpRow::key_entry("Enter", "help.connection_settings.apply"),
+            HelpRow::key_entry("Esc", "help.connection_settings.cancel"),
+            HelpRow::key_entry("Left, Right", "help.connection_settings.navigate_columns"),
+            HelpRow::key_entry("Ctrl+Left, Ctrl+Right", "help.connection_settings.move_column"),
+            HelpRow::key_entry("Space", "help.connection_settings.toggle_column"),
+            HelpRow::key_entry("a", "help.connection_settings.select_all_columns"),
+            HelpRow::key_entry("i", "help.connection_settings.invert_columns"),
+            HelpRow::key_entry("Up, Down", "help.connection_settings.navigate_aliases"),
             // proxies / proxy detail
             HelpRow::Empty,
-            HelpRow::key_title("# Proxies (Pxy)"),
-            HelpRow::key_entry("r", "refresh proxies"),
-            HelpRow::key_entry("s", "open proxy settings"),
-            HelpRow::key_entry("t", "test proxy"),
+            HelpRow::key_title("help.section.proxies"),
+            HelpRow::key_entry("r", "help.proxies.refresh"),
+            HelpRow::key_entry("s", "help.proxies.open_settings"),
+            HelpRow::key_entry("t", "help.proxies.test"),
             // proxy detail
             HelpRow::Empty,
-            HelpRow::key_title("## Proxy Detail"),
-            HelpRow::key_entry("Enter", "update selected proxy"),
-            HelpRow::key_entry("-, +", "decrease/increase card width"),
-            HelpRow::key_entry("c", "jump to current selected proxy"),
-            HelpRow::key_entry("[, ]", "navigate nested groups"),
-            HelpRow::key_entry("s", "switch sort by: none, latency, name"),
-            HelpRow::key_entry("S", "toggle sort direction"),
+            HelpRow::key_title("help.section.proxy_detail"),
+            HelpRow::key_entry("Enter", "help.proxy_detail.select"),
+            HelpRow::key_entry("-, +", "help.proxy_detail.resize_card"),
+            HelpRow::key_entry("c", "help.proxy_detail.jump_to_current"),
+            HelpRow::key_entry("[, ]", "help.proxy_detail.navigate_groups"),
+            HelpRow::key_entry("s", "help.proxy_detail.change_sort"),
+            HelpRow::key_entry("S", "help.proxy_detail.reverse_sort"),
             // proxy providers / proxy provider detail
             HelpRow::Empty,
-            HelpRow::key_title("# ProxyProviders (Pxy-Pr)"),
-            HelpRow::key_entry("Enter", "show provider detail"),
-            HelpRow::key_entry("u", "update providers"),
+            HelpRow::key_title("help.section.proxy_providers"),
+            HelpRow::key_entry("Enter", "help.proxy_providers.show_detail"),
+            HelpRow::key_entry("u", "help.proxy_providers.update"),
             // `logs` key bindings
             HelpRow::Empty,
-            HelpRow::key_title("# Logs (Log)"),
-            HelpRow::key_entry("e, w, i, d", "filter log level: error, warn, info, debug"),
+            HelpRow::key_title("help.section.logs"),
+            HelpRow::key_entry("e, w, i, d", "help.logs.filter_level"),
             // `rules` key bindings
             HelpRow::Empty,
-            HelpRow::key_title("# Rules (Rule)"),
-            HelpRow::key_entry("r", "refresh rules"),
-            HelpRow::key_entry("t", "toggle disabled state (selected or all filtered)"),
-            HelpRow::key_entry("s", "submit disabled state changes"),
+            HelpRow::key_title("help.section.rules"),
+            HelpRow::key_entry("r", "help.rules.refresh"),
+            HelpRow::key_entry("t", "help.rules.toggle_disabled"),
+            HelpRow::key_entry("s", "help.rules.submit_disabled"),
             // `rule providers` key bindings
             HelpRow::Empty,
-            HelpRow::key_title("# RuleProviders (R-Pr)"),
-            HelpRow::key_entry("r", "refresh rule providers"),
-            HelpRow::key_entry("u", "update rule providers"),
+            HelpRow::key_title("help.section.rule_providers"),
+            HelpRow::key_entry("r", "help.rule_providers.refresh"),
+            HelpRow::key_entry("u", "help.rule_providers.update"),
             // `config` key bindings
             HelpRow::Empty,
-            HelpRow::key_title("# Config (Cfg)"),
-            HelpRow::key_entry("Shift+Tab, Tab", "move focus between editor and actions"),
-            HelpRow::key_entry("Enter", "execute focused action / confirm"),
-            HelpRow::key_entry("e", "open config in external editor ($EDITOR → vim → vi)"),
-            HelpRow::key_entry("d", "discard changes and reload config"),
-            HelpRow::key_entry("n", "open DNS query dialog"),
+            HelpRow::key_title("help.section.config"),
+            HelpRow::key_entry("Shift+Tab, Tab", "help.config.switch_focus"),
+            HelpRow::key_entry("Enter", "help.config.execute"),
+            HelpRow::key_entry("e", "help.config.open_external_editor"),
+            HelpRow::key_entry("d", "help.config.discard_changes"),
+            HelpRow::key_entry("n", "help.config.open_dns_query"),
             // dns query dialog
             HelpRow::Empty,
-            HelpRow::key_title("## DNS Query"),
-            HelpRow::key_entry("Shift+Tab, Tab", "navigate query fields"),
-            HelpRow::key_entry("Enter", "query DNS records"),
-            HelpRow::key_entry("Left, Right", "select DNS record type"),
-            HelpRow::key_entry("k / Up, j / Down", "scroll answers"),
+            HelpRow::key_title("help.section.dns_query"),
+            HelpRow::key_entry("Shift+Tab, Tab", "help.dns.navigate_fields"),
+            HelpRow::key_entry("Enter", "help.dns.query_records"),
+            HelpRow::key_entry("Left, Right", "help.dns.select_type"),
+            HelpRow::key_entry("k / Up, j / Down", "help.dns.scroll_answers"),
             HelpRow::Empty,
             HelpRow::Empty,
         ]
@@ -223,28 +227,28 @@ impl Component for HelpComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl("?"),
-                Fragment::raw("/"),
-                Fragment::hl("q"),
-                Fragment::raw("/"),
-                Fragment::hl("Esc"),
+                Fragment::key("?"),
+                Fragment::sep("/"),
+                Fragment::key("q"),
+                Fragment::sep("/"),
+                Fragment::key("Esc"),
             ]),
             Shortcut::new(vec![
-                Fragment::hl("←"),
-                Fragment::raw("/"),
-                Fragment::hl("↑"),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl("↓"),
-                Fragment::raw("/"),
-                Fragment::hl("→"),
+                Fragment::key("←"),
+                Fragment::sep("/"),
+                Fragment::key("↑"),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key("↓"),
+                Fragment::sep("/"),
+                Fragment::key("→"),
             ]),
         ]
     }
@@ -277,7 +281,7 @@ impl Component for HelpComponent {
         let border = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(top_title_line("help", Style::default()));
+            .title(top_title_line("titles.help", Style::default()));
         let inner = border.inner(area);
         frame.render_widget(border, area);
 

@@ -97,7 +97,7 @@ impl ProxiesComponent {
     fn render_throbber(&mut self, frame: &mut Frame, area: Rect) {
         if self.pending_test.load(Ordering::Relaxed) > 0 {
             let symbol = Throbber::default()
-                .label("Testing")
+                .label(rust_i18n::t!("status.testing"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BLACK_CIRCLE)
@@ -110,7 +110,7 @@ impl ProxiesComponent {
         }
         if self.loading.load(Ordering::Relaxed) {
             let symbol = Throbber::default()
-                .label("Loading")
+                .label(rust_i18n::t!("status.loading"))
                 .style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_style(Style::default().fg(Color::White).bg(Color::Green).bold())
                 .throbber_set(BRAILLE_SIX)
@@ -173,7 +173,7 @@ impl ProxiesComponent {
         let proxies_len = Proxies::with_view(|p| p.len());
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw("proxies ("),
+            Span::raw(rust_i18n::t!("headers.proxies")),
             Span::styled(format!("{}", proxies_len), Color::LightCyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),
@@ -219,23 +219,23 @@ impl Component for ProxiesComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl(arrow::LEFT),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::UP),
-                Fragment::raw("/"),
-                Fragment::hl("PgUp"),
-                Fragment::raw("/"),
-                Fragment::hl("g"),
-                Fragment::raw(" nav "),
-                Fragment::hl("G"),
-                Fragment::raw("/"),
-                Fragment::hl("PgDn"),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::DOWN),
-                Fragment::raw("/"),
-                Fragment::hl(arrow::RIGHT),
+                Fragment::key(arrow::LEFT),
+                Fragment::sep("/"),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
+                Fragment::sep("/"),
+                Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.detail"), Fragment::key("↵")]),
             Shortcut::from("refresh", 0).unwrap(),
             Shortcut::from("setting", 0).unwrap(),
             Shortcut::from("test", 0).unwrap(),

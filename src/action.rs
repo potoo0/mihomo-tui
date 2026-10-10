@@ -9,6 +9,8 @@ use crate::widgets::shortcut::Shortcut;
 #[derive(Debug, Clone)]
 pub enum Action {
     Tick,
+    LanguageSelect,
+    LanguageChanged(crate::i18n::Language),
     Resize(u16, u16),
     Quit,
     Focus(ComponentId),

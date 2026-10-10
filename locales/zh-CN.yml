@@ -1,0 +1,286 @@
+_version: 1
+
+tabs.config: 配置
+tabs.connections: 连接
+tabs.language: 语言
+tabs.logs: 日志
+tabs.overview: 概览
+tabs.proxies: 代理
+tabs.proxy_providers: 订阅
+tabs.rule_providers: 规则集合
+tabs.rules: 规则
+tabs.short.config: 配置
+tabs.short.connections: 连接
+tabs.short.logs: 日志
+tabs.short.overview: 概览
+tabs.short.proxies: 代理
+tabs.short.proxy_providers: 订阅
+tabs.short.rule_providers: 规则集
+tabs.short.rules: 规则
+
+titles.actions: 操作
+titles.config: 配置
+titles.connections_settings: 连接设置
+titles.detail: 详情
+titles.dns_query: DNS 查询
+titles.help: 帮助
+titles.proxy_settings: 代理设置
+titles.terminate: 终止连接
+titles.updates: 更新
+
+overview.connections: 连接数
+overview.memory: 内存
+overview.memory_chart: 内存图表
+overview.rate: 速率
+overview.total: 总量
+overview.traffic_chart: 流量图表
+
+headers.connections: 连接 (
+headers.core_config: ' 内核配置 '
+headers.core_config_modified: ' 内核配置 * '
+headers.logs: 日志 (
+headers.proxies: 代理 (
+headers.proxy_providers: 订阅 (
+headers.rule_providers: 规则集合 (
+headers.rules: 规则 (
+
+columns.alive: 活动
+columns.behavior: 行为
+columns.chains: 代理链
+columns.connect_time: 连接时间
+columns.content: 内容
+columns.destination: 目标
+columns.disabled: 禁用
+columns.down_rate: 下载速率
+columns.down_total: 下载总量
+columns.hit_at: 命中时间
+columns.hits: 命中数
+columns.host: 主机
+columns.inbound: 入站
+columns.index: 序号
+columns.level: 级别
+columns.name: 名称
+columns.process: 进程
+columns.rule_count: 规则数
+columns.size: 大小
+columns.sniff_host: 嗅探主机
+columns.source_ip: 来源 IP
+columns.source_port: 来源端口
+columns.type: 类型
+columns.up_rate: 上传速率
+columns.up_total: 上传总量
+columns.updated_at: 更新时间
+columns.vehicle_type: 载入方式
+
+status.capture: 快照
+status.live: '实时  '
+status.loading: 加载中
+status.paused: 暂停
+status.querying: 查询中
+status.refreshing: 刷新中…
+status.testing: 测试中
+status.unknown: 未知
+status.updating: 更新中
+
+common.no: 否
+common.yes: 是
+
+ui.expected_size: 需要尺寸：
+ui.terminal_too_small: 终端尺寸过小：
+
+language.preference_saved: 语言偏好会自动保存。
+
+connections.confirm_filtered: 确定终止 %{count} 个筛选出的连接？
+connections.confirm_terminate: 确定终止此连接？
+connections.inactive: 此连接已结束。
+connections.no_columns_selected: 至少选择一列
+connections.settings.columns_title: ' 显示列 '
+connections.settings.no_source_ips: 当前连接没有来源 IP
+connections.settings.source_ip_alias_title: ' 来源 IP 别名 '
+connections.terminated: 连接已终止。
+connections.terminated_summary: 已终止 %{ok} 个连接，%{err} 个失败。
+connections.terminating: 正在终止连接…
+connections.terminating_filtered: 正在终止连接…
+
+proxy_settings.auto_terminate: 自动终止相关连接
+proxy_settings.auto_terminate_invalid: 自动终止连接必须为 true 或 false
+proxy_settings.test_timeout: 测试超时（毫秒）
+proxy_settings.test_url: 测试地址
+proxy_settings.threshold: 延迟阈值（中,高）
+proxy_settings.timeout_invalid: 超时必须为有效数字
+
+proxies.card_width: ' 卡片宽度：%{preferred_width}（实际：%{actual_width}） '
+
+proxy_providers.expiry: 到期：%{value}
+proxy_providers.updated_at: 更新时间：%{value}
+
+dns.answers: ' 应答（%{count}） '
+dns.api_not_initialized: API 尚未初始化
+dns.data_column: 数据
+dns.name_column: 名称
+dns.name_required: 请输入域名
+dns.name_title: ' 域名 '
+dns.no_answers: 无应答记录
+dns.task_stopped: DNS 查询任务已停止
+dns.type_title: ' 类型 '
+
+config.actions.flush_dns: 清空 DNS
+config.actions.flush_fake_ip: 清空 FakeIP
+config.actions.reload: 重新加载
+config.actions.restart: 重启内核
+config.actions.update_geo: 更新 GEO
+config.edit_hint.partial_update: ' 1. 支持部分更新：仅填写需要修改的字段（例如
+  {"tun": {"enable": true}}）。'
+config.edit_hint.supported_fields: ' 2.
+  可修改的字段：有注释的字段，以及 `tun` 和 `tuic-server` 下的所有字段。'
+
+updates.auto_restart_prompt: '自动重启界面？ '
+updates.core_restart_timeout: 等待 Mihomo 内核重启到新版本超时
+updates.core_restart_waiting: 已请求更新 Mihomo 内核，等待服务重启…
+updates.up_to_date: 已是最新版本（%{current}）
+
+actions.load_proxy: 加载代理
+actions.save_runtime_config: 保存运行时配置
+actions.submit_core_config: 提交内核配置
+actions.submit_disabled_rule_changes: 提交规则禁用状态
+actions.sync_external_config: 从编辑器同步配置
+actions.update_app: 更新程序
+actions.update_mihomo_core: 更新 Mihomo 内核
+actions.update_proxy_provider: 更新订阅
+actions.update_selected_proxy: 切换代理
+
+help.common.cancel_back_or_live: 取消 / 返回 / 切换实时模式
+help.common.clear_idle_tabs: 清理闲置页签
+help.common.confirm_or_detail: 确认 / 查看详情
+help.common.first_or_last: 跳转到首项 / 末项
+help.common.horizontal_navigation: 左右移动
+help.common.open_help: 打开 / 关闭帮助
+help.common.open_language: 打开语言设置
+help.common.open_updates: 打开更新页
+help.common.page_navigation: 向上 / 向下翻页
+help.common.quit_or_close_help: 退出主界面 / 关闭帮助
+help.common.quit_program: 退出程序
+help.common.switch_tab: 切换页签
+help.common.vertical_navigation: 上下移动
+help.config.discard_changes: 放弃修改并重新加载
+help.config.execute: 执行选中操作 / 确认
+help.config.open_dns_query: 打开 DNS 查询
+help.config.open_external_editor: 使用外部编辑器打开配置（$EDITOR → vim → vi）
+help.config.switch_focus: 切换编辑器与操作区
+help.connection_settings.apply: 应用设置
+help.connection_settings.cancel: 取消设置
+help.connection_settings.invert_columns: 显示列：反选
+help.connection_settings.move_column: 显示列：调整列顺序
+help.connection_settings.navigate_aliases: 来源 IP 别名：上下移动
+help.connection_settings.navigate_columns: 显示列：移动选择
+help.connection_settings.navigate_panes: 切换设置面板
+help.connection_settings.select_all_columns: 显示列：全部选中
+help.connection_settings.toggle_column: 显示列：切换选中列
+help.connections.capture: 快照模式
+help.connections.open_settings: 打开连接设置
+help.connections.reset_sort_width: 重置排序列宽
+help.connections.resize_sort_column: 缩小 / 增大排序列宽
+help.connections.reverse_sort: 反转排序方向
+help.connections.sort_column: 选择排序列
+help.connections.terminate_filtered: 终止筛选出的连接
+help.connections.terminate_selected: 终止选中连接
+help.default_configuration: 默认配置
+help.description: 说明
+help.dns.navigate_fields: 切换查询输入项
+help.dns.query_records: 查询 DNS 记录
+help.dns.scroll_answers: 滚动查询结果
+help.dns.select_type: 选择 DNS 记录类型
+help.filter.combine_fields: 多个字段与其余列的条件同时满足
+help.filter.contains: 匹配包含 str 的值
+help.filter.ends_with: 匹配以 str 结尾的值
+help.filter.exact: 精确匹配 str
+help.filter.fuzzy: 模糊匹配 str
+help.filter.named_column: 仅匹配指定列，字段名不区分大小写
+help.filter.negate: 反向匹配 <pattern>，例如 !^str、!'str
+help.filter.quote_pattern: 包含空格或冒号的模式需要引号
+help.filter.quote_value: 包含空格的值需要引号
+help.filter.starts_with: 匹配以 str 开头的值
+help.input.delete: 删除
+help.input.line_edges: 跳转到行首 / 行尾
+help.input.move_cursor: 移动光标
+help.input.navigate_fields: 切换输入项
+help.input.yank_deleted_word: 粘贴上次删除的词
+help.key: 按键
+help.logs.filter_level: 筛选日志级别：错误、警告、信息、调试
+help.proxies.open_settings: 打开代理设置
+help.proxies.refresh: 刷新代理
+help.proxies.test: 测试代理延迟
+help.proxy_detail.change_sort: 切换排序：默认、延迟、名称
+help.proxy_detail.jump_to_current: 定位当前使用的代理
+help.proxy_detail.navigate_groups: 切换嵌套代理组
+help.proxy_detail.resize_card: 缩小 / 增大卡片宽度
+help.proxy_detail.reverse_sort: 切换排序方向
+help.proxy_detail.select: 切换到选中代理
+help.proxy_providers.show_detail: 查看订阅详情
+help.proxy_providers.update: 更新订阅
+help.rule_providers.refresh: 刷新规则集合
+help.rule_providers.update: 更新规则集合
+help.rules.refresh: 刷新规则
+help.rules.submit_disabled: 提交禁用状态变更
+help.rules.toggle_disabled: 切换禁用状态（选中项或筛选结果）
+help.runtime_configuration: 运行时配置
+help.section.common: 通用
+help.section.config: '# 配置'
+help.section.connection_settings: '## 连接设置'
+help.section.connections: '# 连接'
+help.section.dns_query: '## DNS 查询'
+help.section.filter_syntax: 筛选语法
+help.section.input_box: 输入框
+help.section.logs: '# 日志'
+help.section.proxies: '# 代理'
+help.section.proxy_detail: '## 代理详情'
+help.section.proxy_providers: '# 订阅'
+help.section.rule_providers: '# 规则集合'
+help.section.rules: '# 规则'
+help.version: 版本
+
+shortcuts.all: 全选
+shortcuts.apply: 应用
+shortcuts.back: 返回
+shortcuts.cancel: 取消
+shortcuts.capture: 快照
+shortcuts.confirm: 确认
+shortcuts.cur: 当前
+shortcuts.cursor: 光标
+shortcuts.delete: 删除
+shortcuts.detail: 详情
+shortcuts.discard: 放弃
+shortcuts.dns: DNS 查询
+shortcuts.edit: 编辑
+shortcuts.escape: 取消
+shortcuts.execute: 执行
+shortcuts.filter: 筛选
+shortcuts.focus: 焦点
+shortcuts.invert: 反选
+shortcuts.jump: 跳转
+shortcuts.layer: 层级
+shortcuts.live: 实时
+shortcuts.move: 移动
+shortcuts.nav: 移动
+shortcuts.no: 取消
+shortcuts.page: 翻页
+shortcuts.pane: 面板
+shortcuts.query: 查询
+shortcuts.quit: 退出
+shortcuts.refresh: 刷新
+shortcuts.reset: 重置
+shortcuts.scroll: 滚动
+shortcuts.select: 选择
+shortcuts.setting: 设置
+shortcuts.sort: 排序
+shortcuts.submit: 提交
+shortcuts.terminate: 终止
+shortcuts.terminate_short: 终止
+shortcuts.test: 测速
+shortcuts.toggle: 切换
+shortcuts.type: 类型
+shortcuts.update: 更新
+shortcuts.width: 宽度
+shortcuts.width_short: 宽
+shortcuts.yank: 粘贴
+shortcuts.yes: 确定

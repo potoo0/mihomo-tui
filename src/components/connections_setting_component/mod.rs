@@ -144,7 +144,7 @@ impl ConnectionsSettingComponent {
     fn save(&mut self) -> Result<Option<Action>> {
         let columns = self.columns.selected_column_indices();
         if columns.is_empty() {
-            self.columns.set_error("At least one column must be selected");
+            self.columns.set_error("connections.no_columns_selected");
             return Ok(None);
         }
         let columns = with_alive_column(columns);
@@ -193,7 +193,8 @@ impl ConnectionsSettingComponent {
 
     fn render_status(&self, frame: &mut Frame, area: Rect) {
         if let Some(error) = self.active_error() {
-            let msg = Line::from(Span::styled(error, Style::default().fg(Color::Red)));
+            let msg =
+                Line::from(Span::styled(rust_i18n::t!(error), Style::default().fg(Color::Red)));
             frame.render_widget(Paragraph::new(msg), area);
         }
     }
@@ -206,15 +207,19 @@ impl Component for ConnectionsSettingComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" pane nav "), Fragment::hl("⇥")])
-                .compact(vec![
-                    Fragment::hl("⇧⇤"),
-                    Fragment::raw("/"),
-                    Fragment::hl("⇥"),
-                    Fragment::raw(" pane"),
-                ]),
-            Shortcut::new(vec![Fragment::raw("apply "), Fragment::hl("↵")]),
-            Shortcut::new(vec![Fragment::raw("cancel "), Fragment::hl("Esc")]),
+            Shortcut::new(vec![
+                Fragment::key("⇧⇤"),
+                Fragment::label("shortcuts.pane"),
+                Fragment::key("⇥"),
+            ])
+            .compact(vec![
+                Fragment::key("⇧⇤"),
+                Fragment::sep("/"),
+                Fragment::key("⇥"),
+                Fragment::label("shortcuts.pane"),
+            ]),
+            Shortcut::new(vec![Fragment::label("shortcuts.apply"), Fragment::key("↵")]),
+            Shortcut::new(vec![Fragment::label("shortcuts.cancel"), Fragment::key("Esc")]),
         ]
     }
 
@@ -262,7 +267,7 @@ impl Component for ConnectionsSettingComponent {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(top_title_line("connections settings", Style::default()));
+            .title(top_title_line("titles.connections_settings", Style::default()));
         let content_area = block.inner(area);
         frame.render_widget(block, area);
         self.render_settings(frame, content_area);

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
 
 use anyhow::Result;
@@ -29,12 +30,14 @@ enum Phase {
 }
 
 impl Phase {
-    fn ui(&self) -> Option<(Color, String)> {
+    fn ui(&self) -> Option<(Color, Cow<'_, str>)> {
         match self {
-            Phase::Terminating => Some((Color::Yellow, "Connections terminating...".to_string())),
+            Phase::Terminating => {
+                Some((Color::Yellow, rust_i18n::t!("connections.terminating_filtered")))
+            }
             Phase::Done { ok, err } => {
                 let color = if *err == 0 { Color::Green } else { Color::Yellow };
-                Some((color, format!("Terminated {ok} connections, {err} failed.")))
+                Some((color, rust_i18n::t!("connections.terminated_summary", ok = ok, err = err)))
             }
             Phase::Hidden | Phase::Confirm => None,
         }
@@ -127,8 +130,16 @@ impl Component for ConnectionBatchTerminateComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("y"), Fragment::raw("es "), Fragment::hl("↵")]),
-            Shortcut::new(vec![Fragment::hl("n"), Fragment::raw("o "), Fragment::hl("Esc")]),
+            Shortcut::new(vec![
+                Fragment::key("y"),
+                Fragment::label("shortcuts.yes"),
+                Fragment::key("↵"),
+            ]),
+            Shortcut::new(vec![
+                Fragment::key("n"),
+                Fragment::label("shortcuts.no"),
+                Fragment::key("Esc"),
+            ]),
         ]
     }
 
@@ -181,18 +192,15 @@ impl Component for ConnectionBatchTerminateComponent {
         let border = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(top_title_line("terminate", Style::default()))
+            .title(top_title_line("titles.terminate", Style::default()))
             .padding(Padding::symmetric(2, 1));
         let inner = border.inner(area);
         frame.render_widget(border, area);
         let chunks = Layout::vertical([Constraint::Min(3), Constraint::Length(3)]).split(inner);
 
-        let content = Paragraph::new(Line::from(vec![
-            Span::raw("Are you sure to terminate "),
-            Span::styled(self.targets.len().to_string(), Style::default().fg(Color::Yellow).bold()),
-            Span::raw(" filtered connections?"),
-        ]))
-        .alignment(Alignment::Center);
+        let template = rust_i18n::t!("connections.confirm_filtered");
+        let content = Paragraph::new(confirmation_line(&template, self.targets.len()))
+            .alignment(Alignment::Center);
         frame.render_widget(content, chunks[0]);
 
         if let Some((color, msg)) = phase.ui() {
@@ -200,5 +208,41 @@ impl Component for ConnectionBatchTerminateComponent {
         }
 
         Ok(())
+    }
+}
+
+fn confirmation_line<'a>(template: &'a str, count: usize) -> Line<'a> {
+    let (before, after) = template
+        .split_once("%{count}")
+        .expect("confirmation translation must contain a count placeholder");
+    Line::from(vec![
+        Span::raw(before),
+        Span::styled(count.to_string(), Style::default().fg(Color::Yellow).bold()),
+        Span::raw(after),
+    ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::Language;
+
+    #[test]
+    fn localized_confirmation_keeps_the_count_styled() {
+        for (locale, expected) in [
+            (Language::English, "Are you sure to terminate 3 filtered connections?"),
+            (Language::SimplifiedChinese, "确定终止 3 个筛选出的连接？"),
+        ] {
+            let template = rust_i18n::t!("connections.confirm_filtered", locale = locale.code());
+            assert_eq!(template.matches("%{count}").count(), 1);
+
+            let line = confirmation_line(&template, 3);
+            assert_eq!(line.spans[1].content, "3");
+            assert_eq!(line.spans[1].style, Style::default().fg(Color::Yellow).bold());
+            assert_eq!(
+                line.spans.iter().map(|span| span.content.as_ref()).collect::<String>(),
+                expected
+            );
+        }
     }
 }
