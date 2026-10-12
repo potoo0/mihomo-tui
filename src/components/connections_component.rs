@@ -24,6 +24,7 @@ use crate::components::{Component, ComponentId};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
 use crate::render::RenderRequester;
+use crate::shortcut;
 use crate::store::connections::{
     ALIVE_COLUMN_INDEX, CONNECTION_COLS, Connections, SourceIpAliasTextResolver,
 };
@@ -469,26 +470,13 @@ impl Component for ConnectionsComponent {
             Shortcut::new(vec![
                 Fragment::key(arrow::UP),
                 Fragment::sep("/"),
-                Fragment::key("PgUp"),
+                Fragment::key("PgUp").compact("PU"),
                 Fragment::sep("/"),
                 Fragment::key("g"),
-                Fragment::label("shortcuts.nav"),
+                Fragment::label("shortcuts.nav").compact_sep("/"),
                 Fragment::key("G"),
                 Fragment::sep("/"),
-                Fragment::key("PgDn"),
-                Fragment::sep("/"),
-                Fragment::key(arrow::DOWN),
-            ])
-            .compact(vec![
-                Fragment::key(arrow::UP),
-                Fragment::sep("/"),
-                Fragment::key("PU"),
-                Fragment::sep("/"),
-                Fragment::key("g"),
-                Fragment::sep("/"),
-                Fragment::key("G"),
-                Fragment::sep("/"),
-                Fragment::key("PD"),
+                Fragment::key("PgDn").compact("PD"),
                 Fragment::sep("/"),
                 Fragment::key(arrow::DOWN),
             ]),
@@ -501,33 +489,19 @@ impl Component for ConnectionsComponent {
             ]),
             Shortcut::new(vec![
                 Fragment::key("-"),
-                Fragment::sep("/"),
+                Fragment::label("shortcuts.width").compact("shortcuts.width_short"),
                 Fragment::key("+"),
-                Fragment::label("shortcuts.width"),
-            ])
-            .compact(vec![
-                Fragment::key("-"),
-                Fragment::sep("/"),
-                Fragment::key("+"),
-                Fragment::label("shortcuts.width_short"),
             ]),
             Shortcut::new(vec![Fragment::key("Del"), Fragment::label("shortcuts.reset")]),
             Shortcut::new(vec![
-                Fragment::key("t"),
-                Fragment::sep("/"),
+                Fragment::fuse_key("terminate", 0),
+                Fragment::label("shortcuts.terminate").compact("shortcuts.terminate_short"),
                 Fragment::key("T"),
-                Fragment::label("shortcuts.terminate"),
-            ])
-            .compact(vec![
-                Fragment::key("t"),
-                Fragment::sep("/"),
-                Fragment::key("T"),
-                Fragment::label("shortcuts.terminate_short"),
             ]),
-            Shortcut::from("capture", 0).unwrap(),
-            Shortcut::new(vec![Fragment::label("shortcuts.detail"), Fragment::key("↵")]),
-            Shortcut::new(vec![Fragment::label("shortcuts.live"), Fragment::key("Esc")]),
-            Shortcut::from("setting", 0).unwrap(),
+            shortcut!("capture", 0),
+            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.detail")]),
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.live")]),
+            shortcut!("setting", 0),
         ]
     }
 

@@ -15,9 +15,13 @@ use tui_input::Input;
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::shortcut;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::utils::tui_input::input_request;
 use crate::widgets::shortcut::{Fragment, Shortcut, ShortcutMode, shortcuts_full_width};
+
+/// The block's two border cells and one cell between its left and right titles.
+const TOP_TITLE_RESERVED_WIDTH: usize = 2 + 1;
 
 #[derive(Debug, Clone, Default)]
 pub struct FilterComponent {
@@ -51,51 +55,31 @@ impl Component for FilterComponent {
         vec![
             Shortcut::new(vec![
                 Fragment::key("←/C-←"),
-                Fragment::label("shortcuts.move"),
-                Fragment::key("→/C-→"),
-            ])
-            .compact(vec![
-                Fragment::key("←/C-←"),
-                Fragment::sep("/"),
+                Fragment::label("shortcuts.move").compact_sep("/"),
                 Fragment::key("→/C-→"),
             ]),
             Shortcut::new(vec![
-                Fragment::key("Back/C-Back"),
-                Fragment::label("shortcuts.delete"),
-                Fragment::key("Del/C-Del"),
-            ])
-            .compact(vec![
-                Fragment::key("Back"),
-                Fragment::sep("/"),
-                Fragment::key("Del"),
+                Fragment::key("Back/C-Back").compact("Back"),
+                Fragment::label("shortcuts.delete").compact_sep("/"),
+                Fragment::key("Del/C-Del").compact("Del"),
             ]),
             Shortcut::new(vec![Fragment::key("C-Y"), Fragment::label("shortcuts.yank")]),
             Shortcut::new(vec![
                 Fragment::key("Home"),
-                Fragment::label("shortcuts.jump"),
-                Fragment::key("End"),
-            ])
-            .compact(vec![
-                Fragment::key("Home"),
-                Fragment::sep("/"),
+                Fragment::label("shortcuts.jump").compact_sep("/"),
                 Fragment::key("End"),
             ]),
             Shortcut::new(vec![
-                Fragment::label("shortcuts.escape"),
                 Fragment::key("Esc"),
                 Fragment::sep("/"),
                 Fragment::key("↵"),
-            ])
-            .compact(vec![
-                Fragment::key("Esc"),
-                Fragment::sep("/"),
-                Fragment::key("↵"),
+                Fragment::label("shortcuts.escape").hidden(),
             ]),
         ]
     }
 
     fn init(&mut self, _api: Arc<Api>) -> Result<()> {
-        self.shortcuts_full_width = shortcuts_full_width(&self.shortcuts(), 2);
+        self.shortcuts_full_width = shortcuts_title_width(&self.shortcuts());
         Ok(())
     }
 
@@ -125,7 +109,7 @@ impl Component for FilterComponent {
         match action {
             Action::Focus(ComponentId::Filter) => self.is_active = true,
             Action::LanguageChanged(_) => {
-                self.shortcuts_full_width = shortcuts_full_width(&self.shortcuts(), 2);
+                self.shortcuts_full_width = shortcuts_title_width(&self.shortcuts());
             }
             Action::Tick => self.send()?,
             Action::FilterSet(pattern) => {
@@ -151,11 +135,12 @@ impl Component for FilterComponent {
 
         // left align
         let mut left = Line::from(Span::raw(TOP_TITLE_LEFT));
-        left.extend(Shortcut::from("filter", 0).unwrap().into_spans(None));
+        left.extend(shortcut!("filter", 0).into_spans(None));
         left.push_span(Span::raw(TOP_TITLE_RIGHT));
         // right align
-        let right_width = area.width.saturating_sub(left.width() as u16 + 1);
-        let mode = if self.shortcuts_full_width <= right_width as usize {
+        let right_width =
+            (area.width as usize).saturating_sub(left.width() + TOP_TITLE_RESERVED_WIDTH);
+        let mode = if self.shortcuts_full_width <= right_width {
             ShortcutMode::Full
         } else {
             ShortcutMode::Compact
@@ -190,4 +175,10 @@ impl Component for FilterComponent {
 
         Ok(())
     }
+}
+
+fn shortcuts_title_width(shortcuts: &[Shortcut]) -> usize {
+    // The outer markers add one more pair to the separators between shortcuts.
+    let sep_width = Span::raw(TOP_TITLE_LEFT).width() + Span::raw(TOP_TITLE_RIGHT).width();
+    shortcuts_full_width(shortcuts, sep_width)
 }

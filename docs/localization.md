@@ -21,7 +21,10 @@ UI text uses `rust-i18n`; catalogs are embedded at compile time from
 `Fragment::key` / `sep` / `label` describe keycaps, separators and translated
 labels. Locale values are plain words; spacing and the keycap/word fusion rule
 (`y` + `yes` → `yes` with `y` highlighted) are owned by the shortcut widget.
-`Shortcut::from` looks up `shortcuts.<word>`.
+Word shortcuts use the `shortcut!("refresh", 0)` macro: the keycap is the word
+character at that index and the label key is `shortcuts.<word>`; the index is
+validated at compile time. Compact mode never reorders fragments — use
+`.compact(text)`, `.compact_sep("/")` or `.hidden()` per fragment.
 
 ## Language popup
 

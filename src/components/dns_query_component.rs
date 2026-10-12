@@ -373,7 +373,7 @@ impl Component for DnsQueryComponent {
                 Fragment::label("shortcuts.focus"),
                 Fragment::key("⇥"),
             ]),
-            Shortcut::new(vec![Fragment::label("shortcuts.query"), Fragment::key("↵")]),
+            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.query")]),
         ]);
         match self.focused {
             FocusedField::Type => shortcuts.push(Shortcut::new(vec![

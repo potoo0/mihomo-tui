@@ -44,9 +44,10 @@ use crate::components::{Component, ComponentId, TABS};
 use crate::config::Config;
 use crate::models::{Connection, ConnectionStats};
 use crate::render::RenderRequester;
+use crate::shortcut;
 use crate::utils::text_ui::top_title_line;
 use crate::version_update::SharedVersionUpdateState;
-use crate::widgets::shortcut::Shortcut;
+use crate::widgets::shortcut::{Fragment, Shortcut};
 
 /// Minimum terminal area `(width, height)` to render the UI properly.
 const MIN_AREA: (u16, u16) = (80, 18);
@@ -201,8 +202,8 @@ impl RootComponent {
     fn set_shortcuts(&mut self, shortcuts: Vec<Shortcut>) -> Result<()> {
         let mut visible = Vec::with_capacity(shortcuts.len() + 2);
         if self.popup.is_none() {
-            visible.push(Shortcut::from("?", 0)?);
-            visible.push(Shortcut::from("quit", 0)?);
+            visible.push(Shortcut::new(vec![Fragment::key("?")]));
+            visible.push(shortcut!("quit", 0));
         }
         visible.extend(shortcuts);
         self.get_or_start(ComponentId::Footer)?.update(Action::Shortcuts(visible))?;

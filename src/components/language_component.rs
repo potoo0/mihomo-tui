@@ -41,8 +41,8 @@ impl Component for LanguageComponent {
                 Fragment::label("shortcuts.nav"),
                 Fragment::key("↓"),
             ]),
-            Shortcut::new(vec![Fragment::label("shortcuts.apply"), Fragment::key("↵")]),
-            Shortcut::new(vec![Fragment::label("shortcuts.cancel"), Fragment::key("Esc")]),
+            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.apply")]),
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.cancel")]),
         ];
         if self.scrollable {
             shortcuts.push(Shortcut::new(vec![

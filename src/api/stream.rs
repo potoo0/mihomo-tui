@@ -210,7 +210,8 @@ impl Api {
         &self,
         level: Option<LogLevel>,
     ) -> Result<impl Stream<Item = Result<Log>> + use<>> {
-        let params = level.map(|l| HashMap::from([("level".to_string(), l.to_string())]));
+        let params =
+            level.map(|l| HashMap::from([("level".to_string(), l.into_str().to_string())]));
         self.create_stream::<Log>("/logs", params, DEFAULT_WS_RETRY_INTERVAL)
     }
 

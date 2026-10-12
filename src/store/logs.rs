@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
-use std::string::ToString;
 use std::sync::{Arc, Mutex, RwLock};
 
 use nucleo_matcher::Matcher;
@@ -92,7 +91,7 @@ pub static LOG_COLS: &[ColDef<Log>] = &[
         title: "Level",
         filterable: true,
         sortable: false,
-        accessor: |c: &Log| Cow::Owned(c.r#type.to_string()),
+        accessor: |c: &Log| Cow::Borrowed(c.r#type.into_str()),
         sort_key: None,
     },
     ColDef {

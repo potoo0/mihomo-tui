@@ -22,6 +22,7 @@ use crate::components::{Component, ComponentId};
 use crate::config::Config;
 use crate::models::CoreConfig;
 use crate::render::RenderRequester;
+use crate::shortcut;
 use crate::utils::editor::resolve_editor;
 use crate::utils::input::KeyOutcome;
 use crate::utils::json5_formatter::{Json5Formatter, collect_paths, extract_comments};
@@ -440,55 +441,34 @@ impl Component for CoreConfigComponent {
                 vec![
                     Shortcut::new(vec![
                         Fragment::key("⇧⇤"),
-                        Fragment::label("shortcuts.nav"),
-                        Fragment::key("⇥"),
-                    ])
-                    .compact(vec![
-                        Fragment::key("⇧⇤"),
-                        Fragment::sep("/"),
+                        Fragment::label("shortcuts.nav").compact_sep("/"),
                         Fragment::key("⇥"),
                     ]),
                     Shortcut::new(vec![
                         Fragment::key(arrow::UP),
-                        Fragment::label("shortcuts.scroll"),
+                        Fragment::label("shortcuts.scroll").compact_sep("/"),
                         Fragment::key(arrow::DOWN),
-                    ])
-                    .compact(vec![
-                        Fragment::key(arrow::UP),
-                        Fragment::sep("/"),
-                        Fragment::key(arrow::DOWN),
-                        Fragment::label("shortcuts.scroll"),
                     ]),
                     Shortcut::new(vec![
                         Fragment::key("PgUp"),
-                        Fragment::label("shortcuts.page"),
-                        Fragment::key("PgDn"),
-                    ])
-                    .compact(vec![
-                        Fragment::key("PgUp"),
-                        Fragment::sep("/"),
+                        Fragment::label("shortcuts.page").compact_sep("/"),
                         Fragment::key("PgDn"),
                     ]),
-                    Shortcut::from("edit", 0).unwrap(),
-                    Shortcut::from("discard", 0).unwrap(),
-                    Shortcut::new(vec![Fragment::label("shortcuts.submit"), Fragment::key("↵")]),
-                    Shortcut::from("dns", 1).unwrap(),
+                    shortcut!("edit", 0),
+                    shortcut!("discard", 0),
+                    Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.submit")]),
+                    shortcut!("dns", 1),
                 ]
             }
             ActivePane::Action(_) => {
                 vec![
                     Shortcut::new(vec![
                         Fragment::key("⇧⇤"),
-                        Fragment::label("shortcuts.nav"),
-                        Fragment::key("⇥"),
-                    ])
-                    .compact(vec![
-                        Fragment::key("⇧⇤"),
-                        Fragment::sep("/"),
+                        Fragment::label("shortcuts.nav").compact_sep("/"),
                         Fragment::key("⇥"),
                     ]),
-                    Shortcut::new(vec![Fragment::label("shortcuts.execute"), Fragment::key("↵")]),
-                    Shortcut::from("dns", 1).unwrap(),
+                    Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.execute")]),
+                    shortcut!("dns", 1),
                 ]
             }
         }

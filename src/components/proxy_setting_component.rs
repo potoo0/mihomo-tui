@@ -197,39 +197,26 @@ impl Component for ProxySettingComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::label("shortcuts.cancel"), Fragment::key("Esc")])
-                .compact(vec![Fragment::key("Esc")]),
-            Shortcut::new(vec![Fragment::label("shortcuts.confirm"), Fragment::key("↵")]),
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.cancel").hidden()]),
+            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.confirm")]),
             Shortcut::new(vec![
                 Fragment::key("⇧⇤"),
-                Fragment::label("shortcuts.nav"),
-                Fragment::key("⇥"),
-            ])
-            .compact(vec![
-                Fragment::key("⇧⇤"),
-                Fragment::sep("/"),
+                Fragment::label("shortcuts.nav").compact_sep("/"),
                 Fragment::key("⇥"),
             ]),
             Shortcut::new(vec![
-                Fragment::key("←/C-←"),
+                Fragment::key("←/C-←").compact("←/→"),
                 Fragment::label("shortcuts.move"),
-                Fragment::key("→/C-→"),
-            ])
-            .compact(vec![Fragment::key("←/→"), Fragment::label("shortcuts.move")]),
+                Fragment::key("→/C-→").hidden(),
+            ]),
             Shortcut::new(vec![
-                Fragment::key("Back/C-Back"),
-                Fragment::label("shortcuts.delete"),
-                Fragment::key("Del/C-Del"),
-            ])
-            .compact(vec![Fragment::key("Back/Del")]),
+                Fragment::key("Back/C-Back").compact("Back/Del"),
+                Fragment::label("shortcuts.delete").hidden(),
+                Fragment::key("Del/C-Del").hidden(),
+            ]),
             Shortcut::new(vec![
                 Fragment::key("Home"),
-                Fragment::label("shortcuts.jump"),
-                Fragment::key("End"),
-            ])
-            .compact(vec![
-                Fragment::key("Home"),
-                Fragment::sep("/"),
+                Fragment::label("shortcuts.jump").compact_sep("/"),
                 Fragment::key("End"),
             ]),
         ]

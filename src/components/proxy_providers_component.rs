@@ -19,6 +19,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::config::Config;
 use crate::render::RenderRequester;
+use crate::shortcut;
 use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::utils::byte_size::human_bytes;
 use crate::utils::symbols::arrow;
@@ -288,11 +289,11 @@ impl Component for ProxyProvidersComponent {
                 Fragment::sep("/"),
                 Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![Fragment::label("shortcuts.detail"), Fragment::key("↵")]),
-            Shortcut::from("setting", 0).unwrap(),
-            Shortcut::from("test", 0).unwrap(),
-            Shortcut::from("update", 0).unwrap(),
-            Shortcut::from("refresh", 0).unwrap(),
+            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.detail")]),
+            shortcut!("setting", 0),
+            shortcut!("test", 0),
+            shortcut!("update", 0),
+            shortcut!("refresh", 0),
         ]
     }
 

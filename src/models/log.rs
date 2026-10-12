@@ -1,16 +1,17 @@
 use serde::Deserialize;
-use strum::{Display, EnumIter};
+use strum::{EnumIter, IntoStaticStr};
 
-#[derive(Debug, Clone, Copy, PartialEq, Display, EnumIter, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter, IntoStaticStr, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[strum(const_into_str)]
 pub enum LogLevel {
-    #[strum(to_string = "error")]
+    #[strum(serialize = "error")]
     Error,
-    #[strum(to_string = "warning")]
+    #[strum(serialize = "warning")]
     Warning,
-    #[strum(to_string = "info")]
+    #[strum(serialize = "info")]
     Info,
-    #[strum(to_string = "debug")]
+    #[strum(serialize = "debug")]
     Debug,
 }
 
@@ -34,5 +35,13 @@ mod tests {
         assert_eq!(Some(LogLevel::Info), iter.next());
         assert_eq!(Some(LogLevel::Debug), iter.next());
         assert_eq!(None, iter.next());
+    }
+
+    #[test]
+    fn test_level_into_str() {
+        assert_eq!(LogLevel::Error.into_str(), "error");
+        assert_eq!(LogLevel::Warning.into_str(), "warning");
+        assert_eq!(LogLevel::Info.into_str(), "info");
+        assert_eq!(LogLevel::Debug.into_str(), "debug");
     }
 }

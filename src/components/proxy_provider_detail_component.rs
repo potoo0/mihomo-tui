@@ -16,6 +16,7 @@ use crate::components::{Component, ComponentId, MIN_CARD_WIDTH};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
 use crate::render::RenderRequester;
+use crate::shortcut;
 use crate::store::proxy_provider_detail_setting::ProxyProviderDetailSetting;
 use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::store::proxy_setting::ProxySetting;
@@ -331,28 +332,16 @@ impl Component for ProxyProviderDetailComponent {
                 Fragment::sep("/"),
                 Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![
-                Fragment::key("s"),
-                Fragment::sep("/"),
-                Fragment::key("S"),
-                Fragment::label("shortcuts.sort"),
-            ]),
+            shortcut!("sort", 0, Fragment::key("S")),
             Shortcut::new(vec![
                 Fragment::key("-"),
-                Fragment::sep("/"),
+                Fragment::label("shortcuts.width").compact("shortcuts.width_short"),
                 Fragment::key("+"),
-                Fragment::label("shortcuts.width"),
-            ])
-            .compact(vec![
-                Fragment::key("-"),
-                Fragment::sep("/"),
-                Fragment::key("+"),
-                Fragment::label("shortcuts.width_short"),
             ]),
-            Shortcut::new(vec![Fragment::label("shortcuts.back"), Fragment::key("Esc")]),
-            Shortcut::from("test", 0).unwrap(),
-            Shortcut::from("update", 0).unwrap(),
-            Shortcut::from("refresh", 0).unwrap(),
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.back")]),
+            shortcut!("test", 0),
+            shortcut!("update", 0),
+            shortcut!("refresh", 0),
         ]
     }
 

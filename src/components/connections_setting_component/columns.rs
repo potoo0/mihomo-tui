@@ -6,6 +6,7 @@ use ratatui::prelude::{Color, Line, Modifier, Span, Style};
 use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 
 use super::{Direction, SettingPane};
+use crate::shortcut;
 use crate::store::connections::{
     ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES,
 };
@@ -60,20 +61,7 @@ impl SettingPane for ColumnsSettingPane {
                 Fragment::key("PgUp"),
                 Fragment::sep("/"),
                 Fragment::key("g"),
-                Fragment::label("shortcuts.nav"),
-                Fragment::key("G"),
-                Fragment::sep("/"),
-                Fragment::key("PgDn"),
-                Fragment::sep("/"),
-                Fragment::key(arrow::RIGHT),
-            ])
-            .compact(vec![
-                Fragment::key(arrow::LEFT),
-                Fragment::sep("/"),
-                Fragment::key("PgUp"),
-                Fragment::sep("/"),
-                Fragment::key("g"),
-                Fragment::sep("/"),
+                Fragment::label("shortcuts.nav").compact_sep("/"),
                 Fragment::key("G"),
                 Fragment::sep("/"),
                 Fragment::key("PgDn"),
@@ -82,18 +70,12 @@ impl SettingPane for ColumnsSettingPane {
             ]),
             Shortcut::new(vec![
                 Fragment::key(concatcp!("C-", arrow::LEFT)),
-                Fragment::label("shortcuts.move"),
+                Fragment::label("shortcuts.move").compact_sep("/"),
                 Fragment::key(concatcp!("C-", arrow::RIGHT)),
-            ])
-            .compact(vec![
-                Fragment::key(concatcp!("C-", arrow::LEFT)),
-                Fragment::sep("/"),
-                Fragment::key(concatcp!("C-", arrow::RIGHT)),
-                Fragment::label("shortcuts.move"),
             ]),
-            Shortcut::new(vec![Fragment::label("shortcuts.toggle"), Fragment::key("Space")]),
-            Shortcut::from("all", 0).unwrap(),
-            Shortcut::from("invert", 0).unwrap(),
+            Shortcut::new(vec![Fragment::key("Space"), Fragment::label("shortcuts.toggle")]),
+            shortcut!("all", 0),
+            shortcut!("invert", 0),
         ]
     }
 

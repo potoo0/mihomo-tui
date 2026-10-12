@@ -29,7 +29,7 @@ use crate::utils::filter::FilterPattern;
 use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
-use crate::widgets::shortcut::{Fragment, Shortcut};
+use crate::widgets::shortcut::{DEFAULT_HL_COLOR, Fragment, Shortcut};
 
 pub struct LogsComponent {
     api: Option<Arc<Api>>,
@@ -121,13 +121,13 @@ impl LogsComponent {
             if idx > 0 {
                 vec.push(Span::raw("/"));
             }
-            let label = lv.to_string();
-            if let Some(cur) = &self.level
-                && cur == &lv
-            {
+            let label = lv.into_str();
+            if self.level == Some(lv) {
                 vec.push(Span::styled(label, Self::level_style(&lv)));
             } else {
-                vec.extend(Shortcut::from(label, 0).unwrap().into_spans(None));
+                // Log levels are technical terms; highlight the hotkey prefix.
+                vec.push(Span::styled(&label[..1], Style::default().fg(DEFAULT_HL_COLOR)));
+                vec.push(Span::raw(&label[1..]));
             }
         }
         vec.push(Span::raw(TOP_TITLE_RIGHT));
@@ -158,7 +158,10 @@ impl LogsComponent {
                 };
                 // LOG_COLS.iter().map(|def| (def.accessor)(item)).map(Span::from).collect();
                 let content = vec![
-                    Span::styled(format!(" {:<9}", item.r#type), Self::level_style(&item.r#type)),
+                    Span::styled(
+                        format!(" {:<9}", item.r#type.into_str()),
+                        Self::level_style(&item.r#type),
+                    ),
                     payload_span,
                 ];
                 ListItem::new(Line::from(content))
@@ -258,7 +261,7 @@ impl Component for LogsComponent {
                 Fragment::sep("/"),
                 Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![Fragment::label("shortcuts.live"), Fragment::key("Esc")]),
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.live")]),
         ]
     }
 

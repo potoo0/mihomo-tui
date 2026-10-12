@@ -14,6 +14,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::render::RenderRequester;
+use crate::shortcut;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
@@ -129,18 +130,7 @@ impl Component for ConnectionBatchTerminateComponent {
     }
 
     fn shortcuts(&self) -> Vec<Shortcut> {
-        vec![
-            Shortcut::new(vec![
-                Fragment::key("y"),
-                Fragment::label("shortcuts.yes"),
-                Fragment::key("↵"),
-            ]),
-            Shortcut::new(vec![
-                Fragment::key("n"),
-                Fragment::label("shortcuts.no"),
-                Fragment::key("Esc"),
-            ]),
-        ]
+        vec![shortcut!("yes", 0, Fragment::key("↵")), shortcut!("no", 0, Fragment::key("Esc"))]
     }
 
     fn init(&mut self, api: Arc<Api>) -> Result<()> {

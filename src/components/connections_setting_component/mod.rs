@@ -209,17 +209,11 @@ impl Component for ConnectionsSettingComponent {
         vec![
             Shortcut::new(vec![
                 Fragment::key("⇧⇤"),
-                Fragment::label("shortcuts.pane"),
+                Fragment::label("shortcuts.pane").compact_sep("/"),
                 Fragment::key("⇥"),
-            ])
-            .compact(vec![
-                Fragment::key("⇧⇤"),
-                Fragment::sep("/"),
-                Fragment::key("⇥"),
-                Fragment::label("shortcuts.pane"),
             ]),
-            Shortcut::new(vec![Fragment::label("shortcuts.apply"), Fragment::key("↵")]),
-            Shortcut::new(vec![Fragment::label("shortcuts.cancel"), Fragment::key("Esc")]),
+            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.apply")]),
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.cancel")]),
         ]
     }
 

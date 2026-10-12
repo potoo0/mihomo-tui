@@ -18,6 +18,7 @@ use crate::components::{Component, ComponentId, MIN_CARD_WIDTH};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
 use crate::render::RenderRequester;
+use crate::shortcut;
 use crate::store::proxies::Proxies;
 use crate::store::proxy_detail_setting::ProxyDetailSetting;
 use crate::store::proxy_setting::ProxySetting;
@@ -408,64 +409,34 @@ impl Component for ProxyDetailComponent {
                 Fragment::sep("/"),
                 Fragment::key(arrow::UP),
                 Fragment::sep("/"),
-                Fragment::key("PgUp"),
+                Fragment::key("PgUp").compact("PU"),
                 Fragment::sep("/"),
                 Fragment::key("g"),
-                Fragment::label("shortcuts.nav"),
+                Fragment::label("shortcuts.nav").compact_sep("/"),
                 Fragment::key("G"),
                 Fragment::sep("/"),
-                Fragment::key("PgDn"),
-                Fragment::sep("/"),
-                Fragment::key(arrow::DOWN),
-                Fragment::sep("/"),
-                Fragment::key(arrow::RIGHT),
-            ])
-            .compact(vec![
-                Fragment::key(arrow::LEFT),
-                Fragment::sep("/"),
-                Fragment::key(arrow::UP),
-                Fragment::sep("/"),
-                Fragment::key("PU"),
-                Fragment::sep("/"),
-                Fragment::key("g"),
-                Fragment::sep("/"),
-                Fragment::key("G"),
-                Fragment::sep("/"),
-                Fragment::key("PD"),
+                Fragment::key("PgDn").compact("PD"),
                 Fragment::sep("/"),
                 Fragment::key(arrow::DOWN),
                 Fragment::sep("/"),
                 Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![
-                Fragment::key("s"),
-                Fragment::sep("/"),
-                Fragment::key("S"),
-                Fragment::label("shortcuts.sort"),
-            ]),
+            shortcut!("sort", 0, Fragment::key("S")),
             Shortcut::new(vec![
                 Fragment::key("["),
-                Fragment::label("shortcuts.layer"),
+                Fragment::label("shortcuts.layer").compact_sep("/"),
                 Fragment::key("]"),
-            ])
-            .compact(vec![Fragment::key("[/]"), Fragment::label("shortcuts.layer")]),
-            Shortcut::from("cur", 0).unwrap(),
-            Shortcut::new(vec![Fragment::label("shortcuts.select"), Fragment::key("↵")]),
+            ]),
+            shortcut!("cur", 0),
+            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.select")]),
             Shortcut::new(vec![
                 Fragment::key("-"),
-                Fragment::sep("/"),
+                Fragment::label("shortcuts.width").compact("shortcuts.width_short"),
                 Fragment::key("+"),
-                Fragment::label("shortcuts.width"),
-            ])
-            .compact(vec![
-                Fragment::key("-"),
-                Fragment::sep("/"),
-                Fragment::key("+"),
-                Fragment::label("shortcuts.width_short"),
             ]),
-            Shortcut::new(vec![Fragment::label("shortcuts.back"), Fragment::key("Esc")]),
-            Shortcut::from("test", 0).unwrap(),
-            Shortcut::from("refresh", 0).unwrap(),
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.back")]),
+            shortcut!("test", 0),
+            shortcut!("refresh", 0),
         ]
     }
 

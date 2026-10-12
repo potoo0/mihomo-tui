@@ -16,6 +16,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::render::RenderRequester;
+use crate::shortcut;
 use crate::store::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
 use crate::utils::columns::filter_placeholder;
 use crate::utils::filter::FilterPattern;
@@ -240,8 +241,8 @@ impl Component for RuleProvidersComponent {
                 Fragment::sep("/"),
                 Fragment::key(arrow::DOWN),
             ]),
-            Shortcut::from("refresh", 0).unwrap(),
-            Shortcut::from("update", 0).unwrap(),
+            shortcut!("refresh", 0),
+            shortcut!("update", 0),
         ]
     }
 
