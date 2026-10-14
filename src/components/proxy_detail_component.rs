@@ -23,7 +23,9 @@ use crate::store::proxies::Proxies;
 use crate::store::proxy_detail_setting::ProxyDetailSetting;
 use crate::store::proxy_setting::ProxySetting;
 use crate::utils::symbols::arrow;
-use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, popup_area, space_between};
+use crate::utils::text_ui::{
+    TOP_TITLE_LEFT, TOP_TITLE_RIGHT, padded_styled_title, popup_area, space_between,
+};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
@@ -291,7 +293,7 @@ impl ProxyDetailComponent {
         let actual_width =
             card_layout(content_area, preferred_width).first().map_or(0, |card| card.width);
         block.title_bottom(
-            Line::styled(
+            padded_styled_title(
                 rust_i18n::t!(
                     "proxies.card_width",
                     preferred_width = preferred_width,

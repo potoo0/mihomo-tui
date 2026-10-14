@@ -21,6 +21,7 @@ tabs.short.rules: 规则
 titles.actions: 操作
 titles.config: 配置
 titles.connections_settings: 连接设置
+titles.core_config: 内核配置
 titles.detail: 详情
 titles.dns_query: DNS 查询
 titles.help: 帮助
@@ -34,15 +35,6 @@ overview.memory_chart: 内存图表
 overview.rate: 速率
 overview.total: 总量
 overview.traffic_chart: 流量图表
-
-headers.connections: 连接 (
-headers.core_config: ' 内核配置 '
-headers.core_config_modified: ' 内核配置 * '
-headers.logs: 日志 (
-headers.proxies: 代理 (
-headers.proxy_providers: 订阅 (
-headers.rule_providers: 规则集合 (
-headers.rules: 规则 (
 
 columns.alive: 活动
 columns.behavior: 行为
@@ -73,7 +65,7 @@ columns.updated_at: 更新时间
 columns.vehicle_type: 载入方式
 
 status.capture: 快照
-status.live: '实时  '
+status.live: 实时
 status.loading: 加载中
 status.paused: 暂停
 status.querying: 查询中
@@ -94,9 +86,9 @@ connections.confirm_filtered: 确定终止 %{count} 个筛选出的连接？
 connections.confirm_terminate: 确定终止此连接？
 connections.inactive: 此连接已结束。
 connections.no_columns_selected: 至少选择一列
-connections.settings.columns_title: ' 显示列 '
+connections.settings.columns_title: 显示列
 connections.settings.no_source_ips: 当前连接没有来源 IP
-connections.settings.source_ip_alias_title: ' 来源 IP 别名 '
+connections.settings.source_ip_alias_title: 来源 IP 别名
 connections.terminated: 连接已终止。
 connections.terminated_summary: 已终止 %{ok} 个连接，%{err} 个失败。
 connections.terminating: 正在终止连接…
@@ -109,32 +101,32 @@ proxy_settings.test_url: 测试地址
 proxy_settings.threshold: 延迟阈值（中,高）
 proxy_settings.timeout_invalid: 超时必须为有效数字
 
-proxies.card_width: ' 卡片宽度：%{preferred_width}（实际：%{actual_width}） '
+proxies.card_width: '卡片宽度：%{preferred_width}（实际：%{actual_width}）'
 
 proxy_providers.expiry: 到期：%{value}
 proxy_providers.updated_at: 更新时间：%{value}
 
-dns.answers: ' 应答（%{count}） '
+dns.answers: 应答（%{count}）
 dns.api_not_initialized: API 尚未初始化
 dns.data_column: 数据
 dns.name_column: 名称
 dns.name_required: 请输入域名
-dns.name_title: ' 域名 '
+dns.name_title: 域名
 dns.no_answers: 无应答记录
 dns.task_stopped: DNS 查询任务已停止
-dns.type_title: ' 类型 '
+dns.type_title: 类型
 
 config.actions.flush_dns: 清空 DNS
 config.actions.flush_fake_ip: 清空 FakeIP
 config.actions.reload: 重新加载
 config.actions.restart: 重启内核
 config.actions.update_geo: 更新 GEO
-config.edit_hint.partial_update: ' 1. 支持部分更新：仅填写需要修改的字段（例如
+config.edit_hint.partial_update: '1. 支持部分更新：仅填写需要修改的字段（例如
   {"tun": {"enable": true}}）。'
-config.edit_hint.supported_fields: ' 2.
+config.edit_hint.supported_fields: '2.
   可修改的字段：有注释的字段，以及 `tun` 和 `tuic-server` 下的所有字段。'
 
-updates.auto_restart_prompt: '自动重启界面？ '
+updates.auto_restart_prompt: 自动重启界面？
 updates.core_restart_timeout: 等待 Mihomo 内核重启到新版本超时
 updates.core_restart_waiting: 已请求更新 Mihomo 内核，等待服务重启…
 updates.up_to_date: 已是最新版本（%{current}）

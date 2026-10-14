@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use const_format::concatcp;
 use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::style::Style;
@@ -6,6 +8,23 @@ use ratatui::text::{Line, Span};
 
 pub const TOP_TITLE_LEFT: &str = concatcp!(TOP_RIGHT, " ");
 pub const TOP_TITLE_RIGHT: &str = concatcp!(" ", TOP_LEFT);
+
+fn padded_line(content: Span<'_>) -> Line<'_> {
+    Line::from(vec![Span::raw(" "), content, Span::raw(" ")])
+}
+
+/// A title wrapped in one space on each side.
+pub fn padded_title(title: impl Into<Cow<'static, str>>) -> Line<'static> {
+    padded_line(Span::raw(title))
+}
+
+/// A styled title wrapped in one space on each side.
+pub fn padded_styled_title(
+    title: impl Into<Cow<'static, str>>,
+    style: impl Into<Style>,
+) -> Line<'static> {
+    padded_line(Span::styled(title, style.into()))
+}
 
 pub fn dashed_title_line<'a, S: Into<Span<'a>>>(title: S, width: u16) -> Line<'a> {
     let total = width as usize;

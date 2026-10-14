@@ -143,6 +143,8 @@ mod tests {
             }
             let en = value.as_str().unwrap();
             let zh = chinese[key].as_str().unwrap();
+            assert_eq!(en, en.trim(), "{key}: surrounding whitespace");
+            assert_eq!(zh, zh.trim(), "{key}: surrounding whitespace");
             assert_eq!(placeholders(en), placeholders(zh), "{key}");
             if key.starts_with("columns.") {
                 assert_eq!(translate_column(Language::SimplifiedChinese, en), zh, "{key}");

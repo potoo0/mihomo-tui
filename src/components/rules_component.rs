@@ -207,7 +207,8 @@ impl RulesComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw(rust_i18n::t!("headers.rules")),
+            Span::raw(rust_i18n::t!("tabs.rules")),
+            Span::raw(" ("),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,

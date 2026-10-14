@@ -12,6 +12,7 @@ use crate::store::connections::{
 };
 use crate::utils::input::KeyOutcome;
 use crate::utils::symbols::arrow;
+use crate::utils::text_ui::padded_title;
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
 const COLUMN_PAGE_STEP: usize = 4;
@@ -200,7 +201,7 @@ impl ColumnsSettingPane {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(if active { Color::Cyan } else { Color::DarkGray })
-            .title(rust_i18n::t!("connections.settings.columns_title"));
+            .title(padded_title(rust_i18n::t!("connections.settings.columns_title")));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 

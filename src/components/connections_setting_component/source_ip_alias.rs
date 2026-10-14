@@ -10,6 +10,7 @@ use tui_input::Input;
 use super::SettingPane;
 use crate::utils::input::KeyOutcome;
 use crate::utils::symbols::arrow;
+use crate::utils::text_ui::padded_title;
 use crate::utils::tui_input::input_request;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -175,7 +176,7 @@ impl SourceIpAliasSettingPane {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(if active { Color::Cyan } else { Color::DarkGray })
-            .title(rust_i18n::t!("connections.settings.source_ip_alias_title"));
+            .title(padded_title(rust_i18n::t!("connections.settings.source_ip_alias_title")));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 

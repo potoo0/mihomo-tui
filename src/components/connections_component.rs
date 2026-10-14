@@ -130,7 +130,7 @@ impl ConnectionsComponent {
             ("status.paused", Color::Red)
         };
         let symbol = Throbber::default()
-            .label(throbber_label)
+            .label(rust_i18n::t!(throbber_label))
             .style(Style::default().bg(throbber_color).bold())
             .throbber_style(Style::default().bg(throbber_color).bold())
             .throbber_set(BRAILLE_SIX)
@@ -158,7 +158,8 @@ impl ConnectionsComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw(rust_i18n::t!("headers.connections")),
+            Span::raw(rust_i18n::t!("tabs.connections")),
+            Span::raw(" ("),
             Span::styled(
                 self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
                 Color::LightCyan,

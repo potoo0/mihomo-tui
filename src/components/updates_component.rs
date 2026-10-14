@@ -293,6 +293,7 @@ impl Component for UpdatesComponent {
         let lines = vec![
             Line::from(vec![
                 Span::raw(rust_i18n::t!("updates.auto_restart_prompt")),
+                Span::raw(" "),
                 Span::styled(rust_i18n::t!(restart), Color::LightCyan),
             ]),
             Line::raw(""),
