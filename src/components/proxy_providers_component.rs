@@ -232,7 +232,8 @@ impl ProxyProvidersComponent {
 
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw(rust_i18n::t!("headers.proxy_providers")),
+            Span::raw(rust_i18n::t!("tabs.proxy_providers")),
+            Span::raw(" ("),
             Span::styled(format!("{}", providers.len()), Color::LightCyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),

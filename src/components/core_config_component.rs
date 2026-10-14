@@ -339,7 +339,9 @@ impl CoreConfigComponent {
     fn render_edit_hints(&mut self, frame: &mut Frame, area: Rect) {
         let notes = CORE_CONFIG_EDIT_HINTS
             .iter()
-            .map(|note| Line::styled(rust_i18n::t!(*note), COMMENT_STYLE))
+            .map(|note| {
+                Line::from(vec![Span::raw(" "), Span::styled(rust_i18n::t!(*note), COMMENT_STYLE)])
+            })
             .collect::<Vec<Line>>();
         let paragraph = Paragraph::new(notes);
         frame.render_widget(paragraph, area);
@@ -350,13 +352,18 @@ impl CoreConfigComponent {
             self.line_count.load(Ordering::Relaxed),
             area.height.saturating_sub(2) as usize,
         );
-        let title = if self.modified.load(Ordering::Relaxed) {
-            Span::styled(
-                rust_i18n::t!("headers.core_config_modified"),
-                Style::default().fg(Color::Yellow),
-            )
-        } else {
-            Span::raw(rust_i18n::t!("headers.core_config"))
+        let title = {
+            let mut spans = Vec::with_capacity(3);
+            spans.push(Span::raw(" "));
+            let text = rust_i18n::t!("titles.core_config");
+            if self.modified.load(Ordering::Relaxed) {
+                spans.push(Span::styled(text, Style::default().fg(Color::Yellow)));
+                spans.push(Span::styled(" * ", Style::default().fg(Color::Yellow)));
+            } else {
+                spans.push(Span::raw(text));
+                spans.push(Span::raw(" "));
+            }
+            Line::from(spans).centered()
         };
         let block_style = match (self.active_pane, &self.editor_state) {
             (ActivePane::Editor, _) => Style::default().fg(Color::LightBlue),
@@ -372,7 +379,7 @@ impl CoreConfigComponent {
             let block = Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(block_style)
-                .title(title.into_centered_line());
+                .title(title);
             let lines: Vec<_> = content
                 .lines()
                 .map(|v| {

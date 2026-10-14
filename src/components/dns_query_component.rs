@@ -21,7 +21,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::dns::{DnsAnswer, DnsQueryRequest, DnsQueryResponse, DnsRecordType};
 use crate::utils::input::KeyOutcome;
-use crate::utils::text_ui::{popup_area, top_title_line};
+use crate::utils::text_ui::{padded_title, popup_area, top_title_line};
 use crate::utils::tui_input::input_request;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -271,7 +271,7 @@ impl DnsQueryComponent {
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(type_style)
-                .title(rust_i18n::t!("dns.type_title")),
+                .title(padded_title(rust_i18n::t!("dns.type_title"))),
         );
         frame.render_widget(type_widget, type_area);
 
@@ -287,7 +287,7 @@ impl DnsQueryComponent {
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .border_style(name_style)
-                .title(rust_i18n::t!("dns.name_title")),
+                .title(padded_title(rust_i18n::t!("dns.name_title"))),
         );
         frame.render_widget(name, name_area);
         if self.focused == FocusedField::Name {
@@ -313,7 +313,7 @@ impl DnsQueryComponent {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(block_style)
-            .title(title);
+            .title(padded_title(title));
         let viewport_len = area.height.saturating_sub(4) as usize;
         self.navigator.length(self.answers.len(), viewport_len);
         let records = self

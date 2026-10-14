@@ -21,6 +21,7 @@ tabs.short.rules: Rule
 titles.actions: actions
 titles.config: config
 titles.connections_settings: connections settings
+titles.core_config: core config
 titles.detail: detail
 titles.dns_query: dns query
 titles.help: help
@@ -34,15 +35,6 @@ overview.memory_chart: Memory chart
 overview.rate: Rate
 overview.total: Total
 overview.traffic_chart: Traffic chart
-
-headers.connections: connections (
-headers.core_config: ' core config '
-headers.core_config_modified: ' core config * '
-headers.logs: logs (
-headers.proxies: proxies (
-headers.proxy_providers: proxy providers (
-headers.rule_providers: rule providers (
-headers.rules: rules (
 
 columns.alive: Alive
 columns.behavior: Behavior
@@ -73,7 +65,7 @@ columns.updated_at: UpdatedAt
 columns.vehicle_type: VehicleType
 
 status.capture: Capture
-status.live: 'Live  '
+status.live: Live
 status.loading: Loading
 status.paused: Paused
 status.querying: Querying
@@ -94,9 +86,9 @@ connections.confirm_filtered: Are you sure to terminate %{count} filtered connec
 connections.confirm_terminate: Are you sure to terminate this connection?
 connections.inactive: Connection is already inactive.
 connections.no_columns_selected: At least one column must be selected
-connections.settings.columns_title: ' Columns '
+connections.settings.columns_title: Columns
 connections.settings.no_source_ips: No source IPs from current connections
-connections.settings.source_ip_alias_title: ' Source IP Alias '
+connections.settings.source_ip_alias_title: Source IP Alias
 connections.terminated: Connection terminated successfully.
 connections.terminated_summary: Terminated %{ok} connections, %{err} failed.
 connections.terminating: Connection terminating...
@@ -109,32 +101,32 @@ proxy_settings.test_url: Test URL
 proxy_settings.threshold: Threshold (medium,high)
 proxy_settings.timeout_invalid: Timeout must be a valid number
 
-proxies.card_width: ' Card width: %{preferred_width} (actual: %{actual_width}) '
+proxies.card_width: 'Card width: %{preferred_width} (actual: %{actual_width})'
 
 proxy_providers.expiry: 'Expire: %{value}'
 proxy_providers.updated_at: 'Updated at: %{value}'
 
-dns.answers: ' Answers (%{count}) '
+dns.answers: Answers (%{count})
 dns.api_not_initialized: API is not initialized
 dns.data_column: DATA
 dns.name_column: NAME
 dns.name_required: Name is required
-dns.name_title: ' Name '
+dns.name_title: Name
 dns.no_answers: No answer records
 dns.task_stopped: DNS query task stopped
-dns.type_title: ' Type '
+dns.type_title: Type
 
 config.actions.flush_dns: Flush DNS
 config.actions.flush_fake_ip: Flush FakeIP
 config.actions.reload: Reload
 config.actions.restart: Restart
 config.actions.update_geo: Update GEO
-config.edit_hint.partial_update: ' 1. Partial
+config.edit_hint.partial_update: '1. Partial
   updates are supported: include only the fields you want to change (e.g. {"tun": {"enable": true}}).'
-config.edit_hint.supported_fields: ' 2.
+config.edit_hint.supported_fields: '2.
   Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.'
 
-updates.auto_restart_prompt: 'TUI auto restart? '
+updates.auto_restart_prompt: TUI auto restart?
 updates.core_restart_timeout: Timed out waiting for mihomo core to restart with a new version
 updates.core_restart_waiting: Mihomo core upgrade requested, waiting for service to restart...
 updates.up_to_date: up to date (%{current})

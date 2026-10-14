@@ -174,7 +174,8 @@ impl ProxiesComponent {
         let proxies_len = Proxies::with_view(|p| p.len());
         let title_line = Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::raw(rust_i18n::t!("headers.proxies")),
+            Span::raw(rust_i18n::t!("tabs.proxies")),
+            Span::raw(" ("),
             Span::styled(format!("{}", proxies_len), Color::LightCyan),
             Span::raw(")"),
             Span::raw(TOP_TITLE_RIGHT),

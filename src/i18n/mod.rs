@@ -143,7 +143,17 @@ mod tests {
             }
             let en = value.as_str().unwrap();
             let zh = chinese[key].as_str().unwrap();
+            assert!(!en.is_empty(), "{key}: empty en value");
+            assert!(!zh.is_empty(), "{key}: empty zh value");
+            assert_eq!(en, en.trim(), "{key}: surrounding whitespace");
+            assert_eq!(zh, zh.trim(), "{key}: surrounding whitespace");
             assert_eq!(placeholders(en), placeholders(zh), "{key}");
+            assert_eq!(rust_i18n::t!(key.as_str(), locale = "en").as_ref(), en, "{key}: en lookup");
+            assert_eq!(
+                rust_i18n::t!(key.as_str(), locale = "zh-CN").as_ref(),
+                zh,
+                "{key}: zh-CN lookup"
+            );
             if key.starts_with("columns.") {
                 assert_eq!(translate_column(Language::SimplifiedChinese, en), zh, "{key}");
             }
