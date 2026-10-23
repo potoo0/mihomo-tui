@@ -123,7 +123,7 @@ impl UpdatesComponent {
                     let _ = action_tx.send(Action::Info(
                         AppMessage::from((
                             "actions.update_mihomo_core",
-                            "updates.core_restart_waiting",
+                            rust_i18n::t!("updates.core_restart_waiting").to_string(),
                         ))
                         .msg_box_size(45, 30),
                     ));
@@ -147,10 +147,14 @@ impl UpdatesComponent {
                             VersionStatus::UpToDate { current: upgraded_version.version.clone() };
                         let _ = action_tx.send(Action::CoreVersionUpdated(upgraded_version));
                     } else {
-                        warn!(previous_version, "Timed out waiting for mihomo core upgrade");
+                        warn!(previous_version, "Mihomo core upgrade timed out");
                         update_state.lock().core = previous;
                         let _ = action_tx.send(Action::Error(
-                            ("actions.update_mihomo_core", "updates.core_restart_timeout").into(),
+                            (
+                                "actions.update_mihomo_core",
+                                rust_i18n::t!("updates.core_restart_timeout").to_string(),
+                            )
+                                .into(),
                         ));
                     }
                 }
@@ -227,7 +231,7 @@ impl Component for UpdatesComponent {
                 Fragment::key("⇥"),
             ]),
             Shortcut::new(vec![Fragment::key("Space"), Fragment::label("shortcuts.toggle")]),
-            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.update")]),
+            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.upgrade")]),
             shortcut!("refresh", 0),
         ]
     }

@@ -69,8 +69,7 @@ impl MsgBoxComponent {
             .border_style(Color::LightBlue)
             .title(title_line)
             .padding(Padding::symmetric(2, 1));
-        let paragraph =
-            Paragraph::new(rust_i18n::t!(self.content.as_ref())).wrap(Wrap::default()).block(block);
+        let paragraph = Paragraph::new(self.content.as_ref()).wrap(Wrap::default()).block(block);
 
         frame.render_widget(paragraph, area);
 

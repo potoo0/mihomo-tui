@@ -24,6 +24,7 @@ titles.connections_settings: connections settings
 titles.core_config: core config
 titles.detail: detail
 titles.dns_query: dns query
+titles.error: error
 titles.help: help
 titles.proxy_settings: proxy settings
 titles.terminate: terminate
@@ -53,6 +54,7 @@ columns.index: Index
 columns.level: Level
 columns.name: Name
 columns.process: Process
+columns.rule: Rule
 columns.rule_count: RuleCount
 columns.size: Size
 columns.sniff_host: SniffHost
@@ -81,6 +83,7 @@ ui.expected_size: 'Expected:'
 ui.terminal_too_small: 'Terminal size too small:'
 
 language.preference_saved: Language preference is saved automatically.
+language.preference_session_only: Preference applies to this session only.
 
 connections.confirm_filtered: Are you sure to terminate %{count} filtered connections?
 connections.confirm_terminate: Are you sure to terminate this connection?
@@ -126,18 +129,24 @@ config.edit_hint.partial_update: '1. Partial
 config.edit_hint.supported_fields: '2.
   Not all fields are configurable: only annotated fields are supported, and all fields under `tun` and `tuic-server`.'
 
-updates.auto_restart_prompt: TUI auto restart?
-updates.core_restart_timeout: Timed out waiting for mihomo core to restart with a new version
+editor.exit_status: 'Editor `%{editor}` exited with non-zero status: %{status}'
+
+updates.app_up_to_date: TUI is already up to date (%{version}).
+updates.app_updated_no_auto_restart: TUI upgraded to %{version}. Auto restart is not supported on Windows. Please restart to use the new version.
+updates.app_updated_restart_required: TUI upgraded to %{version}. Please restart to use the new version.
+updates.auto_restart_prompt: Restart TUI automatically?
+updates.core_restart_timeout: Mihomo core upgrade timed out
 updates.core_restart_waiting: Mihomo core upgrade requested, waiting for service to restart...
 updates.up_to_date: up to date (%{current})
 
 actions.load_proxy: Load proxy
 actions.save_runtime_config: Save runtime config
+actions.spawn_external_editor: Spawn external editor
 actions.submit_core_config: Submit core config
 actions.submit_disabled_rule_changes: Submit disabled rule changes
 actions.sync_external_config: Sync config from external editor
-actions.update_app: Update app
-actions.update_mihomo_core: Update mihomo core
+actions.update_app: Upgrade TUI
+actions.update_mihomo_core: Upgrade Mihomo core
 actions.update_proxy_provider: Update proxy provider
 actions.update_selected_proxy: Update selected proxy
 
@@ -272,6 +281,7 @@ shortcuts.test: test
 shortcuts.toggle: toggle
 shortcuts.type: type
 shortcuts.update: update
+shortcuts.upgrade: upgrade
 shortcuts.width: width
 shortcuts.width_short: w
 shortcuts.yank: yank

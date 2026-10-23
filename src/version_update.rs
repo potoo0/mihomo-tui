@@ -167,7 +167,7 @@ pub fn update_app() -> Result<self_update::Status> {
         .build()
         .context("failed to configure self updater")?
         .update()
-        .context("failed to update app")
+        .context("failed to upgrade TUI")
 }
 
 #[allow(dead_code)]

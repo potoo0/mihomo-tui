@@ -24,6 +24,7 @@ titles.connections_settings: 连接设置
 titles.core_config: 内核配置
 titles.detail: 详情
 titles.dns_query: DNS 查询
+titles.error: 错误
 titles.help: 帮助
 titles.proxy_settings: 代理设置
 titles.terminate: 终止连接
@@ -53,6 +54,7 @@ columns.index: 序号
 columns.level: 级别
 columns.name: 名称
 columns.process: 进程
+columns.rule: 规则
 columns.rule_count: 规则数
 columns.size: 大小
 columns.sniff_host: 嗅探主机
@@ -81,6 +83,7 @@ ui.expected_size: 需要尺寸：
 ui.terminal_too_small: 终端尺寸过小：
 
 language.preference_saved: 语言偏好会自动保存。
+language.preference_session_only: 语言偏好仅当前会话生效。
 
 connections.confirm_filtered: 确定终止 %{count} 个筛选出的连接？
 connections.confirm_terminate: 确定终止此连接？
@@ -126,18 +129,24 @@ config.edit_hint.partial_update: '1. 支持部分更新：仅填写需要修改�
 config.edit_hint.supported_fields: '2.
   可修改的字段：有注释的字段，以及 `tun` 和 `tuic-server` 下的所有字段。'
 
-updates.auto_restart_prompt: 自动重启界面？
-updates.core_restart_timeout: 等待 Mihomo 内核重启到新版本超时
-updates.core_restart_waiting: 已请求更新 Mihomo 内核，等待服务重启…
+editor.exit_status: '编辑器 `%{editor}` 异常退出：%{status}'
+
+updates.app_up_to_date: TUI 已是最新版本（%{version}）。
+updates.app_updated_no_auto_restart: TUI 已升级到 %{version}。Windows 暂不支持自动重启，请重启后使用新版本。
+updates.app_updated_restart_required: TUI 已升级到 %{version}，请重启以使用新版本。
+updates.auto_restart_prompt: 自动重启 TUI？
+updates.core_restart_timeout: Mihomo 内核升级超时
+updates.core_restart_waiting: 已请求升级 Mihomo 内核，等待服务重启…
 updates.up_to_date: 已是最新版本（%{current}）
 
 actions.load_proxy: 加载代理
 actions.save_runtime_config: 保存运行时配置
+actions.spawn_external_editor: 启动外部编辑器
 actions.submit_core_config: 提交内核配置
 actions.submit_disabled_rule_changes: 提交规则禁用状态
 actions.sync_external_config: 从编辑器同步配置
-actions.update_app: 更新程序
-actions.update_mihomo_core: 更新 Mihomo 内核
+actions.update_app: 升级 TUI
+actions.update_mihomo_core: 升级 Mihomo 内核
 actions.update_proxy_provider: 更新订阅
 actions.update_selected_proxy: 切换代理
 
@@ -198,7 +207,7 @@ help.input.move_cursor: 移动光标
 help.input.navigate_fields: 切换输入项
 help.input.yank_deleted_word: 粘贴上次删除的词
 help.key: 按键
-help.logs.filter_level: 筛选日志级别：错误、警告、信息、调试
+help.logs.filter_level: 筛选日志级别：error、warn、info、debug
 help.proxies.open_settings: 打开代理设置
 help.proxies.refresh: 刷新代理
 help.proxies.test: 测试代理延迟
@@ -272,6 +281,7 @@ shortcuts.test: 测速
 shortcuts.toggle: 切换
 shortcuts.type: 类型
 shortcuts.update: 更新
+shortcuts.upgrade: 升级
 shortcuts.width: 宽度
 shortcuts.width_short: 宽
 shortcuts.yank: 粘贴

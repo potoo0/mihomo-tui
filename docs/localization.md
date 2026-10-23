@@ -11,6 +11,8 @@ UI text uses `rust-i18n`; catalogs are embedded at compile time from
   parameters; do not concatenate translated fragments.
 - Never translate identifiers, configuration keys, filter grammar, API values
   or user data.
+- Do not translate CLI-only output, diagnostics, product names (`mihomo-tui`,
+  `mihomo core`), or technical readouts such as `Width` / `Height` and `level:`.
 - Call `rust_i18n::t!` at render time so language switching applies
   immediately; `i18n::set_language` updates the global locale.
 - Translations return `Cow<str>`; borrow when possible. Compute terminal

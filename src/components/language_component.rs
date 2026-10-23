@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -10,6 +12,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use super::{Component, ComponentId};
 use crate::action::Action;
+use crate::config::Config;
 use crate::i18n::{self, Language};
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::scrollbar::Scroller;
@@ -21,6 +24,7 @@ pub struct LanguageComponent {
     state: ListState,
     visible_rows: usize,
     scrollable: bool,
+    persist_preference: bool,
     action_tx: Option<UnboundedSender<Action>>,
 }
 
@@ -31,6 +35,11 @@ impl Component for LanguageComponent {
 
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
+        Ok(())
+    }
+
+    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
+        self.persist_preference = config.runtime_config;
         Ok(())
     }
 
@@ -135,7 +144,7 @@ impl Component for LanguageComponent {
         let note_height = inner.height.min(2);
         let note_y = inner.bottom().saturating_sub(note_height);
         frame.render_widget(
-            Paragraph::new(rust_i18n::t!("language.preference_saved"))
+            Paragraph::new(rust_i18n::t!(preference_note_key(self.persist_preference)))
                 .wrap(ratatui::widgets::Wrap { trim: false }),
             Rect::new(inner.x, note_y, inner.width, note_height),
         );
@@ -146,6 +155,11 @@ impl Component for LanguageComponent {
 /// Keep a gap and two fixed bottom rows separate from the scrollable language list.
 fn language_list_area(inner: Rect) -> Rect {
     Rect::new(inner.x, inner.y, inner.width, inner.height.saturating_sub(3))
+}
+
+/// Whether the preference persists depends on the `runtime-config` setting.
+fn preference_note_key(persist: bool) -> &'static str {
+    if persist { "language.preference_saved" } else { "language.preference_session_only" }
 }
 
 #[cfg(test)]
@@ -220,5 +234,25 @@ mod tests {
             .collect();
         assert!(labels.contains("PgUp") && labels.contains("PgDn"));
         assert!(labels.contains('g') && labels.contains('G'));
+    }
+
+    #[test]
+    fn preference_note_follows_runtime_config_setting() {
+        let mut component = LanguageComponent::default();
+        let mut config = crate::config::default_config().unwrap();
+        component.register_config_handler(Arc::new(config.clone())).unwrap();
+        assert_eq!(preference_note_key(component.persist_preference), "language.preference_saved");
+
+        config.runtime_config = false;
+        component.register_config_handler(Arc::new(config)).unwrap();
+        assert_eq!(
+            preference_note_key(component.persist_preference),
+            "language.preference_session_only"
+        );
+
+        for persist in [true, false] {
+            let key = preference_note_key(persist);
+            assert_ne!(rust_i18n::t!(key, locale = "en").as_ref(), key, "{key}: missing entry");
+        }
     }
 }

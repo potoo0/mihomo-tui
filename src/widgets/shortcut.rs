@@ -157,7 +157,7 @@ impl Shortcut {
                 && let Some(next) = next_label(&self.parts[idx + 1..], mode)
                 && let Cow::Borrowed(label) = translate_label(next.label)
                 && label.is_ascii()
-                && label.get(fuse_idx..fuse_idx + 1) == fuse_word.get(fuse_idx..fuse_idx + 1)
+                && label.get(..=fuse_idx) == fuse_word.get(..=fuse_idx)
             {
                 if !spans.is_empty() {
                     spans.push(Span::raw(" "));

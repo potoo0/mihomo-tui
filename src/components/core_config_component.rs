@@ -39,7 +39,7 @@ const CORE_CONFIG_EDIT_HINTS: [&str; 2] =
     ["config.edit_hint.partial_update", "config.edit_hint.supported_fields"];
 const COMMENT_STYLE: Style = Style::new().fg(Color::DarkGray);
 
-/// Action button labels and constraints
+/// Action buttons as `(stable English name for logs, catalog key for UI text)`.
 const ACTIONS: [(&str, &str); 5] = [
     ("Reload", "config.actions.reload"),
     ("Restart", "config.actions.restart"),
@@ -274,8 +274,8 @@ impl CoreConfigComponent {
     }
 
     fn handle_action_button(&mut self, idx: usize) -> Result<()> {
-        let action_name = match ACTIONS.get(idx) {
-            Some((name, _)) => *name,
+        let (action_name, title_key) = match ACTIONS.get(idx) {
+            Some((name, key)) => (*name, *key),
             None => return Ok(()),
         };
         if self.loading.load(Ordering::Relaxed) {
@@ -301,7 +301,7 @@ impl CoreConfigComponent {
                 Ok(_) => info!("Core action '{}' completed successfully", action_name),
                 Err(e) => {
                     error!(error = ?e, action = action_name, "Core action failed");
-                    let _ = action_tx.send(Action::Error((action_name, e).into()));
+                    let _ = action_tx.send(Action::Error((title_key, e).into()));
                 }
             }
             ctx.loading.store(false, Ordering::Relaxed);
@@ -568,5 +568,21 @@ impl Component for CoreConfigComponent {
         self.render_actions(frame, chunks[1]);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn action_catalog_keys_resolve_to_stable_names() {
+        for (name, key) in ACTIONS {
+            assert_eq!(
+                rust_i18n::t!(key, locale = "en").as_ref(),
+                name,
+                "{key}: en text must match the stable name"
+            );
+        }
     }
 }

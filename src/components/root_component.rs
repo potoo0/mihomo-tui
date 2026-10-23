@@ -481,7 +481,7 @@ impl Component for RootComponent {
             KeyCode::Char('q') => return Ok(Some(Action::Quit)),
             KeyCode::Char('?') => return Ok(Some(Action::Help)),
             KeyCode::Char('L')
-                if !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                if matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
             {
                 return Ok(Some(Action::LanguageSelect));
             }
@@ -585,7 +585,7 @@ impl Component for RootComponent {
             ];
             let block = Block::default()
                 .border_type(BorderType::Rounded)
-                .title(top_title_line("error", Color::Red))
+                .title(top_title_line("titles.error", Color::Red))
                 .borders(Borders::ALL);
             let paragraph = Paragraph::new(lines).block(block);
             frame.render_widget(paragraph, area);

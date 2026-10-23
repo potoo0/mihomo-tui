@@ -199,46 +199,44 @@ impl App {
 
         let action = match thread::spawn(version_update::update_app)
             .join()
-            .map_err(|_| anyhow!("app self update thread panicked"))?
+            .map_err(|_| anyhow!("TUI upgrade thread panicked"))?
         {
             Ok(self_update::Status::UpToDate(version)) => Action::Info(
                 AppMessage::from((
                     "actions.update_app",
-                    format!("app is already up to date ({version})."),
+                    rust_i18n::t!("updates.app_up_to_date", version = version).to_string(),
                 ))
                 .msg_box_size(45, 30),
             ),
             Ok(self_update::Status::Updated(version)) if restart => {
-                info!(version, "app updated, trying to restart...");
-                println!("app updated to {version}. Trying to restart...");
+                info!(version, "TUI upgraded, trying to restart...");
+                println!("TUI upgraded to {version}. Trying to restart...");
                 match version_update::restart_app(&exe_path)? {
                     RestartOutcome::Restarted => return Ok(()),
                     RestartOutcome::Unsupported => Action::Info(
                         AppMessage::from((
                             "actions.update_app",
-                            format!(
-                                "app updated to {version}. \
-                                 Auto restart is not supported on Windows. \
-                                 Please restart to use the new version."
-                            ),
+                            rust_i18n::t!("updates.app_updated_no_auto_restart", version = version)
+                                .to_string(),
                         ))
                         .msg_box_size(45, 30),
                     ),
                 }
             }
             Ok(self_update::Status::Updated(version)) => {
-                println!("app updated to {version}. Please restart to use the new version.");
+                println!("TUI upgraded to {version}. Please restart to use the new version.");
                 Action::Info(
                     AppMessage::from((
-                        "Update app",
-                        format!("app updated to {version}. Please restart to use the new version."),
+                        "actions.update_app",
+                        rust_i18n::t!("updates.app_updated_restart_required", version = version)
+                            .to_string(),
                     ))
                     .msg_box_size(45, 30),
                 )
             }
             Err(e) => {
-                error!(error = ?e, "app self update failed");
-                Action::Error(("Update app", e).into())
+                error!(error = ?e, "TUI self-upgrade failed");
+                Action::Error(("actions.update_app", e).into())
             }
         };
 
@@ -269,14 +267,15 @@ impl App {
                         status_code = ?status.code(),
                         "Editor exited with non-zero status"
                     );
-                    let msg =
-                        format!("Editor `{}` exited with non-zero status: {}", editor, status);
-                    self.action_tx.send(Action::Error(("Spawning external editor", msg).into()))?;
+                    let msg = rust_i18n::t!("editor.exit_status", editor = editor, status = status)
+                        .to_string();
+                    self.action_tx
+                        .send(Action::Error(("actions.spawn_external_editor", msg).into()))?;
                 }
             }
             Err(e) => {
                 error!("Failed to spawn editor `{}`: {}", editor, e);
-                self.action_tx.send(Action::Error(("Spawning external editor", e).into()))?;
+                self.action_tx.send(Action::Error(("actions.spawn_external_editor", e).into()))?;
             }
         }
 

@@ -64,13 +64,15 @@ pub fn set_language(language: Language) {
 /// Column titles are also stable config and filter identifiers, so translate them only at draw
 /// time.
 pub fn column_title(title: &str) -> Cow<'_, str> {
-    translate_column(language(), title)
+    column_key(title).map_or(Cow::Borrowed(title), |key| rust_i18n::t!(key))
 }
 
-fn translate_column(language: Language, title: &str) -> Cow<'_, str> {
+/// Maps a stable column title to its catalog key; `None` leaves the title as-is.
+fn column_key(title: &str) -> Option<&'static str> {
     let key = match title {
         "Alive" => "columns.alive",
         "Host" => "columns.host",
+        "Rule" => "columns.rule",
         "Chains" => "columns.chains",
         "DownRate" => "columns.down_rate",
         "UpRate" => "columns.up_rate",
@@ -96,9 +98,9 @@ fn translate_column(language: Language, title: &str) -> Cow<'_, str> {
         "Behavior" => "columns.behavior",
         "RuleCount" => "columns.rule_count",
         "UpdatedAt" => "columns.updated_at",
-        _ => return Cow::Borrowed(title),
+        _ => return None,
     };
-    rust_i18n::t!(key, locale = language.code())
+    Some(key)
 }
 
 #[cfg(test)]
@@ -109,9 +111,30 @@ mod tests {
 
     #[test]
     fn column_translation_preserves_config_identifiers() {
-        assert_eq!(translate_column(Language::English, "Host"), "Host");
-        assert_eq!(translate_column(Language::SimplifiedChinese, "Host"), "主机");
-        assert_eq!(translate_column(Language::SimplifiedChinese, "custom"), "custom");
+        assert_eq!(column_title("Host"), "Host");
+        assert_eq!(column_title("custom"), "custom");
+        assert_eq!(rust_i18n::t!(column_key("Host").unwrap(), locale = "zh-CN"), "主机");
+    }
+
+    #[test]
+    fn table_column_titles_have_catalog_keys() {
+        use crate::store::connections::CONNECTION_COLS;
+        use crate::store::logs::LOG_COLS;
+        use crate::store::rule_providers::RULE_PROVIDER_COLS;
+        use crate::store::rules::RULE_COLS;
+
+        let titles = CONNECTION_COLS
+            .iter()
+            .map(|def| def.col.title)
+            .chain(RULE_COLS.iter().map(|def| def.col.title))
+            .chain(RULE_PROVIDER_COLS.iter().map(|def| def.col.title))
+            .chain(LOG_COLS.iter().map(|def| def.title));
+
+        for title in titles {
+            let key = column_key(title).unwrap_or_else(|| panic!("{title}: no columns.* key"));
+            let en = rust_i18n::t!(key, locale = "en");
+            assert_eq!(en.as_ref(), title, "{key}: en value must round-trip the title");
+        }
     }
 
     #[test]
@@ -155,7 +178,11 @@ mod tests {
                 "{key}: zh-CN lookup"
             );
             if key.starts_with("columns.") {
-                assert_eq!(translate_column(Language::SimplifiedChinese, en), zh, "{key}");
+                assert_eq!(
+                    column_key(en),
+                    Some(key.as_str()),
+                    "{key}: en value must map back to its key"
+                );
             }
         }
     }

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 
@@ -30,6 +31,10 @@ const COLS: [&ColDef<Connection>; 4] = [
     find_conn_def_by_id("source_ip"),
 ];
 
+/// Popup field labels are padded to a fixed display width so values stay
+/// aligned across languages.
+const FIELD_LABEL_WIDTH: usize = 12;
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 enum Phase {
     #[default]
@@ -41,11 +46,12 @@ enum Phase {
 }
 
 impl Phase {
-    fn ui(&self) -> Option<(Color, &str)> {
+    /// Returns the final display text; status variants are translated here.
+    fn ui(&self) -> Option<(Color, Cow<'_, str>)> {
         match self {
-            Phase::Terminating => Some((Color::Yellow, "connections.terminating")),
-            Phase::DoneOk => Some((Color::Green, "connections.terminated")),
-            Phase::DoneErr(e) => Some((Color::Red, e.as_str())),
+            Phase::Terminating => Some((Color::Yellow, rust_i18n::t!("connections.terminating"))),
+            Phase::DoneOk => Some((Color::Green, rust_i18n::t!("connections.terminated"))),
+            Phase::DoneErr(e) => Some((Color::Red, e.into())),
             Phase::Hidden | Phase::Confirm => None,
         }
     }
@@ -103,14 +109,6 @@ impl ConnectionTerminateComponent {
         })?;
 
         Ok(())
-    }
-
-    fn render_msgbox(frame: &mut Frame, area: Rect, color: Color, msg: &str) {
-        let block = Block::bordered().border_type(BorderType::Rounded).border_style(color);
-        let paragraph = Paragraph::new(Span::styled(msg, Style::default().fg(color)))
-            .block(block)
-            .alignment(Alignment::Center);
-        frame.render_widget(paragraph, area);
     }
 }
 
@@ -204,11 +202,7 @@ impl Component for ConnectionTerminateComponent {
                 let value = (def.accessor)(conn);
                 Line::from(vec![
                     Span::styled(
-                        {
-                            let title = rust_i18n::t!(def.title);
-                            let padding = 12usize.saturating_sub(Span::raw(title.as_ref()).width());
-                            format!("{}{}", title, " ".repeat(padding))
-                        },
+                        padded_column_title(def.title),
                         Style::default().add_modifier(Modifier::BOLD),
                     ),
                     Span::raw(value),
@@ -222,12 +216,12 @@ impl Component for ConnectionTerminateComponent {
 
         // msg box
         if conn.inactive.load(Ordering::Relaxed) {
-            Self::render_msgbox(frame, chunks[1], Color::DarkGray, "connections.inactive");
+            render_msgbox(frame, chunks[1], Color::DarkGray, rust_i18n::t!("connections.inactive"));
             return Ok(());
         }
 
         if let Some((color, msg)) = phase.ui() {
-            Self::render_msgbox(frame, chunks[1], color, msg);
+            render_msgbox(frame, chunks[1], color, msg);
         }
 
         Ok(())
@@ -246,4 +240,19 @@ const fn find_conn_def_by_id(id: &str) -> &ColDef<Connection> {
     }
 
     panic!("id not found")
+}
+
+fn render_msgbox(frame: &mut Frame, area: Rect, color: Color, msg: Cow<str>) {
+    let block = Block::bordered().border_type(BorderType::Rounded).border_style(color);
+    let paragraph = Paragraph::new(Span::styled(msg, Style::default().fg(color)))
+        .block(block)
+        .alignment(Alignment::Center);
+    frame.render_widget(paragraph, area);
+}
+
+/// Column titles are stable identifiers; translate them only for display.
+fn padded_column_title(title: &str) -> String {
+    let label = crate::i18n::column_title(title);
+    let padding = FIELD_LABEL_WIDTH.saturating_sub(Span::raw(label.as_ref()).width());
+    format!("{}{}", label, " ".repeat(padding))
 }

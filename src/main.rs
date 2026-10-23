@@ -34,13 +34,13 @@ async fn main() -> anyhow::Result<()> {
         let exe_path = env::current_exe().context("get current exe path")?;
         match thread::spawn(version_update::update_app)
             .join()
-            .map_err(|_| anyhow!("app self update thread panicked"))?
+            .map_err(|_| anyhow!("TUI upgrade thread panicked"))?
         {
             Ok(self_update::Status::UpToDate(version)) => {
-                println!("app is already up to date ({version}).");
+                println!("TUI is already up to date ({version}).");
             }
             Ok(self_update::Status::Updated(version)) => {
-                println!("app updated to {version}.");
+                println!("TUI upgraded to {version}.");
                 return match version_update::restart_app(&exe_path)? {
                     RestartOutcome::Restarted => Ok(()),
                     RestartOutcome::Unsupported => {
@@ -53,8 +53,8 @@ async fn main() -> anyhow::Result<()> {
                 };
             }
             Err(e) => {
-                tracing::error!(error = ?e, "app self update failed");
-                anyhow::bail!("failed to update app: {e}");
+                tracing::error!(error = ?e, "TUI self-upgrade failed");
+                return Err(e);
             }
         }
     }

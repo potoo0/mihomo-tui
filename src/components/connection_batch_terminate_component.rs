@@ -201,7 +201,7 @@ impl Component for ConnectionBatchTerminateComponent {
     }
 }
 
-fn confirmation_line<'a>(template: &'a str, count: usize) -> Line<'a> {
+fn confirmation_line(template: &str, count: usize) -> Line<'_> {
     let (before, after) = template
         .split_once("%{count}")
         .expect("confirmation translation must contain a count placeholder");
@@ -214,6 +214,8 @@ fn confirmation_line<'a>(template: &'a str, count: usize) -> Line<'a> {
 
 #[cfg(test)]
 mod tests {
+    use strum::IntoEnumIterator;
+
     use super::*;
     use crate::i18n::Language;
 
@@ -233,6 +235,14 @@ mod tests {
                 line.spans.iter().map(|span| span.content.as_ref()).collect::<String>(),
                 expected
             );
+        }
+    }
+
+    #[test]
+    fn every_language_confirmation_keeps_count_placeholder() {
+        for language in Language::iter() {
+            let template = rust_i18n::t!("connections.confirm_filtered", locale = language.code());
+            assert_eq!(template.matches("%{count}").count(), 1, "{}", language.code());
         }
     }
 }

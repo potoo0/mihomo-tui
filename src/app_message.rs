@@ -20,7 +20,11 @@ impl Default for MsgBoxSize {
 
 #[derive(Debug, Clone)]
 pub struct AppMessage {
+    /// Catalog key rendered as the popup title.
     pub title: &'static str,
+    /// Final display text.
+    /// Producers should localize deterministic UI copy before sending;
+    /// lower-layer diagnostics may remain English.
     pub message: Box<str>,
     pub msg_box_size: Option<MsgBoxSize>,
 }

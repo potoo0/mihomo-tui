@@ -207,7 +207,7 @@ impl Component for HeaderComponent {
 
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> anyhow::Result<()> {
         let indicator = Line::from(vec![
-            Span::styled("[L] ", Style::default().fg(Color::Indexed(130))),
+            Span::styled("[L] ", Style::default().fg(DEFAULT_HL_COLOR)),
             Span::raw(crate::i18n::language().indicator()),
             Span::raw("  "),
         ]);

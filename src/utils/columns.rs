@@ -20,6 +20,9 @@ where
     if fields.is_empty() {
         None
     } else {
+        // TODO(i18n): Field names and filter syntax are stable English identifiers.
+        // Translate only the surrounding sentence after deciding how to present
+        // mixed-language placeholder text in the bounded filter input.
         Some(format!("Type to search: {} or Field:expr ...", fields.join(" ")))
     }
 }
