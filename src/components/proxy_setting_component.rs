@@ -17,6 +17,7 @@ use crate::action::Action;
 use crate::components::{Component, ComponentId};
 use crate::config::LatencyThreshold;
 use crate::store::proxy_setting::ProxySetting;
+use crate::utils::symbols::key;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::utils::tui_input::input_request;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -195,15 +196,23 @@ impl Component for ProxySettingComponent {
         vec![
             Shortcut::new(vec![Fragment::raw("cancel "), Fragment::hl("Esc")])
                 .compact(vec![Fragment::hl("Esc")]),
-            Shortcut::new(vec![Fragment::raw("confirm "), Fragment::hl("↵")]),
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav "), Fragment::hl("⇥")])
-                .compact(vec![Fragment::hl("⇧⇤"), Fragment::raw("/"), Fragment::hl("⇥")]),
+            Shortcut::new(vec![Fragment::raw("confirm "), Fragment::hl(key::ENTER)]),
             Shortcut::new(vec![
-                Fragment::hl("←/C-←"),
-                Fragment::raw(" move "),
-                Fragment::hl("→/C-→"),
+                Fragment::hl(key::SHIFT_TAB),
+                Fragment::raw(" nav "),
+                Fragment::hl(key::TAB),
             ])
-            .compact(vec![Fragment::hl("←/→"), Fragment::raw(" move")]),
+            .compact(vec![
+                Fragment::hl(key::SHIFT_TAB),
+                Fragment::raw("/"),
+                Fragment::hl(key::TAB),
+            ]),
+            Shortcut::new(vec![
+                Fragment::hl(key::left_with_ctrl()),
+                Fragment::raw(" move "),
+                Fragment::hl(key::right_with_ctrl()),
+            ])
+            .compact(vec![Fragment::hl(key::left_or_right()), Fragment::raw(" move")]),
             Shortcut::new(vec![
                 Fragment::hl("Back/C-Back"),
                 Fragment::raw(" del "),

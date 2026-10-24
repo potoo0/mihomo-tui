@@ -25,7 +25,7 @@ use crate::render::RenderRequester;
 use crate::utils::editor::resolve_editor;
 use crate::utils::input::KeyOutcome;
 use crate::utils::json5_formatter::{Json5Formatter, collect_paths, extract_comments};
-use crate::utils::symbols::arrow;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{dashed_title_line, top_title_line};
 use crate::widgets::button::Button;
 use crate::widgets::scrollbar::Scroller;
@@ -432,14 +432,14 @@ impl Component for CoreConfigComponent {
             ActivePane::Editor => {
                 vec![
                     Shortcut::new(vec![
-                        Fragment::hl("⇧⇤"),
+                        Fragment::hl(key::SHIFT_TAB),
                         Fragment::raw(" nav "),
-                        Fragment::hl("⇥"),
+                        Fragment::hl(key::TAB),
                     ])
                     .compact(vec![
-                        Fragment::hl("⇧⇤"),
+                        Fragment::hl(key::SHIFT_TAB),
                         Fragment::raw("/"),
-                        Fragment::hl("⇥"),
+                        Fragment::hl(key::TAB),
                     ]),
                     Shortcut::new(vec![
                         Fragment::hl(arrow::UP),
@@ -464,23 +464,23 @@ impl Component for CoreConfigComponent {
                     ]),
                     Shortcut::from("edit", 0).unwrap(),
                     Shortcut::from("discard", 0).unwrap(),
-                    Shortcut::new(vec![Fragment::raw("submit "), Fragment::hl("↵")]),
+                    Shortcut::new(vec![Fragment::raw("submit "), Fragment::hl(key::ENTER)]),
                     Shortcut::from("dns", 1).unwrap(),
                 ]
             }
             ActivePane::Action(_) => {
                 vec![
                     Shortcut::new(vec![
-                        Fragment::hl("⇧⇤"),
+                        Fragment::hl(key::SHIFT_TAB),
                         Fragment::raw(" nav "),
-                        Fragment::hl("⇥"),
+                        Fragment::hl(key::TAB),
                     ])
                     .compact(vec![
-                        Fragment::hl("⇧⇤"),
+                        Fragment::hl(key::SHIFT_TAB),
                         Fragment::raw("/"),
-                        Fragment::hl("⇥"),
+                        Fragment::hl(key::TAB),
                     ]),
-                    Shortcut::new(vec![Fragment::raw("execute "), Fragment::hl("↵")]),
+                    Shortcut::new(vec![Fragment::raw("execute "), Fragment::hl(key::ENTER)]),
                     Shortcut::from("dns", 1).unwrap(),
                 ]
             }

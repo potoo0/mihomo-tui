@@ -18,6 +18,7 @@ use crate::models::sort::SortSpec;
 use crate::store::connections::with_alive_column;
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::utils::input::KeyOutcome;
+use crate::utils::symbols::key;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut, ShortcutMode, shortcuts_full_width};
 
@@ -206,14 +207,18 @@ impl Component for ConnectionsSettingComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" pane nav "), Fragment::hl("⇥")])
-                .compact(vec![
-                    Fragment::hl("⇧⇤"),
-                    Fragment::raw("/"),
-                    Fragment::hl("⇥"),
-                    Fragment::raw(" pane"),
-                ]),
-            Shortcut::new(vec![Fragment::raw("apply "), Fragment::hl("↵")]),
+            Shortcut::new(vec![
+                Fragment::hl(key::SHIFT_TAB),
+                Fragment::raw(" pane nav "),
+                Fragment::hl(key::TAB),
+            ])
+            .compact(vec![
+                Fragment::hl(key::SHIFT_TAB),
+                Fragment::raw("/"),
+                Fragment::hl(key::TAB),
+                Fragment::raw(" pane"),
+            ]),
+            Shortcut::new(vec![Fragment::raw("apply "), Fragment::hl(key::ENTER)]),
             Shortcut::new(vec![Fragment::raw("cancel "), Fragment::hl("Esc")]),
         ]
     }

@@ -15,6 +15,7 @@ use tui_input::Input;
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::utils::symbols::key;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::utils::tui_input::input_request;
 use crate::widgets::shortcut::{Fragment, Shortcut, ShortcutMode, shortcuts_full_width};
@@ -50,14 +51,14 @@ impl Component for FilterComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
-                Fragment::hl("←/C-←"),
+                Fragment::hl(key::left_with_ctrl()),
                 Fragment::raw(" move "),
-                Fragment::hl("→/C-→"),
+                Fragment::hl(key::right_with_ctrl()),
             ])
             .compact(vec![
-                Fragment::hl("←/C-←"),
+                Fragment::hl(key::left_with_ctrl()),
                 Fragment::raw("/"),
-                Fragment::hl("→/C-→"),
+                Fragment::hl(key::right_with_ctrl()),
             ]),
             Shortcut::new(vec![
                 Fragment::hl("Back/C-Back"),
@@ -76,9 +77,13 @@ impl Component for FilterComponent {
                 Fragment::raw("esc "),
                 Fragment::hl("Esc"),
                 Fragment::raw("/"),
-                Fragment::hl("↵"),
+                Fragment::hl(key::ENTER),
             ])
-            .compact(vec![Fragment::hl("Esc"), Fragment::raw("/"), Fragment::hl("↵")]),
+            .compact(vec![
+                Fragment::hl("Esc"),
+                Fragment::raw("/"),
+                Fragment::hl(key::ENTER),
+            ]),
         ]
     }
 

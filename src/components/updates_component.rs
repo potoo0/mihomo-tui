@@ -17,7 +17,7 @@ use crate::api::Api;
 use crate::app_message::AppMessage;
 use crate::config::Config;
 use crate::render::RenderRequester;
-use crate::utils::symbols::arrow;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::version_update::{SharedVersionUpdateState, VersionStatus, VersionUpdateState};
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -224,9 +224,13 @@ impl Component for UpdatesComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![Fragment::hl("q"), Fragment::raw("/"), Fragment::hl("Esc")]),
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav "), Fragment::hl("⇥")]),
+            Shortcut::new(vec![
+                Fragment::hl(key::SHIFT_TAB),
+                Fragment::raw(" nav "),
+                Fragment::hl(key::TAB),
+            ]),
             Shortcut::new(vec![Fragment::raw("toggle "), Fragment::hl("Space")]),
-            Shortcut::new(vec![Fragment::raw("update "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::raw("update "), Fragment::hl(key::ENTER)]),
             Shortcut::from("refresh", 0).unwrap(),
         ]
     }

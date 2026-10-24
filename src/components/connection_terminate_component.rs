@@ -19,6 +19,7 @@ use crate::models::Connection;
 use crate::render::RenderRequester;
 use crate::store::connections::CONNECTION_COLS;
 use crate::utils::columns::ColDef;
+use crate::utils::symbols::key;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
@@ -127,7 +128,7 @@ impl Component for ConnectionTerminateComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("y"), Fragment::raw("es "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::hl("y"), Fragment::raw("es "), Fragment::hl(key::ENTER)]),
             Shortcut::new(vec![
                 Fragment::hl("n"),
                 Fragment::raw("o "),

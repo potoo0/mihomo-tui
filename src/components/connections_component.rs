@@ -29,7 +29,7 @@ use crate::store::connections::{
 };
 use crate::store::connections_setting::ConnectionsSetting;
 use crate::utils::columns::{TextResolver, filter_placeholder};
-use crate::utils::symbols::{arrow, triangle};
+use crate::utils::symbols::{arrow, key, triangle};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -518,7 +518,7 @@ impl Component for ConnectionsComponent {
                 Fragment::raw("erm"),
             ]),
             Shortcut::from("capture", 0).unwrap(),
-            Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::raw("detail "), Fragment::hl(key::ENTER)]),
             Shortcut::new(vec![Fragment::raw("live "), Fragment::hl("Esc")]),
             Shortcut::from("setting", 0).unwrap(),
         ]

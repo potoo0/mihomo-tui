@@ -11,6 +11,7 @@ use super::{Component, ComponentId};
 use crate::action::Action;
 use crate::config::get_config_path;
 use crate::config::runtime::runtime_path_for;
+use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::scrollbar::Scroller;
 use crate::widgets::shortcut::{DEFAULT_HL_COLOR, Fragment, Shortcut};
@@ -169,7 +170,7 @@ impl HelpComponent {
             HelpRow::key_title("# Config (Cfg)"),
             HelpRow::key_entry("Shift+Tab, Tab", "move focus between editor and actions"),
             HelpRow::key_entry("Enter", "execute focused action / confirm"),
-            HelpRow::key_entry("e", "open config in external editor ($EDITOR → vim → vi)"),
+            HelpRow::key_entry("e", "open config in external editor ($EDITOR -> vim -> vi)"),
             HelpRow::key_entry("d", "discard changes and reload config"),
             HelpRow::key_entry("n", "open DNS query dialog"),
             // dns query dialog
@@ -230,9 +231,9 @@ impl Component for HelpComponent {
                 Fragment::hl("Esc"),
             ]),
             Shortcut::new(vec![
-                Fragment::hl("←"),
+                Fragment::hl(arrow::LEFT),
                 Fragment::raw("/"),
-                Fragment::hl("↑"),
+                Fragment::hl(arrow::UP),
                 Fragment::raw("/"),
                 Fragment::hl("PgUp"),
                 Fragment::raw("/"),
@@ -242,9 +243,9 @@ impl Component for HelpComponent {
                 Fragment::raw("/"),
                 Fragment::hl("PgDn"),
                 Fragment::raw("/"),
-                Fragment::hl("↓"),
+                Fragment::hl(arrow::DOWN),
                 Fragment::raw("/"),
-                Fragment::hl("→"),
+                Fragment::hl(arrow::RIGHT),
             ]),
         ]
     }

@@ -13,6 +13,7 @@ use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
 use crate::render::RenderRequester;
+use crate::utils::symbols::key;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::shortcut::{Fragment, Shortcut};
 
@@ -127,7 +128,7 @@ impl Component for ConnectionBatchTerminateComponent {
 
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
-            Shortcut::new(vec![Fragment::hl("y"), Fragment::raw("es "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::hl("y"), Fragment::raw("es "), Fragment::hl(key::ENTER)]),
             Shortcut::new(vec![Fragment::hl("n"), Fragment::raw("o "), Fragment::hl("Esc")]),
         ]
     }

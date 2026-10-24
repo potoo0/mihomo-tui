@@ -21,7 +21,7 @@ use crate::render::RenderRequester;
 use crate::store::proxies::Proxies;
 use crate::store::proxy_detail_setting::ProxyDetailSetting;
 use crate::store::proxy_setting::ProxySetting;
-use crate::utils::symbols::arrow;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, popup_area, space_between};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -442,7 +442,7 @@ impl Component for ProxyDetailComponent {
             Shortcut::new(vec![Fragment::hl("["), Fragment::raw(" layer "), Fragment::hl("]")])
                 .compact(vec![Fragment::hl("[/]"), Fragment::raw(" layer")]),
             Shortcut::from("cur", 0).unwrap(),
-            Shortcut::new(vec![Fragment::raw("sel "), Fragment::hl("↵")]),
+            Shortcut::new(vec![Fragment::raw("sel "), Fragment::hl(key::ENTER)]),
             Shortcut::new(vec![
                 Fragment::hl("-"),
                 Fragment::raw("/"),

@@ -131,6 +131,7 @@ pub fn shortcuts_full_width(shortcuts: &[Shortcut], pad_width: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::symbols::key;
 
     #[test]
     fn test_from() {
@@ -174,7 +175,7 @@ mod tests {
     fn shortcuts_full_width_adds_pad_width_per_shortcut() {
         let shortcuts = vec![
             Shortcut::new(vec![Fragment::raw("foo")]),
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" nav ")]),
+            Shortcut::new(vec![Fragment::hl(key::SHIFT_TAB), Fragment::raw(" nav ")]),
         ];
 
         assert_eq!(shortcuts_full_width(&shortcuts, 2), 14);

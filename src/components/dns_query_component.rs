@@ -21,6 +21,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::dns::{DnsAnswer, DnsQueryRequest, DnsQueryResponse, DnsRecordType};
 use crate::utils::input::KeyOutcome;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::utils::tui_input::input_request;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -365,28 +366,32 @@ impl Component for DnsQueryComponent {
         let mut shortcuts = Vec::with_capacity(4);
         shortcuts.extend(vec![
             Shortcut::new(vec![Fragment::hl("Esc")]),
-            Shortcut::new(vec![Fragment::hl("⇧⇤"), Fragment::raw(" focus "), Fragment::hl("⇥")]),
-            Shortcut::new(vec![Fragment::raw("query "), Fragment::hl("↵")]),
+            Shortcut::new(vec![
+                Fragment::hl(key::SHIFT_TAB),
+                Fragment::raw(" focus "),
+                Fragment::hl(key::TAB),
+            ]),
+            Shortcut::new(vec![Fragment::raw("query "), Fragment::hl(key::ENTER)]),
         ]);
         match self.focused {
             FocusedField::Type => shortcuts.push(Shortcut::new(vec![
-                Fragment::hl("←"),
+                Fragment::hl(arrow::LEFT),
                 Fragment::raw(" type "),
-                Fragment::hl("→"),
+                Fragment::hl(arrow::RIGHT),
             ])),
             FocusedField::Name => shortcuts.push(Shortcut::new(vec![
-                Fragment::hl("←"),
+                Fragment::hl(arrow::LEFT),
                 Fragment::raw(" cursor "),
-                Fragment::hl("→"),
+                Fragment::hl(arrow::RIGHT),
             ])),
             FocusedField::Answers => shortcuts.push(Shortcut::new(vec![
-                Fragment::hl("←"),
+                Fragment::hl(arrow::LEFT),
                 Fragment::raw("/"),
-                Fragment::hl("↑"),
+                Fragment::hl(arrow::UP),
                 Fragment::raw(" nav "),
-                Fragment::hl("↓"),
+                Fragment::hl(arrow::DOWN),
                 Fragment::raw("/"),
-                Fragment::hl("→"),
+                Fragment::hl(arrow::RIGHT),
             ])),
         }
 
@@ -476,26 +481,34 @@ mod tests {
 
         assert_eq!(
             component.shortcuts()[3],
-            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" type "), Fragment::hl("→")])
+            Shortcut::new(vec![
+                Fragment::hl(arrow::LEFT),
+                Fragment::raw(" type "),
+                Fragment::hl(arrow::RIGHT),
+            ])
         );
 
         component.set_focused(FocusedField::Name);
         assert_eq!(
             component.shortcuts()[3],
-            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" cursor "), Fragment::hl("→")])
+            Shortcut::new(vec![
+                Fragment::hl(arrow::LEFT),
+                Fragment::raw(" cursor "),
+                Fragment::hl(arrow::RIGHT),
+            ])
         );
 
         component.set_focused(FocusedField::Answers);
         assert_eq!(
             component.shortcuts()[3],
             Shortcut::new(vec![
-                Fragment::hl("←"),
+                Fragment::hl(arrow::LEFT),
                 Fragment::raw("/"),
-                Fragment::hl("↑"),
+                Fragment::hl(arrow::UP),
                 Fragment::raw(" nav "),
-                Fragment::hl("↓"),
+                Fragment::hl(arrow::DOWN),
                 Fragment::raw("/"),
-                Fragment::hl("→"),
+                Fragment::hl(arrow::RIGHT),
             ])
         );
     }
@@ -514,7 +527,11 @@ mod tests {
         };
         assert_eq!(
             shortcuts[3],
-            Shortcut::new(vec![Fragment::hl("←"), Fragment::raw(" cursor "), Fragment::hl("→")])
+            Shortcut::new(vec![
+                Fragment::hl(arrow::LEFT),
+                Fragment::raw(" cursor "),
+                Fragment::hl(arrow::RIGHT),
+            ])
         );
     }
 
