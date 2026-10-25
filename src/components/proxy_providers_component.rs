@@ -22,7 +22,7 @@ use crate::render::RenderRequester;
 use crate::shortcut;
 use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::utils::byte_size::human_bytes;
-use crate::utils::symbols::arrow;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, space_between_many};
 use crate::utils::time::format_timestamp;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -290,7 +290,7 @@ impl Component for ProxyProvidersComponent {
                 Fragment::sep("/"),
                 Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.detail")]),
+            Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.detail")]),
             shortcut!("setting", 0),
             shortcut!("test", 0),
             shortcut!("update", 0),

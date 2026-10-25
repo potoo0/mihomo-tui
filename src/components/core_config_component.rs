@@ -26,7 +26,7 @@ use crate::shortcut;
 use crate::utils::editor::resolve_editor;
 use crate::utils::input::KeyOutcome;
 use crate::utils::json5_formatter::{Json5Formatter, collect_paths, extract_comments};
-use crate::utils::symbols::arrow;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{dashed_title_line, top_title_line};
 use crate::widgets::button::Button;
 use crate::widgets::scrollbar::Scroller;
@@ -447,9 +447,9 @@ impl Component for CoreConfigComponent {
             ActivePane::Editor => {
                 vec![
                     Shortcut::new(vec![
-                        Fragment::key("⇧⇤"),
+                        Fragment::key(key::SHIFT_TAB),
                         Fragment::label("shortcuts.nav").compact_sep("/"),
-                        Fragment::key("⇥"),
+                        Fragment::key(key::TAB),
                     ]),
                     Shortcut::new(vec![
                         Fragment::key(arrow::UP),
@@ -463,18 +463,24 @@ impl Component for CoreConfigComponent {
                     ]),
                     shortcut!("edit", 0),
                     shortcut!("discard", 0),
-                    Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.submit")]),
+                    Shortcut::new(vec![
+                        Fragment::key(key::ENTER),
+                        Fragment::label("shortcuts.submit"),
+                    ]),
                     shortcut!("dns", 1),
                 ]
             }
             ActivePane::Action(_) => {
                 vec![
                     Shortcut::new(vec![
-                        Fragment::key("⇧⇤"),
+                        Fragment::key(key::SHIFT_TAB),
                         Fragment::label("shortcuts.nav").compact_sep("/"),
-                        Fragment::key("⇥"),
+                        Fragment::key(key::TAB),
                     ]),
-                    Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.execute")]),
+                    Shortcut::new(vec![
+                        Fragment::key(key::ENTER),
+                        Fragment::label("shortcuts.execute"),
+                    ]),
                     shortcut!("dns", 1),
                 ]
             }

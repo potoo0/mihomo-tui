@@ -21,6 +21,7 @@ use crate::api::Api;
 use crate::components::{Component, ComponentId, HORIZ_STEP};
 use crate::models::dns::{DnsAnswer, DnsQueryRequest, DnsQueryResponse, DnsRecordType};
 use crate::utils::input::KeyOutcome;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{padded_title, popup_area, top_title_line};
 use crate::utils::tui_input::input_request;
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
@@ -369,31 +370,31 @@ impl Component for DnsQueryComponent {
         shortcuts.extend(vec![
             Shortcut::new(vec![Fragment::key("Esc")]),
             Shortcut::new(vec![
-                Fragment::key("⇧⇤"),
+                Fragment::key(key::SHIFT_TAB),
                 Fragment::label("shortcuts.focus"),
-                Fragment::key("⇥"),
+                Fragment::key(key::TAB),
             ]),
-            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.query")]),
+            Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.query")]),
         ]);
         match self.focused {
             FocusedField::Type => shortcuts.push(Shortcut::new(vec![
-                Fragment::key("←"),
+                Fragment::key(arrow::LEFT),
                 Fragment::label("shortcuts.type"),
-                Fragment::key("→"),
+                Fragment::key(arrow::RIGHT),
             ])),
             FocusedField::Name => shortcuts.push(Shortcut::new(vec![
-                Fragment::key("←"),
+                Fragment::key(arrow::LEFT),
                 Fragment::label("shortcuts.cursor"),
-                Fragment::key("→"),
+                Fragment::key(arrow::RIGHT),
             ])),
             FocusedField::Answers => shortcuts.push(Shortcut::new(vec![
-                Fragment::key("←"),
+                Fragment::key(arrow::LEFT),
                 Fragment::sep("/"),
-                Fragment::key("↑"),
+                Fragment::key(arrow::UP),
                 Fragment::label("shortcuts.nav"),
-                Fragment::key("↓"),
+                Fragment::key(arrow::DOWN),
                 Fragment::sep("/"),
-                Fragment::key("→"),
+                Fragment::key(arrow::RIGHT),
             ])),
         }
 
@@ -484,9 +485,9 @@ mod tests {
         assert_eq!(
             component.shortcuts()[3],
             Shortcut::new(vec![
-                Fragment::key("←"),
+                Fragment::key(arrow::LEFT),
                 Fragment::label("shortcuts.type"),
-                Fragment::key("→")
+                Fragment::key(arrow::RIGHT)
             ])
         );
 
@@ -494,9 +495,9 @@ mod tests {
         assert_eq!(
             component.shortcuts()[3],
             Shortcut::new(vec![
-                Fragment::key("←"),
+                Fragment::key(arrow::LEFT),
                 Fragment::label("shortcuts.cursor"),
-                Fragment::key("→")
+                Fragment::key(arrow::RIGHT)
             ])
         );
 
@@ -504,13 +505,13 @@ mod tests {
         assert_eq!(
             component.shortcuts()[3],
             Shortcut::new(vec![
-                Fragment::key("←"),
+                Fragment::key(arrow::LEFT),
                 Fragment::sep("/"),
-                Fragment::key("↑"),
+                Fragment::key(arrow::UP),
                 Fragment::label("shortcuts.nav"),
-                Fragment::key("↓"),
+                Fragment::key(arrow::DOWN),
                 Fragment::sep("/"),
-                Fragment::key("→"),
+                Fragment::key(arrow::RIGHT),
             ])
         );
     }
@@ -530,9 +531,9 @@ mod tests {
         assert_eq!(
             shortcuts[3],
             Shortcut::new(vec![
-                Fragment::key("←"),
+                Fragment::key(arrow::LEFT),
                 Fragment::label("shortcuts.cursor"),
-                Fragment::key("→")
+                Fragment::key(arrow::RIGHT)
             ])
         );
     }

@@ -14,6 +14,7 @@ use super::{Component, ComponentId};
 use crate::action::Action;
 use crate::config::Config;
 use crate::i18n::{self, Language};
+use crate::utils::symbols::{arrow, dot, key};
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::scrollbar::Scroller;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -46,11 +47,11 @@ impl Component for LanguageComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         let mut shortcuts = vec![
             Shortcut::new(vec![
-                Fragment::key("↑"),
+                Fragment::key(arrow::UP),
                 Fragment::label("shortcuts.nav"),
-                Fragment::key("↓"),
+                Fragment::key(arrow::DOWN),
             ]),
-            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.apply")]),
+            Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.apply")]),
             Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.cancel")]),
         ];
         if self.scrollable {
@@ -113,9 +114,10 @@ impl Component for LanguageComponent {
         let inner = block.inner(area);
         frame.render_widget(block, area);
         let rows = Language::iter().map(|language| {
-            let marker = if language == i18n::language() { "● " } else { "○ " };
+            let marker = if language == i18n::language() { dot::BLACK } else { dot::WHITE };
             ListItem::new(Line::from(vec![
                 Span::styled(marker, Color::LightCyan),
+                Span::raw(" "),
                 Span::raw(language.native_name()),
             ]))
         });

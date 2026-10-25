@@ -22,7 +22,7 @@ use crate::shortcut;
 use crate::store::proxies::Proxies;
 use crate::store::proxy_detail_setting::ProxyDetailSetting;
 use crate::store::proxy_setting::ProxySetting;
-use crate::utils::symbols::arrow;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{
     TOP_TITLE_LEFT, TOP_TITLE_RIGHT, padded_styled_title, popup_area, space_between,
 };
@@ -430,7 +430,7 @@ impl Component for ProxyDetailComponent {
                 Fragment::key("]"),
             ]),
             shortcut!("cur", 0),
-            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.select")]),
+            Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.select")]),
             Shortcut::new(vec![
                 Fragment::key("-"),
                 Fragment::label("shortcuts.width").compact("shortcuts.width_short"),

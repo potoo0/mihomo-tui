@@ -11,6 +11,7 @@ use super::{Component, ComponentId};
 use crate::action::Action;
 use crate::config::get_config_path;
 use crate::config::runtime::runtime_path_for;
+use crate::utils::symbols::arrow;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::widgets::scrollbar::Scroller;
 use crate::widgets::shortcut::{DEFAULT_HL_COLOR, Fragment, Shortcut};
@@ -234,9 +235,9 @@ impl Component for HelpComponent {
                 Fragment::key("Esc"),
             ]),
             Shortcut::new(vec![
-                Fragment::key("←"),
+                Fragment::key(arrow::LEFT),
                 Fragment::sep("/"),
-                Fragment::key("↑"),
+                Fragment::key(arrow::UP),
                 Fragment::sep("/"),
                 Fragment::key("PgUp"),
                 Fragment::sep("/"),
@@ -246,9 +247,9 @@ impl Component for HelpComponent {
                 Fragment::sep("/"),
                 Fragment::key("PgDn"),
                 Fragment::sep("/"),
-                Fragment::key("↓"),
+                Fragment::key(arrow::DOWN),
                 Fragment::sep("/"),
-                Fragment::key("→"),
+                Fragment::key(arrow::RIGHT),
             ]),
         ]
     }

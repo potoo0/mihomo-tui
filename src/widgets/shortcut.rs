@@ -276,6 +276,7 @@ pub fn shortcuts_full_width(shortcuts: &[Shortcut], pad_width: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::symbols::{arrow, key};
 
     fn contents<'a, 'b>(spans: &'b [Span<'a>]) -> Vec<&'b str> {
         spans.iter().map(|s| s.content.as_ref()).collect()
@@ -310,11 +311,11 @@ mod tests {
             },
             Case {
                 name: "single trailing fragment",
-                shortcut: crate::shortcut!("yes", 0, Fragment::key("↵")),
+                shortcut: crate::shortcut!("yes", 0, Fragment::key(key::ENTER)),
                 parts: vec![
                     Fragment::fuse_key("yes", 0),
                     Fragment::label("shortcuts.yes"),
-                    Fragment::key("↵"),
+                    Fragment::key(key::ENTER),
                 ],
                 spans: vec!["y", "es", " ", "↵"],
                 key: 0,
@@ -401,11 +402,11 @@ mod tests {
             Case {
                 name: "hidden omits keycap and label",
                 shortcut: Shortcut::new(vec![
-                    Fragment::key("⇧⇤").hidden(),
+                    Fragment::key(key::SHIFT_TAB).hidden(),
                     Fragment::label("shortcuts.nav").hidden(),
-                    Fragment::key("↑"),
+                    Fragment::key(arrow::UP),
                     Fragment::sep("/"),
-                    Fragment::key("↓"),
+                    Fragment::key(arrow::DOWN),
                 ]),
                 full: vec!["⇧⇤", " ", "nav", " ", "↑", "/", "↓"],
                 compact: vec!["↑", "/", "↓"],
@@ -413,9 +414,9 @@ mod tests {
             Case {
                 name: "sep collapses label between keys",
                 shortcut: Shortcut::new(vec![
-                    Fragment::key("↑"),
+                    Fragment::key(arrow::UP),
                     Fragment::label("shortcuts.scroll").compact_sep("/"),
-                    Fragment::key("↓"),
+                    Fragment::key(arrow::DOWN),
                 ]),
                 full: vec!["↑", " ", "scroll", " ", "↓"],
                 compact: vec!["↑", "/", "↓"],
@@ -456,7 +457,7 @@ mod tests {
     fn shortcuts_full_width_adds_pad_width_per_shortcut() {
         let shortcuts = vec![
             Shortcut::new(vec![Fragment::key("foo")]),
-            Shortcut::new(vec![Fragment::key("⇧⇤"), Fragment::label("shortcuts.nav")]),
+            Shortcut::new(vec![Fragment::key(key::SHIFT_TAB), Fragment::label("shortcuts.nav")]),
         ];
 
         assert_eq!(shortcuts_full_width(&shortcuts, 2), 13);

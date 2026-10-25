@@ -17,6 +17,7 @@ use crate::action::Action;
 use crate::components::{Component, ComponentId};
 use crate::config::LatencyThreshold;
 use crate::store::proxy_setting::ProxySetting;
+use crate::utils::symbols::key;
 use crate::utils::text_ui::{popup_area, top_title_line};
 use crate::utils::tui_input::input_request;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -198,16 +199,16 @@ impl Component for ProxySettingComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.cancel").hidden()]),
-            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.confirm")]),
+            Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.confirm")]),
             Shortcut::new(vec![
-                Fragment::key("⇧⇤"),
+                Fragment::key(key::SHIFT_TAB),
                 Fragment::label("shortcuts.nav").compact_sep("/"),
-                Fragment::key("⇥"),
+                Fragment::key(key::TAB),
             ]),
             Shortcut::new(vec![
-                Fragment::key("←/C-←").compact("←/→"),
+                Fragment::key(key::left_with_ctrl()).compact(key::left_or_right()),
                 Fragment::label("shortcuts.move"),
-                Fragment::key("→/C-→").hidden(),
+                Fragment::key(key::right_with_ctrl()).hidden(),
             ]),
             Shortcut::new(vec![
                 Fragment::key("Back/C-Back").compact("Back/Del"),

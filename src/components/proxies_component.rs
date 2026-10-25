@@ -21,7 +21,7 @@ use crate::render::RenderRequester;
 use crate::shortcut;
 use crate::store::proxies::{Proxies, ProxyView};
 use crate::store::proxy_setting::ProxySetting;
-use crate::utils::symbols::arrow;
+use crate::utils::symbols::{arrow, key};
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::widgets::scrollable_navigator::ScrollableNavigator;
 use crate::widgets::shortcut::{Fragment, Shortcut};
@@ -237,7 +237,7 @@ impl Component for ProxiesComponent {
                 Fragment::sep("/"),
                 Fragment::key(arrow::RIGHT),
             ]),
-            Shortcut::new(vec![Fragment::key("↵"), Fragment::label("shortcuts.detail")]),
+            Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.detail")]),
             shortcut!("refresh", 0),
             shortcut!("setting", 0),
             shortcut!("test", 0),
