@@ -186,4 +186,37 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn localized_column_titles_are_unambiguous_and_token_safe_filter_aliases() {
+        use std::collections::BTreeMap;
+
+        let english: BTreeMap<String, yaml_serde::Value> =
+            yaml_serde::from_str(include_str!("../../locales/en.yml")).unwrap();
+        let chinese: BTreeMap<String, yaml_serde::Value> =
+            yaml_serde::from_str(include_str!("../../locales/zh-CN.yml")).unwrap();
+
+        for (locale, catalog) in [("en", &english), ("zh-CN", &chinese)] {
+            let mut aliases = BTreeMap::new();
+            for (key, value) in catalog {
+                if !key.starts_with("columns.") {
+                    continue;
+                }
+                let canonical = english[key].as_str().unwrap();
+                for alias in [canonical, value.as_str().unwrap()] {
+                    assert!(
+                        !alias.chars().any(|ch| ch.is_whitespace() || ch == ':' || ch == '"'),
+                        "{locale} {key}: {alias:?} must be enterable without filter quoting"
+                    );
+                    let normalized_alias = alias.to_ascii_lowercase();
+                    let existing = aliases.insert(normalized_alias, canonical).unwrap_or(canonical);
+                    assert_eq!(
+                        existing, canonical,
+                        "{locale} {key}: {alias:?} already names column {existing:?}; \
+                         localized titles must stay unambiguous filter aliases"
+                    );
+                }
+            }
+        }
+    }
 }

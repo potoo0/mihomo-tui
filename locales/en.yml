@@ -97,6 +97,8 @@ connections.terminated_summary: Terminated %{ok} connections, %{err} failed.
 connections.terminating: Connection terminating...
 connections.terminating_filtered: Connections terminating...
 
+filter.placeholder: 'Type to search: %{fields} or Field:expr ...'
+
 proxy_settings.auto_terminate: Auto Terminate Connections
 proxy_settings.auto_terminate_invalid: Auto terminate connections must be true or false
 proxy_settings.test_timeout: Test Timeout (ms)
@@ -196,7 +198,7 @@ help.filter.contains: match if the value contains substring 'str'
 help.filter.ends_with: match if the value ends with 'str'
 help.filter.exact: match exactly 'str'
 help.filter.fuzzy: match using fuzzy search for 'str'
-help.filter.named_column: match <pattern> only in the named column; field is case-insensitive
+help.filter.named_column: match <pattern> only in the named column; use the English column name (case-insensitive) or the displayed column title
 help.filter.negate: 'negate the match of <pattern>, examples: !^str, !''str'
 help.filter.quote_pattern: quote plain patterns containing spaces or colons
 help.filter.quote_value: quote values containing spaces

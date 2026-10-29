@@ -5,7 +5,17 @@ use nucleo_matcher::pattern::Atom as NucleoAtom;
 use nucleo_matcher::{Matcher, Utf32Str};
 
 use super::FilterExpr;
+use crate::i18n::column_title;
 use crate::utils::columns::{ColDef, TextResolver};
+
+/// A user-typed field names a column when it matches either the canonical
+/// English title (stable across locales, ASCII case-insensitive) or the
+/// localized display title of the active locale. This keeps patterns written
+/// with English identifiers portable while letting users type the column names
+/// they currently see on screen.
+fn field_matches(canonical: &str, display: &str, field: &str) -> bool {
+    canonical.eq_ignore_ascii_case(field) || display.eq_ignore_ascii_case(field)
+}
 
 /// An iterator that filters items based on a fuzzy pattern and column definitions
 pub struct RowFilter<'a, T, I>
@@ -64,13 +74,16 @@ where
                     cols: cols
                         .iter()
                         .copied()
-                        .filter(|col| match term.field.as_deref() {
-                            Some(field) => col.title.eq_ignore_ascii_case(field),
-                            None => {
-                                col.filterable
-                                    && !fields
-                                        .iter()
-                                        .any(|field| col.title.eq_ignore_ascii_case(field))
+                        .filter(|col| {
+                            let display = column_title(col.title);
+                            match term.field.as_deref() {
+                                Some(field) => field_matches(col.title, &display, field),
+                                None => {
+                                    col.filterable
+                                        && !fields
+                                            .iter()
+                                            .any(|field| field_matches(col.title, &display, field))
+                                }
                             }
                         })
                         .collect(),
@@ -222,6 +235,18 @@ mod tests {
         for (pattern, expected) in cases {
             assert_eq!(row_filter_ids(pattern), expected, "pattern: {pattern:?}");
         }
+    }
+
+    #[test]
+    fn filter_field_accepts_display_title_alias() {
+        // Canonical English identifiers match regardless of the displayed title.
+        assert!(field_matches("Host", "主机", "Host"));
+        assert!(field_matches("Host", "主机", "host"));
+        // The displayed title is accepted as an alias in the active locale.
+        assert!(field_matches("Host", "主机", "主机"));
+        // Unrelated or partial names still fail closed.
+        assert!(!field_matches("Host", "主机", "Rule"));
+        assert!(!field_matches("Host", "主机", "主"));
     }
 
     #[test]

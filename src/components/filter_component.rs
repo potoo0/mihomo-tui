@@ -15,6 +15,7 @@ use tui_input::Input;
 use crate::action::Action;
 use crate::api::Api;
 use crate::components::{Component, ComponentId};
+use crate::i18n::column_title;
 use crate::shortcut;
 use crate::utils::symbols::key;
 use crate::utils::text_ui::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
@@ -29,7 +30,8 @@ pub struct FilterComponent {
     is_active: bool,
     should_send: bool,
     input: Input,
-    placeholder: Option<String>,
+    /// Canonical column titles for the active tab; localized at draw time.
+    placeholder: Option<Vec<&'static str>>,
     action_tx: Option<UnboundedSender<Action>>,
     shortcuts_full_width: usize,
 }
@@ -44,6 +46,15 @@ impl FilterComponent {
         }
 
         Ok(())
+    }
+
+    /// Builds the localized placeholder at draw time so language changes apply
+    /// immediately without replaying `Action::FilterPlaceholder`.
+    fn placeholder_text(&self) -> String {
+        self.placeholder.as_deref().map_or_else(String::new, |fields| {
+            let titles = fields.iter().map(|field| column_title(field)).collect::<Vec<_>>();
+            rust_i18n::t!("filter.placeholder", fields = titles.join(" ")).into_owned()
+        })
     }
 }
 
@@ -161,7 +172,7 @@ impl Component for FilterComponent {
             .title(right.right_aligned());
         let paragraph = if self.input.value().is_empty() {
             Paragraph::new(Line::from(Span::styled(
-                self.placeholder.as_deref().unwrap_or_default(),
+                self.placeholder_text(),
                 Style::default().fg(Color::DarkGray),
             )))
         } else {

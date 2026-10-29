@@ -45,6 +45,12 @@ pub struct RulesComponent {
 }
 
 impl RulesComponent {
+    fn recompute_view(&mut self) {
+        let filter_pattern = self.filter_pattern.lock().unwrap();
+        self.store.compute_view(filter_pattern.as_ref());
+        self.filter_pattern_changed = false;
+    }
+
     fn load_rules(&mut self) -> Result<()> {
         info!("Loading rules");
         let api = Arc::clone(self.api.as_ref().unwrap());
@@ -314,14 +320,13 @@ impl Component for RulesComponent {
             Action::Tick => {
                 if self.filter_pattern_changed {
                     debug!("handle Action::Tick, recompute rules view");
-                    let filter_pattern = self.filter_pattern.lock().unwrap();
-                    self.store.compute_view(filter_pattern.as_ref());
-                    self.filter_pattern_changed = false;
+                    self.recompute_view();
                 }
                 if self.loading.load(Ordering::Relaxed) {
                     self.throbber.calc_next();
                 }
             }
+            Action::LanguageChanged(_) => self.recompute_view(),
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
                 *self.filter_pattern.lock().unwrap() = pattern.and_then(FilterPattern::new);

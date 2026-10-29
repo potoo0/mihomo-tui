@@ -92,8 +92,11 @@ when `runtime-config` is enabled. With it disabled, changes last for the session
 English remains the default. Set `language: zh-CN` in the main YAML configuration
 to start in Simplified Chinese, or `language: en` for English. A saved runtime
 language takes precedence. Language selection is a popup, not a navigation tab.
-Configuration keys, filter field names, API values, node names and log content
-retain their original form in every language.
+Configuration keys, API values, node names and log content retain their original
+form in every language. Filter fields accept the English column identifiers in
+every language, plus the localized column titles shown by the current interface
+language. Filter patterns are kept across language switches; a pattern using a
+localized field alias only matches while that language is active.
 
 See [localization maintenance](docs/localization.md) for the module design and how
 to add a language.

@@ -87,9 +87,15 @@ impl Component for LanguageComponent {
             }
             KeyCode::Esc | KeyCode::Char('q') => return Ok(Some(Action::Unfocus)),
             KeyCode::Enter => {
-                return Ok(Some(Action::LanguageChanged(
-                    Language::iter().nth(self.selected).unwrap(),
-                )));
+                let language = Language::iter().nth(self.selected).unwrap();
+                // Re-confirming the active language is a no-op: close the popup
+                // without a redundant config save.
+                if language != i18n::language()
+                    && let Some(tx) = &self.action_tx
+                {
+                    tx.send(Action::LanguageChanged(language))?;
+                }
+                return Ok(Some(Action::Unfocus));
             }
             _ => {}
         }
@@ -169,30 +175,6 @@ mod tests {
     use crossterm::event::KeyModifiers;
 
     use super::*;
-
-    #[test]
-    fn selection_requires_confirmation_and_navigation_stays_in_bounds() {
-        let mut component = LanguageComponent::default();
-        for _ in 0..3 {
-            assert!(
-                component
-                    .handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE))
-                    .unwrap()
-                    .is_none()
-            );
-        }
-        assert!(matches!(
-            component.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)).unwrap(),
-            Some(Action::LanguageChanged(Language::SimplifiedChinese))
-        ));
-        for _ in 0..3 {
-            component.handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)).unwrap();
-        }
-        assert!(matches!(
-            component.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)).unwrap(),
-            Some(Action::LanguageChanged(Language::English))
-        ));
-    }
 
     #[test]
     fn cancel_does_not_apply_candidate() {

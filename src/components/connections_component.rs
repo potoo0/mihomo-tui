@@ -240,7 +240,7 @@ impl ConnectionsComponent {
         }
     }
 
-    fn filter_placeholder() -> Option<String> {
+    fn filter_placeholder() -> Option<Vec<&'static str>> {
         let setting = ConnectionsSetting::snapshot();
         filter_placeholder(
             setting.columns.iter().filter_map(|&idx| CONNECTION_COLS.get(idx)).map(|col| &col.col),
@@ -619,6 +619,7 @@ impl Component for ConnectionsComponent {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
                 ConnectionsSetting::update(|setting| setting.query_state.set_pattern(pattern));
             }
+            Action::LanguageChanged(_) => self.store.compute_view(),
             Action::TabSwitch(to) if to == self.id() => {
                 let pattern = ConnectionsSetting::global()
                     .write()

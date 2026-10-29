@@ -10,21 +10,18 @@ pub trait TextResolver<T> {
     -> Cow<'row, str>;
 }
 
-pub fn filter_placeholder<'a, T, I>(cols: I) -> Option<String>
+/// Returns the canonical titles of the filterable columns, or `None` when the
+/// view has none. `FilterComponent` localizes the titles and the surrounding
+/// sentence at draw time; canonical titles stay valid filter identifiers in
+/// every locale.
+pub fn filter_placeholder<'a, T, I>(cols: I) -> Option<Vec<&'static str>>
 where
     T: 'a,
     I: IntoIterator<Item = &'a ColDef<T>>,
 {
     let fields =
         cols.into_iter().filter(|col| col.filterable).map(|col| col.title).collect::<Vec<_>>();
-    if fields.is_empty() {
-        None
-    } else {
-        // TODO(i18n): Field names and filter syntax are stable English identifiers.
-        // Translate only the surrounding sentence after deciding how to present
-        // mixed-language placeholder text in the bounded filter input.
-        Some(format!("Type to search: {} or Field:expr ...", fields.join(" ")))
-    }
+    (!fields.is_empty()).then_some(fields)
 }
 
 pub struct ColDef<T> {

@@ -505,9 +505,6 @@ impl Component for RootComponent {
                 self.set_shortcuts(shortcuts)?;
                 return Ok(None);
             }
-            Action::LanguageChanged(_) if self.popup == Some(ComponentId::Language) => {
-                action_tx.send(Action::Unfocus)?;
-            }
             Action::Quit => self.connections.stop(),
             Action::Tick => self.on_tick(),
             Action::Error(err) => {

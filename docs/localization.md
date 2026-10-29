@@ -11,6 +11,11 @@ UI text uses `rust-i18n`; catalogs are embedded at compile time from
   parameters; do not concatenate translated fragments.
 - Never translate identifiers, configuration keys, filter grammar, API values
   or user data.
+- Filter fields keep English column identifiers stable in every locale. The
+  localized column title of the active locale is additionally accepted as an
+  input alias by `RowFilter`; translated titles must stay unambiguous, which the
+  catalog tests enforce. Filter patterns survive language switches; localized
+  aliases only match while their language is active.
 - Do not translate CLI-only output, diagnostics, product names (`mihomo-tui`,
   `mihomo core`), or technical readouts such as `Width` / `Height` and `level:`.
 - Call `rust_i18n::t!` at render time so language switching applies

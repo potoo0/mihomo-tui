@@ -58,7 +58,7 @@ columns.rule: 规则
 columns.rule_count: 规则数
 columns.size: 大小
 columns.sniff_host: 嗅探主机
-columns.source_ip: 来源 IP
+columns.source_ip: 来源IP
 columns.source_port: 来源端口
 columns.type: 类型
 columns.up_rate: 上传速率
@@ -96,6 +96,8 @@ connections.terminated: 连接已终止。
 connections.terminated_summary: 已终止 %{ok} 个连接，%{err} 个失败。
 connections.terminating: 正在终止连接…
 connections.terminating_filtered: 正在终止连接…
+
+filter.placeholder: '输入筛选：%{fields} 或 Field:expr …'
 
 proxy_settings.auto_terminate: 自动终止相关连接
 proxy_settings.auto_terminate_invalid: 自动终止连接必须为 true 或 false
@@ -196,7 +198,7 @@ help.filter.contains: 匹配包含 str 的值
 help.filter.ends_with: 匹配以 str 结尾的值
 help.filter.exact: 精确匹配 str
 help.filter.fuzzy: 模糊匹配 str
-help.filter.named_column: 仅匹配指定列，字段名不区分大小写
+help.filter.named_column: 仅匹配指定列；可用英文列名（不区分大小写）或界面显示的列名
 help.filter.negate: 反向匹配 <pattern>，例如 !^str、!'str
 help.filter.quote_pattern: 包含空格或冒号的模式需要引号
 help.filter.quote_value: 包含空格的值需要引号

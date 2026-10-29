@@ -72,6 +72,12 @@ impl LogsComponent {
         }
     }
 
+    fn recompute_view(&mut self) {
+        let filter_pattern = self.filter_pattern.lock().unwrap();
+        self.store.compute_view(filter_pattern.as_ref());
+        self.filter_pattern_changed = false;
+    }
+
     fn load_log(&mut self) -> Result<()> {
         info!("Loading log, with level: {:?}", self.level);
         let token = self.token.clone();
@@ -318,9 +324,7 @@ impl Component for LogsComponent {
                     self.throbber_state.calc_next();
                 }
                 if self.filter_pattern_changed {
-                    let filter_pattern = self.filter_pattern.lock().unwrap();
-                    self.store.compute_view(filter_pattern.as_ref());
-                    self.filter_pattern_changed = false;
+                    self.recompute_view();
                 }
                 if self.level_changed {
                     self.token.cancel();
@@ -329,6 +333,7 @@ impl Component for LogsComponent {
                     self.level_changed = false;
                 }
             }
+            Action::LanguageChanged(_) => self.recompute_view(),
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
                 *self.filter_pattern.lock().unwrap() = pattern.and_then(FilterPattern::new);
