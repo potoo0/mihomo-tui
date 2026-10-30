@@ -16,11 +16,11 @@ impl GithubApi {
     pub fn new(timeout: Duration) -> Result<Self> {
         let default_headers =
             [(header::USER_AGENT, HeaderValue::from_static(USER_AGENT))].into_iter().collect();
-        let client = Client::builder()
-            .default_headers(default_headers)
-            .timeout(timeout)
-            .build()
-            .context("Fail to build GitHub API client")?;
+        let client = super::configure_tls_roots(
+            Client::builder().default_headers(default_headers).timeout(timeout),
+        )?
+        .build()
+        .context("Fail to build GitHub API client")?;
         Ok(Self { client })
     }
 
