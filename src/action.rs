@@ -48,3 +48,15 @@ pub enum Action {
     DnsQuery,
     DnsQueryResultReady,
 }
+
+impl Action {
+    /// Whether handlers for this action must run even for idle tabs.
+    ///
+    /// - `Quit` is a shutdown signal for the component's lifetime, so idle tabs must still finalize
+    ///   pending work before the app exits.
+    /// - `LanguageChanged` updates locale-dependent state used by cached filter views, so idle tabs
+    ///   must recompute those views.
+    pub fn broadcasts_to_idle(&self) -> bool {
+        matches!(self, Self::Quit | Self::LanguageChanged(_))
+    }
+}

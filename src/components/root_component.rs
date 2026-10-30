@@ -229,9 +229,17 @@ impl RootComponent {
         if id == self.current_tab {
             return;
         }
-        if self.components.remove(&id).is_some() {
+        if let Some(mut component) = self.components.remove(&id) {
             self.idle_tabs.remove(&id);
             self.render_requesters.remove(id);
+            // Quit doubles as the component shutdown signal:
+            // cancelling tokens and flushing pending work is correct whether the app
+            // exits or the idle tab is recycled.
+            if let Ok(Some(action)) = component.update(Action::Quit)
+                && let Some(tx) = &self.action_tx
+            {
+                let _ = tx.send(action);
+            }
             info!("Destroyed idle component {:?}", id);
         }
     }
@@ -558,9 +566,11 @@ impl Component for RootComponent {
             }
             _ => {}
         }
-        // propagate action to all non-idle components
+
+        // Propagate actions.
+        let wake_idle = action.broadcasts_to_idle();
         for (component_id, component) in self.components.iter_mut() {
-            if self.idle_tabs.contains_key(component_id) {
+            if self.idle_tabs.contains_key(component_id) && !wake_idle {
                 continue;
             }
 
