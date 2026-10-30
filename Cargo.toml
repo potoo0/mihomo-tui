@@ -34,13 +34,13 @@ reqwest = { version = "=0.12.28", default-features = false, features = [
     "rustls-tls"] }
 ringbuffer = "0.16.0"
 rust-i18n = "4.2"
-socket2 = { version = "0.6", features = ["all"] }
 # Pin to avoid reqwest 0.13 rustls-platform-verifier panic on Android.
 self_update = { version = "=0.43.1", default-features = false, features = ["reqwest", "rustls", "compression-flate2", "compression-zip-deflate"] }
 semver = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 signal-hook = "0.4.1"
+socket2 = { version = "0.6", features = ["all"] }
 strip-ansi-escapes = "0.2.1"
 strum = { version = "0.28", features = ["derive"] }
 tempfile = "3"
@@ -53,7 +53,7 @@ tokio = { version = "1", features = [
     "sync",
     "time",
     "tracing"] }
-tokio-tungstenite = { version = "0.29", features = ["url"] }
+tokio-tungstenite = { version = "0.30", features = ["url"] }
 tokio-util = "0.7.16"
 tracing = "0.1.41"
 tracing-error = "0.2.1"
@@ -69,3 +69,11 @@ vergen-gitcl = { version = "10.0.0", features = ["build", "cargo"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }
+
+# Dev and test builds keep file:line backtraces and drop the rest of the
+# debuginfo, which is most of a target dir's size. Dependencies carry none.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
