@@ -149,12 +149,13 @@ pub fn parse_version_status(current: &str, latest_tag: &str) -> Result<VersionSt
     }
 }
 
-pub fn update_app() -> Result<self_update::Status> {
+pub fn update_app() -> Result<self_update::VersionStatus> {
     let (owner, repo) = github_owner_repo(env!("CARGO_PKG_REPOSITORY"))
         .ok_or_else(|| anyhow!("repository URL is not a GitHub repository"))?;
 
     let target = release_asset_target();
-    self_update::backends::github::Update::configure()
+    let mut updater = self_update::backends::github::Update::configure();
+    updater
         .repo_owner(owner)
         .repo_name(repo)
         .target(target)
@@ -163,7 +164,18 @@ pub fn update_app() -> Result<self_update::Status> {
         .show_download_progress(true)
         .show_output(true)
         .no_confirm(true)
-        .current_version(env!("CARGO_PKG_VERSION"))
+        .current_version(env!("CARGO_PKG_VERSION"));
+
+    #[cfg(target_os = "android")]
+    {
+        let client = self_update::reqwest::blocking::Client::builder()
+            .tls_certs_only(crate::api::webpki_root_certificates()?)
+            .build()
+            .context("failed to build Android self-update client")?;
+        updater.reqwest_client(client);
+    }
+
+    updater
         .build()
         .context("failed to configure self updater")?
         .update()

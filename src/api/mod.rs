@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::{Client, header};
+use reqwest::{Client, ClientBuilder, header};
 use tracing::debug;
 use url::Url;
 
@@ -73,11 +73,13 @@ impl Api {
         endpoint: &MihomoApiEndpoint,
         bearer_token: &Option<String>,
     ) -> Result<Client> {
-        let builder = Client::builder()
-            .default_headers(Self::default_headers(bearer_token)?)
-            .no_proxy()
-            .connect_timeout(CONNECT_TIMEOUT)
-            .timeout(REQUEST_TIMEOUT);
+        let builder = configure_tls_roots(
+            Client::builder()
+                .default_headers(Self::default_headers(bearer_token)?)
+                .no_proxy()
+                .connect_timeout(CONNECT_TIMEOUT)
+                .timeout(REQUEST_TIMEOUT),
+        )?;
         let builder = match endpoint {
             MihomoApiEndpoint::Http(_) => builder,
             MihomoApiEndpoint::UnixSocket(path) => {
@@ -125,4 +127,25 @@ impl Api {
 
         Err(anyhow!(msg))
     }
+}
+
+#[cfg(target_os = "android")]
+pub(crate) fn webpki_root_certificates() -> Result<Vec<reqwest::Certificate>> {
+    webpki_root_certs::TLS_SERVER_ROOT_CERTS
+        .iter()
+        .map(|cert| reqwest::Certificate::from_der(cert.as_ref()))
+        .collect::<reqwest::Result<Vec<_>>>()
+        .context("Fail to load WebPKI root certificates")
+}
+
+#[cfg(target_os = "android")]
+fn configure_tls_roots(builder: ClientBuilder) -> Result<ClientBuilder> {
+    let roots = webpki_root_certificates()?;
+
+    Ok(builder.tls_certs_only(roots))
+}
+
+#[cfg(not(target_os = "android"))]
+fn configure_tls_roots(builder: ClientBuilder) -> Result<ClientBuilder> {
+    Ok(builder)
 }

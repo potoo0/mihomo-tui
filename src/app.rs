@@ -201,14 +201,14 @@ impl App {
             .join()
             .map_err(|_| anyhow!("TUI upgrade thread panicked"))?
         {
-            Ok(self_update::Status::UpToDate(version)) => Action::Info(
+            Ok(self_update::VersionStatus::UpToDate(version)) => Action::Info(
                 AppMessage::from((
                     "actions.update_app",
                     rust_i18n::t!("updates.app_up_to_date", version = version).to_string(),
                 ))
                 .msg_box_size(45, 30),
             ),
-            Ok(self_update::Status::Updated(version)) if restart => {
+            Ok(self_update::VersionStatus::Updated(version)) if restart => {
                 info!(version, "TUI upgraded, trying to restart...");
                 println!("TUI upgraded to {version}. Trying to restart...");
                 match version_update::restart_app(&exe_path)? {
@@ -223,7 +223,7 @@ impl App {
                     ),
                 }
             }
-            Ok(self_update::Status::Updated(version)) => {
+            Ok(self_update::VersionStatus::Updated(version)) => {
                 println!("TUI upgraded to {version}. Please restart to use the new version.");
                 Action::Info(
                     AppMessage::from((
@@ -233,6 +233,9 @@ impl App {
                     ))
                     .msg_box_size(45, 30),
                 )
+            }
+            Ok(status) => {
+                return Err(anyhow!("unexpected self-update status: {status}"));
             }
             Err(e) => {
                 error!(error = ?e, "TUI self-upgrade failed");

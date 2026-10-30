@@ -36,10 +36,10 @@ async fn main() -> anyhow::Result<()> {
             .join()
             .map_err(|_| anyhow!("TUI upgrade thread panicked"))?
         {
-            Ok(self_update::Status::UpToDate(version)) => {
+            Ok(self_update::VersionStatus::UpToDate(version)) => {
                 println!("TUI is already up to date ({version}).");
             }
-            Ok(self_update::Status::Updated(version)) => {
+            Ok(self_update::VersionStatus::Updated(version)) => {
                 println!("TUI upgraded to {version}.");
                 return match version_update::restart_app(&exe_path)? {
                     RestartOutcome::Restarted => Ok(()),
@@ -51,6 +51,9 @@ async fn main() -> anyhow::Result<()> {
                         Ok(())
                     }
                 };
+            }
+            Ok(status) => {
+                return Err(anyhow!("unexpected self-update status: {status}"));
             }
             Err(e) => {
                 tracing::error!(error = ?e, "TUI self-upgrade failed");
