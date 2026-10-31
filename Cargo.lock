@@ -1992,7 +1992,7 @@ dependencies = [
 
 [[package]]
 name = "mihomo-tui"
-version = "0.5.3"
+version = "0.5.1"
 dependencies = [
  "anyhow",
  "better-panic",
