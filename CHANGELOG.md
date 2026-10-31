@@ -1,3 +1,27 @@
+## 0.6.0 - 2026-10-31
+
+### Features
+
+- **Language**
+  - Add English and Simplified Chinese interface localization, including dialogs, Help, shortcut hints, and table headers.
+  - Add a header language indicator and a language selector opened with `L` from the main view. Apply language changes immediately and save the selection when `runtime-config` is enabled.
+  - Add `ui.language: en | zh-CN` configuration for the startup language; English remains the default, and a saved runtime language takes precedence.
+- **Filter**: Localize available-field hints and accept the current interface language's column titles as field aliases. English field identifiers remain valid in every language. Filter patterns are preserved when switching languages; localized aliases only match while their language is active.
+
+### Bug Fixes
+
+- **Tabs**: Deliver language changes and shutdown signals to idle tabs so cached filters update and pending work is finalized on exit or tab cleanup.
+
+### Refactors
+
+- **Shortcuts**: Rebuild hints with translatable fragments and per-fragment compact forms for narrow layouts.
+- **UI**: Centralize shared symbols and derive pane headers from tab labels.
+
+### Chores
+
+- Bump dependency versions.
+- **Android**: Remove the `reqwest` version pin and use bundled WebPKI root certificates for Mihomo and GitHub HTTP clients, including self-update, to support newer `reqwest` versions. See [seanmonstar/reqwest#2966](https://github.com/seanmonstar/reqwest/issues/2966) for the upstream platform verifier initialization issue.
+
 ## 0.5.3 - 2026-10-08
 
 ### Features
