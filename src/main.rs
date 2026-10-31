@@ -68,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
     }
     logging::init(&loaded_config)?;
     loaded_config.try_apply_runtime();
-    i18n::set_language(loaded_config.language);
+    i18n::set_language(loaded_config.ui.as_ref().and_then(|ui| ui.language).unwrap_or_default());
     tracing::info!(
         config_path = %loaded_config.config_path.display(),
         runtime_path = %loaded_config.runtime_path.display(),

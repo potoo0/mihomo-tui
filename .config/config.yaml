@@ -32,11 +32,10 @@ log-level: error
 # Override for one launch with --runtime-config true/false.
 runtime-config: true
 
-# UI language (en, zh-CN), Optional, default is en.
-# Saved runtime language takes precedence when runtime-config is enabled.
-#language: en
-
 # UI settings, Optional
+# language:
+#   - interface language: en | zh-CN, default is en.
+#   - saved runtime language takes precedence when runtime-config is enabled.
 # startup-tab:
 #   - initial tab on launch; matching is case-insensitive.
 #   - accepts full tab names and the short names used in compact headers.
@@ -60,6 +59,7 @@ runtime-config: true
 #   - minimum card width, at least 18; extra row space is shared between cards.
 #   - default: 25; each detail view has its own width.
 ui:
+  #language: en
   startup-tab: Overview
   connections:
     columns: ["Host", "Rule", "Chains", "DownRate", "UpRate", "DownTotal", "UpTotal", "SourceIP"]

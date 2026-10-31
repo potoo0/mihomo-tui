@@ -17,6 +17,27 @@ fn connection_col_index(title: &str) -> usize {
 }
 
 #[test]
+fn ui_language_is_optional_and_accepts_supported_languages() {
+    for (settings, expected) in [
+        ("", crate::i18n::Language::English),
+        ("ui: {}", crate::i18n::Language::English),
+        ("ui:\n  language: en", crate::i18n::Language::English),
+        ("ui:\n  language: zh-CN", crate::i18n::Language::SimplifiedChinese),
+    ] {
+        let config: Config =
+            yaml_serde::from_str(&format!("mihomo-api: http://127.0.0.1:9090\n{settings}\n"))
+                .unwrap();
+        assert_eq!(config.ui.as_ref().and_then(|ui| ui.language).unwrap_or_default(), expected);
+    }
+    assert!(
+        yaml_serde::from_str::<Config>(
+            "mihomo-api: http://127.0.0.1:9090\nui:\n  language: invalid\n"
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn test_config_default() {
     let default_config: Config = yaml_serde::from_str(DEFAULT_CONFIG).unwrap();
 

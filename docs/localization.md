@@ -38,7 +38,7 @@ validated at compile time. Compact mode never reorders fragments — use
 Uppercase `L` opens the popup; arrows or `j`/`k` navigate, Enter applies,
 Esc or `q` cancels. The choice persists through the existing runtime-config
 writer, or is session-only when runtime config is disabled.
-`language: en | zh-CN` in the config sets the startup language.
+`ui.language: en | zh-CN` in the config sets the startup language.
 
 ## Adding a language
 

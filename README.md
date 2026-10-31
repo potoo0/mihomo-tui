@@ -89,8 +89,8 @@ to apply and close the dialog. Press `Esc` or `q` to cancel. The filled circle m
 row marks the selection. Language changes are saved to the existing runtime sidecar
 when `runtime-config` is enabled. With it disabled, changes last for the session.
 
-English remains the default. Set `language: zh-CN` in the main YAML configuration
-to start in Simplified Chinese, or `language: en` for English. A saved runtime
+English remains the default. Set `ui.language` to `zh-CN` in the main YAML configuration
+to start in Simplified Chinese, or `en` for English. A saved runtime
 language takes precedence. Language selection is a popup, not a navigation tab.
 Configuration keys, API values, node names and log content retain their original
 form in every language. Filter fields accept the English column identifiers in
@@ -153,6 +153,9 @@ log-level: error
 runtime-config: true
 
 # UI settings, Optional
+# language:
+#   - interface language: en | zh-CN, default is en.
+#   - saved runtime language takes precedence when runtime-config is enabled.
 # startup-tab:
 #   - initial tab on launch; matching is case-insensitive.
 #   - accepts full tab names and the short names used in compact headers.
@@ -173,6 +176,7 @@ runtime-config: true
 #   - field currently supports: latency, name
 #   - dir: asc | desc, default is asc
 ui:
+  language: en
   startup-tab: "Proxies"
   connections:
     columns: ["Host", "Rule", "Chains", "DownRate", "UpRate", "DownTotal", "UpTotal", "SourceIP"]

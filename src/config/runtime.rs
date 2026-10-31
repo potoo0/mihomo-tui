@@ -19,8 +19,6 @@ const SCHEMA_VERSION: u16 = 1;
 pub struct RuntimeConfig {
     #[serde(rename = "$schema-version")]
     schema_version: u16,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    language: Option<crate::i18n::Language>,
     ui: Option<UiConfig>,
     proxy_setting: Option<ProxySetting>,
 }
@@ -34,8 +32,8 @@ impl RuntimeConfig {
     ) -> Result<Self> {
         Ok(Self {
             schema_version: SCHEMA_VERSION,
-            language: Some(crate::i18n::language()),
             ui: Some(UiConfig {
+                language: Some(crate::i18n::language()),
                 startup_tab: None,
                 connections: Some(ConnectionsUiConfig::try_from(connections)?),
                 proxy_detail: proxy_detail
@@ -58,17 +56,11 @@ impl RuntimeConfig {
             );
         }
 
-        if let Some(language) = self.language {
-            config.language = language;
-        }
-
         if let Some(runtime_ui) = self.ui {
-            let ui = config.ui.get_or_insert(UiConfig {
-                startup_tab: None,
-                connections: None,
-                proxy_detail: None,
-                proxy_provider_detail: None,
-            });
+            let ui = config.ui.get_or_insert_default();
+            if let Some(language) = runtime_ui.language {
+                ui.language = Some(language);
+            }
             if let Some(runtime_connections) = runtime_ui.connections {
                 if let Some(connections) = &mut ui.connections {
                     if let Some(columns) = runtime_connections.columns {
@@ -203,16 +195,31 @@ mod tests {
     #[test]
     fn language_sidecar_is_optional_and_overrides_main_config() {
         let mut config = crate::config::default_config().unwrap();
-        config.language = crate::i18n::Language::SimplifiedChinese;
+        config.ui.as_mut().unwrap().language = Some(crate::i18n::Language::SimplifiedChinese);
         let old: RuntimeConfig = yaml_serde::from_str("$schema-version: 1").unwrap();
         old.apply_to(&mut config).unwrap();
-        assert_eq!(config.language, crate::i18n::Language::SimplifiedChinese);
+        assert_eq!(
+            config.ui.as_ref().unwrap().language,
+            Some(crate::i18n::Language::SimplifiedChinese)
+        );
         let runtime: RuntimeConfig =
-            yaml_serde::from_str("$schema-version: 1\nlanguage: en").unwrap();
+            yaml_serde::from_str("$schema-version: 1\nui:\n  startup-tab: Logs").unwrap();
+        runtime.apply_to(&mut config).unwrap();
+        assert_eq!(
+            config.ui.as_ref().unwrap().language,
+            Some(crate::i18n::Language::SimplifiedChinese)
+        );
+        let runtime: RuntimeConfig =
+            yaml_serde::from_str("$schema-version: 1\nui:\n  language: en").unwrap();
         let raw = yaml_serde::to_string(&runtime).unwrap();
+        assert!(raw.contains("ui:\n  language: en\n"));
         let restored: RuntimeConfig = yaml_serde::from_str(&raw).unwrap();
         restored.apply_to(&mut config).unwrap();
-        assert_eq!(config.language, crate::i18n::Language::English);
+        assert_eq!(config.ui.as_ref().unwrap().language, Some(crate::i18n::Language::English));
+        config.ui = None;
+        let runtime: RuntimeConfig = yaml_serde::from_str(&raw).unwrap();
+        runtime.apply_to(&mut config).unwrap();
+        assert_eq!(config.ui.as_ref().unwrap().language, Some(crate::i18n::Language::English));
     }
 
     #[test]
@@ -257,6 +264,9 @@ mod tests {
         let raw = yaml_serde::to_string(&runtime).unwrap();
 
         assert!(raw.contains("$schema-version: 1"));
+        let value: serde_json::Value = yaml_serde::from_str(&raw).unwrap();
+        assert!(value.get("language").is_none());
+        assert!(value["ui"]["language"].is_string());
         assert!(raw.contains("source-ip-alias:"));
         assert!(raw.contains("192.168.1.10: phone"));
         assert!(raw.contains("sort:"));
@@ -303,10 +313,9 @@ mod tests {
     #[test]
     fn apply_rejects_unknown_schema_version() {
         let mut config = crate::config::default_config().unwrap();
-        let err =
-            RuntimeConfig { schema_version: 2, language: None, ui: None, proxy_setting: None }
-                .apply_to(&mut config)
-                .unwrap_err();
+        let err = RuntimeConfig { schema_version: 2, ui: None, proxy_setting: None }
+            .apply_to(&mut config)
+            .unwrap_err();
 
         assert!(err.to_string().contains("Unsupported runtime config schema version"));
     }
