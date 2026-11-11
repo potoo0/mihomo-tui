@@ -49,6 +49,32 @@ curl -sSfL https://raw.githubusercontent.com/potoo0/mihomo-tui/main/install.sh |
 1. Download the [latest release binary](https://github.com/potoo0/mihomo-tui/releases)
 2. Set the `PATH` environment variable
 
+### With Nix (Linux, macOS)
+
+Install from Nixpkgs unstable:
+
+```bash
+nix profile add nixpkgs/nixpkgs-unstable#mihomo-tui
+```
+
+If `nix-command` or `flakes` is disabled, use:
+
+```bash
+nix --extra-experimental-features 'nix-command flakes' \
+  profile add nixpkgs/nixpkgs-unstable#mihomo-tui
+```
+
+### Arch Linux (AUR)
+
+A community-maintained binary package is available on the
+[AUR](https://aur.archlinux.org/packages/mihomo-tui-bin).
+
+Install with an AUR helper such as `yay`:
+
+```bash
+yay -S mihomo-tui-bin
+```
+
 ### With Cargo (Linux, macOS, Windows)
 
 Installation via cargo:
