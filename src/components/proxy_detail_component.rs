@@ -277,7 +277,7 @@ impl ProxyDetailComponent {
         let names = self.layers.iter().map(|l| l.name.as_str()).collect::<Vec<_>>();
         Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::styled(names.join(" > "), Color::White),
+            Span::styled(names.join(" > "), Color::Reset),
             Span::raw(" ("),
             Span::styled(format!("{}", children_len), Color::LightCyan),
             Span::raw(")"),

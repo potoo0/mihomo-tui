@@ -132,7 +132,7 @@ impl ProxiesComponent {
         area: Rect,
     ) {
         let title_line = Line::from(vec![
-            Span::styled(view.proxy.name.as_str(), Color::White),
+            Span::styled(view.proxy.name.as_str(), Color::Reset),
             Span::raw(" ("),
             Span::styled(
                 format!("{}", view.proxy.children.as_ref().map_or(0, Vec::len)),

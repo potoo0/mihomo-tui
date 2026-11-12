@@ -201,7 +201,7 @@ impl UpdatesComponent {
         status: &'a VersionStatus,
     ) -> Line<'a> {
         let selected = self.selected == target;
-        let fg = if status.is_available() { Color::White } else { Color::DarkGray };
+        let fg = if status.is_available() { Color::Reset } else { Color::DarkGray };
         let selector = if selected { arrow::RIGHT } else { " " };
         let style = if selected {
             Style::default().fg(fg).add_modifier(Modifier::BOLD)

@@ -137,7 +137,7 @@ impl ProxyProvidersComponent {
         space_between_many(
             width,
             vec![
-                Span::styled(bar::THREE_EIGHTHS.repeat(usage), Color::White),
+                Span::styled(bar::THREE_EIGHTHS.repeat(usage), Color::Reset),
                 Span::styled(
                     bar::THREE_EIGHTHS.repeat((bar_width as usize).saturating_sub(usage)),
                     Color::DarkGray,
@@ -189,7 +189,7 @@ impl ProxyProvidersComponent {
 
     fn render_provider(view: &ProviderView, focused: bool, frame: &mut Frame, area: Rect) {
         let title_line = Line::from(vec![
-            Span::styled(view.provider.name.as_str(), Color::White),
+            Span::styled(view.provider.name.as_str(), Color::Reset),
             Span::raw(" ("),
             Span::styled(format!("{}", view.provider.proxies.len()), Color::LightCyan),
             Span::raw(") "),

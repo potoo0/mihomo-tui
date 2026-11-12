@@ -179,7 +179,7 @@ impl ProxyProviderDetailComponent {
         let provider = &provider_view.provider;
         Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
-            Span::styled(provider.name.as_str(), Color::White),
+            Span::styled(provider.name.as_str(), Color::Reset),
             Span::raw(" ("),
             Span::styled(format!("{}", provider.proxies.len()), Color::LightCyan),
             Span::raw(") - "),
