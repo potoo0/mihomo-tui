@@ -1,3 +1,13 @@
+## 0.6.1 - 2026-11-14
+
+### Features
+
+- **Proxy**: Press `i` in the proxy list, proxy detail, or proxy provider detail view to inspect the selected proxy as formatted JSON.
+
+### Bug Fixes
+
+- **UI**: Use theme-aware foreground colors for proxy and provider titles, provider usage bars, and available update entries to remain readable on light terminal themes.
+
 ## 0.6.0 - 2026-10-31
 
 ### Features
