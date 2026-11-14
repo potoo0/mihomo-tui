@@ -26,6 +26,8 @@ pub fn init() -> Result<()> {
 
         #[cfg(debug_assertions)]
         {
+            // Marker for Cargo's unused-dependency lint.
+            use human_panic as _;
             // Better Panic stacktrace that is only enabled when debugging.
             better_panic::Settings::auto()
                 .most_recent_first(false)
