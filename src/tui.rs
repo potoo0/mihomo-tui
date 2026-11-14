@@ -178,7 +178,7 @@ impl Tui {
 
     pub fn suspend(&mut self) -> Result<()> {
         self.exit()?;
-        #[cfg(not(windows))]
+        #[cfg(unix)]
         signal_hook::low_level::raise(signal_hook::consts::signal::SIGTSTP)?;
         Ok(())
     }

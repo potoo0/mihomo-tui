@@ -70,7 +70,7 @@ mod windows_named_pipe {
     #[tokio::test]
     async fn rest_request_uses_named_pipe_without_secret() {
         let pipe = unique_pipe_name();
-        let mut server = ServerOptions::new().create(&pipe).unwrap();
+        let server = ServerOptions::new().create(&pipe).unwrap();
         let api =
             test_api(MihomoApiEndpoint::WindowsNamedPipe(pipe.clone()), Some("must-not-be-sent"));
 

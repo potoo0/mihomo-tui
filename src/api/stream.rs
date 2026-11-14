@@ -391,7 +391,7 @@ mod reconnecting_stream_tests {
         use tokio::net::windows::named_pipe::ServerOptions;
 
         let pipe = unique_pipe_name();
-        let mut server = ServerOptions::new().create(&pipe).unwrap();
+        let server = ServerOptions::new().create(&pipe).unwrap();
         let api =
             test_api(MihomoApiEndpoint::WindowsNamedPipe(pipe.clone()), Some("must-not-be-sent"));
 

@@ -121,11 +121,14 @@ pub fn get_config_path() -> PathBuf {
 
 #[cfg(test)]
 pub fn temp_config_path() -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    static TEST_CONFIG_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    let sequence = TEST_CONFIG_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let mut path = env::temp_dir();
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    path.push(format!(".test_{}_{}.yaml", env!("CARGO_PKG_NAME"), nanos));
+    path.push(format!(".test_{}_{nanos}_{sequence}.yaml", env!("CARGO_PKG_NAME")));
     path
 }
 
