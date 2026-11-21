@@ -15,8 +15,8 @@ use self::source_ip_alias::SourceIpAliasSettingPane;
 use crate::app::action::Action;
 use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::models::sort::SortSpec;
-use crate::store::connections::with_alive_column;
-use crate::store::connections_setting::ConnectionsSetting;
+use crate::store::connections::{ConnectionsSetting, with_alive_column};
+use crate::store::hub::StoreRef;
 use crate::ui::input::KeyOutcome;
 use crate::ui::layout::{popup_area, top_title_line};
 use crate::ui::shortcut::{Fragment, Shortcut, ShortcutMode, shortcuts_full_width};
@@ -91,6 +91,7 @@ pub(super) trait SettingPane {
 #[derive(Debug)]
 pub struct ConnectionsSettingComponent {
     action_tx: UnboundedSender<Action>,
+    setting: StoreRef<ConnectionsSetting>,
 
     show: bool,
     active_pane: ActivePane,
@@ -99,19 +100,30 @@ pub struct ConnectionsSettingComponent {
 }
 
 impl ConnectionsSettingComponent {
-    pub fn new(ctx: &ComponentContext) -> Self {
-        Self {
+    pub fn new(ctx: &ComponentContext) -> Result<Self> {
+        let stores = &ctx.stores;
+        let ui = ctx.config.ui.as_ref();
+        let shared_store = stores.get_or_register(|| {
+            Ok(ui
+                .and_then(|ui| ui.connections.as_ref())
+                .map(ConnectionsSetting::try_from)
+                .transpose()?
+                .unwrap_or_default())
+        })?;
+
+        Ok(Self {
             action_tx: ctx.actions.clone(),
+            setting: shared_store,
 
             show: Default::default(),
             active_pane: Default::default(),
             columns: Default::default(),
             source_ip_alias: Default::default(),
-        }
+        })
     }
 
     fn show(&mut self, source_ips: Vec<String>) {
-        let setting = ConnectionsSetting::snapshot();
+        let setting = self.setting.snapshot();
         self.show = true;
         self.active_pane = ActivePane::Columns;
         self.columns.load(&setting.columns);
@@ -161,9 +173,9 @@ impl ConnectionsSettingComponent {
         let columns = with_alive_column(columns);
 
         let source_ip_alias = self.source_ip_alias.aliases();
-        ConnectionsSetting::update(|setting| {
+        self.setting.update(|setting| {
             // update source ip alias
-            setting.source_ip_alias = source_ip_alias;
+            setting.source_ip_alias = source_ip_alias.into();
 
             // update column and sort
             let prev_sort = setting
@@ -178,7 +190,7 @@ impl ConnectionsSettingComponent {
                     .map(|col| SortSpec { col, dir })
             });
             setting.query_state.set_max_cols(columns.len());
-            setting.columns = columns;
+            setting.columns = columns.into();
         });
 
         self.hide();

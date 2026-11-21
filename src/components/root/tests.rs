@@ -6,6 +6,11 @@ use tokio::sync::mpsc::{self, unbounded_channel};
 
 use super::*;
 use crate::app::RenderScheduler;
+use crate::components::proxies::{ProxiesComponent, ProxyDetailComponent};
+use crate::components::proxy_providers::{ProxyProviderDetailComponent, ProxyProvidersComponent};
+use crate::config::ProxySortConfig;
+use crate::models::sort::{ProxySortField, SortDir};
+use crate::store::proxy::{Proxies, ProxyDetailSetting, ProxyProviders};
 
 fn test_root() -> (RootComponent, mpsc::UnboundedReceiver<Action>) {
     let (actions, rx) = unbounded_channel();
@@ -34,8 +39,90 @@ fn popup_factory_matches_requested_id() {
     let ctx = ComponentContext::test_ctx();
     let root = RootComponent::new(&ctx, ComponentId::Logs);
     for id in PopupId::iter() {
-        assert_eq!(root.create_popup(id, &ctx).popup_id(), id);
+        assert_eq!(root.create_popup(id, &ctx).unwrap().popup_id(), id);
     }
+}
+
+#[test]
+fn closing_proxy_detail_keeps_proxies_store_while_tab_exists() {
+    let (mut root, mut rx) = test_root();
+    let proxies = ProxiesComponent::new(&root.ctx).unwrap();
+    root.components.insert(ComponentId::Proxies, Box::new(proxies));
+
+    let detail_id = ComponentId::Popup(PopupId::ProxyDetail);
+    root.components.insert(detail_id, Box::new(ProxyDetailComponent::new(&root.ctx).unwrap()));
+    root.popups.push(PopupId::ProxyDetail);
+
+    dispatch(&mut root, &mut rx, PopupId::ProxyDetail.close_action());
+
+    assert!(!root.components.contains_key(&detail_id));
+    assert!(root.components.contains_key(&ComponentId::Proxies));
+    assert!(root.ctx.stores.get::<Proxies>().is_ok());
+}
+
+#[test]
+fn destroying_proxies_tab_releases_proxies_store() {
+    let (mut root, _rx) = test_root();
+    let proxies = ProxiesComponent::new(&root.ctx).unwrap();
+    root.components.insert(ComponentId::Proxies, Box::new(proxies));
+    assert!(root.ctx.stores.get::<Proxies>().is_ok());
+
+    root.destroy_component(ComponentId::Proxies);
+
+    assert!(!root.components.contains_key(&ComponentId::Proxies));
+    assert!(root.ctx.stores.get::<Proxies>().is_err());
+}
+
+#[test]
+fn destroying_proxies_tab_keeps_detail_sort_setting() {
+    let (mut root, _rx) = test_root();
+    let proxies = ProxiesComponent::new(&root.ctx).unwrap();
+    root.components.insert(ComponentId::Proxies, Box::new(proxies));
+
+    let detail = root.ctx.stores.get::<ProxyDetailSetting>().unwrap();
+    detail.update(|setting| {
+        setting.sort = Some(ProxySortConfig { field: ProxySortField::Name, dir: SortDir::Desc });
+    });
+
+    root.destroy_component(ComponentId::Proxies);
+
+    assert!(root.ctx.stores.get::<Proxies>().is_err());
+    let detail = root.ctx.stores.get::<ProxyDetailSetting>().unwrap();
+    assert_eq!(
+        detail.read(|setting| setting.sort.as_ref().map(|sort| sort.field)),
+        Some(ProxySortField::Name)
+    );
+}
+
+#[test]
+fn closing_proxy_provider_detail_keeps_providers_store_while_tab_exists() {
+    let (mut root, mut rx) = test_root();
+    let providers = ProxyProvidersComponent::new(&root.ctx).unwrap();
+    root.components.insert(ComponentId::ProxyProviders, Box::new(providers));
+
+    let detail_id = ComponentId::Popup(PopupId::ProxyProviderDetail);
+    root.components
+        .insert(detail_id, Box::new(ProxyProviderDetailComponent::new(&root.ctx).unwrap()));
+    root.popups.push(PopupId::ProxyProviderDetail);
+
+    dispatch(&mut root, &mut rx, PopupId::ProxyProviderDetail.close_action());
+
+    assert!(!root.components.contains_key(&detail_id));
+    assert!(root.components.contains_key(&ComponentId::ProxyProviders));
+    assert!(root.ctx.stores.get::<ProxyProviders>().is_ok());
+}
+
+#[test]
+fn destroying_proxy_providers_tab_releases_providers_store() {
+    let (mut root, _rx) = test_root();
+    let providers = ProxyProvidersComponent::new(&root.ctx).unwrap();
+    root.components.insert(ComponentId::ProxyProviders, Box::new(providers));
+    assert!(root.ctx.stores.get::<ProxyProviders>().is_ok());
+
+    root.destroy_component(ComponentId::ProxyProviders);
+
+    assert!(!root.components.contains_key(&ComponentId::ProxyProviders));
+    assert!(root.ctx.stores.get::<ProxyProviders>().is_err());
 }
 
 #[test]
@@ -161,7 +248,7 @@ fn constructing_stream_tabs_does_not_require_a_runtime_or_start_work() {
     // This synchronous test deliberately has no Tokio runtime. Only start()
     // may spawn tasks; construction must leave streams and rendering idle.
     let _overview = OverviewComponent::new(&ctx, streams.stats_rx());
-    let _connections = ConnectionsComponent::new(&ctx, streams.conns_rx());
+    let _connections = ConnectionsComponent::new(&ctx, streams.conns_rx()).unwrap();
     let _logs = LogsComponent::new(&ctx);
     let root = RootComponent::new(&ctx, ComponentId::Logs);
 

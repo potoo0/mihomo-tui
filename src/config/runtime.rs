@@ -8,9 +8,8 @@ use tempfile::NamedTempFile;
 use tracing::error;
 
 use crate::config::{Config, ConnectionsUiConfig, ProxyDetailUiConfig, ProxySetting, UiConfig};
-use crate::store::connections_setting::ConnectionsSetting;
-use crate::store::proxy_detail_setting::ProxyDetailSetting;
-use crate::store::proxy_provider_detail_setting::ProxyProviderDetailSetting;
+use crate::store::connections::ConnectionsSetting;
+use crate::store::proxy::{ProxyDetailSetting, ProxyProviderDetailSetting};
 
 const SCHEMA_VERSION: u16 = 1;
 
@@ -244,9 +243,9 @@ mod tests {
         query_state.sort = Some(SortSpec { col: 1, dir: crate::models::sort::SortDir::Desc });
         let setting = ConnectionsSetting {
             query_state,
-            columns: DEFAULT_CONNECTION_COL_INDICES.to_vec(),
-            column_widths: HashMap::from([(1, 24)]),
-            source_ip_alias: HashMap::from([("192.168.1.10".into(), "phone".into())]),
+            columns: DEFAULT_CONNECTION_COL_INDICES.to_vec().into(),
+            column_widths: HashMap::from([(1, 24)]).into(),
+            source_ip_alias: HashMap::from([("192.168.1.10".into(), "phone".into())]).into(),
         };
         let proxy = ProxySetting {
             test_url: "https://example.com/generate_204".into(),
@@ -257,8 +256,8 @@ mod tests {
         let runtime = RuntimeConfig::new(
             &setting,
             &proxy,
-            ProxyDetailSetting { card_width: Some(40) },
-            ProxyProviderDetailSetting { card_width: Some(32) },
+            ProxyDetailSetting { sort: None, card_width: Some(40) },
+            ProxyProviderDetailSetting(ProxyDetailSetting { sort: None, card_width: Some(32) }),
         )
         .unwrap();
         let raw = yaml_serde::to_string(&runtime).unwrap();
@@ -286,15 +285,16 @@ mod tests {
         let runtime_path = crate::config::temp_config_path();
         let setting = ConnectionsSetting {
             query_state: QueryState::new(DEFAULT_CONNECTION_COL_INDICES.len()),
-            columns: DEFAULT_CONNECTION_COL_INDICES.to_vec(),
-            column_widths: HashMap::new(),
-            source_ip_alias: HashMap::new(),
+            columns: DEFAULT_CONNECTION_COL_INDICES.to_vec().into(),
+            column_widths: HashMap::new().into(),
+            source_ip_alias: HashMap::new().into(),
         };
         let mut proxy = ProxySetting::default();
 
-        let detail = ProxyDetailSetting { card_width: Some(40) };
-        let provider_detail = ProxyProviderDetailSetting { card_width: Some(32) };
-        save(&runtime_path, &setting, &proxy, detail, provider_detail).unwrap();
+        let detail = ProxyDetailSetting { sort: None, card_width: Some(40) };
+        let provider_detail =
+            ProxyProviderDetailSetting(ProxyDetailSetting { sort: None, card_width: Some(32) });
+        save(&runtime_path, &setting, &proxy, detail.clone(), provider_detail.clone()).unwrap();
         proxy.test_url = "https://example.com/updated".into();
         save(&runtime_path, &setting, &proxy, detail, provider_detail).unwrap();
         let raw = fs::read_to_string(&runtime_path).unwrap();

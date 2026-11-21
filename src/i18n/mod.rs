@@ -120,8 +120,7 @@ mod tests {
     fn table_column_titles_have_catalog_keys() {
         use crate::store::connections::CONNECTION_COLS;
         use crate::store::logs::LOG_COLS;
-        use crate::store::rule_providers::RULE_PROVIDER_COLS;
-        use crate::store::rules::RULE_COLS;
+        use crate::store::rules::{RULE_COLS, RULE_PROVIDER_COLS};
 
         let titles = CONNECTION_COLS
             .iter()

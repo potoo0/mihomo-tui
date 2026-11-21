@@ -104,16 +104,16 @@ impl RootComponent {
                 Box::new(OverviewComponent::new(&ctx, self.connections.stats_rx()))
             }
             ComponentId::Connections => {
-                Box::new(ConnectionsComponent::new(&ctx, self.connections.conns_rx()))
+                Box::new(ConnectionsComponent::new(&ctx, self.connections.conns_rx())?)
             }
-            ComponentId::Proxies => Box::new(ProxiesComponent::new(&ctx)),
-            ComponentId::ProxyProviders => Box::new(ProxyProvidersComponent::new(&ctx)),
+            ComponentId::Proxies => Box::new(ProxiesComponent::new(&ctx)?),
+            ComponentId::ProxyProviders => Box::new(ProxyProvidersComponent::new(&ctx)?),
             ComponentId::Logs => Box::new(LogsComponent::new(&ctx)),
             ComponentId::Rules => Box::new(RulesComponent::new(&ctx)),
             ComponentId::RuleProviders => Box::new(RuleProvidersComponent::new(&ctx)),
             ComponentId::Config => Box::new(CoreConfigComponent::new(&ctx)),
             ComponentId::Filter => Box::new(FilterComponent::new(&ctx)),
-            ComponentId::Popup(id) => self.create_popup(id, &ctx),
+            ComponentId::Popup(id) => self.create_popup(id, &ctx)?,
             _ => bail!("unsupported component `{:?}`", id),
         };
 
@@ -123,8 +123,8 @@ impl RootComponent {
         Ok(component)
     }
 
-    fn create_popup(&self, id: PopupId, ctx: &ComponentContext) -> Box<dyn PopupComponent> {
-        match id {
+    fn create_popup(&self, id: PopupId, ctx: &ComponentContext) -> Result<Box<dyn PopupComponent>> {
+        Ok(match id {
             PopupId::Help => Box::new(HelpComponent::new(ctx)),
             PopupId::Updates => Box::new(UpdatesComponent::new(ctx, self.update_state.clone())),
             PopupId::Language => Box::new(LanguageComponent::new(ctx)),
@@ -133,13 +133,13 @@ impl RootComponent {
             PopupId::ConnectionBatchTerminate => {
                 Box::new(ConnectionBatchTerminateComponent::new(ctx))
             }
-            PopupId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::new(ctx)),
-            PopupId::ProxyDetail => Box::new(ProxyDetailComponent::new(ctx)),
+            PopupId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::new(ctx)?),
+            PopupId::ProxyDetail => Box::new(ProxyDetailComponent::new(ctx)?),
             PopupId::ProxyInspect => Box::new(ProxyInspectComponent::new(ctx)),
-            PopupId::ProxySetting => Box::new(ProxySettingComponent::new(ctx)),
-            PopupId::ProxyProviderDetail => Box::new(ProxyProviderDetailComponent::new(ctx)),
+            PopupId::ProxySetting => Box::new(ProxySettingComponent::new(ctx)?),
+            PopupId::ProxyProviderDetail => Box::new(ProxyProviderDetailComponent::new(ctx)?),
             PopupId::DnsQuery => Box::new(DnsQueryComponent::new(ctx)),
-        }
+        })
     }
 
     fn get_or_start(&mut self, id: impl Into<ComponentId>) -> Result<&mut Box<dyn Component>> {
@@ -181,6 +181,7 @@ impl RootComponent {
         self.popups.retain(|popup| *popup != id);
         drop(self.components.remove(&ComponentId::Popup(id)));
         self.render_requesters.remove(ComponentId::Popup(id));
+        self.ctx.stores.release_unused(|id| self.components.contains_key(&id));
 
         if !should_restore {
             return Ok(());
@@ -242,6 +243,7 @@ impl RootComponent {
             }
             info!("Destroyed idle component {:?}", id);
         }
+        self.ctx.stores.release_unused(|id| self.components.contains_key(&id));
     }
 
     fn on_tick(&mut self) {

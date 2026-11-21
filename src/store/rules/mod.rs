@@ -10,6 +10,10 @@ use crate::utils::columns::{ColDef, TableColDef};
 use crate::utils::filter::{FilterPattern, RowFilter};
 use crate::utils::time::format_datetime;
 
+mod providers;
+
+pub use providers::{RULE_PROVIDER_COLS, RuleProviders};
+
 #[derive(Default)]
 pub struct Rules {
     matcher: Mutex<Matcher>,

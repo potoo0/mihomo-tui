@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use crate::models::sort::{SortDir, SortSpec};
 use crate::utils::filter::FilterPattern;
 
 #[derive(Debug, Clone, Default)]
 pub struct QueryState {
-    pub pattern: Option<FilterPattern>,
+    pub pattern: Option<Arc<FilterPattern>>,
     pub sort: Option<SortSpec>,
     /// Maximum number of sortable columns, for column navigation
     pub max_cols: usize,
@@ -15,7 +17,7 @@ impl QueryState {
     }
 
     pub fn set_pattern(&mut self, pattern: Option<String>) {
-        self.pattern = pattern.and_then(FilterPattern::new);
+        self.pattern = pattern.and_then(FilterPattern::new).map(Arc::new);
     }
 
     pub fn set_max_cols(&mut self, max_cols: usize) {

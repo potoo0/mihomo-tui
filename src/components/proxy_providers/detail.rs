@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Margin, Rect};
@@ -10,15 +11,14 @@ use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, W
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{error, info};
 
+use super::ProviderStores;
 use crate::api::Api;
 use crate::app::action::Action;
 use crate::components::{Component, ComponentContext, MIN_CARD_WIDTH, PopupComponent, PopupId};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
 use crate::shortcut;
-use crate::store::proxy_provider_detail_setting::ProxyProviderDetailSetting;
-use crate::store::proxy_providers::{ProviderView, ProxyProviders};
-use crate::store::proxy_setting::ProxySetting;
+use crate::store::proxy::ProviderView;
 use crate::ui::layout::{
     TOP_TITLE_LEFT, TOP_TITLE_RIGHT, padded_styled_title, popup_area, space_between,
 };
@@ -38,11 +38,14 @@ fn card_layout(area: Rect, preferred_width: u16) -> std::rc::Rc<[Rect]> {
     Layout::horizontal((0..cols).map(|_| Constraint::Min(width))).split(area)
 }
 
+/// Tasks must finish after this popup closes so server updates can be followed by a reload.
+/// They own their shared handles and use API timeouts, so outliving the component is safe.
 #[derive(Debug)]
 pub struct ProxyProviderDetailComponent {
     api: Arc<Api>,
     action_tx: UnboundedSender<Action>,
     render_requester: RenderRequester,
+    stores: ProviderStores,
 
     show: bool,
 
@@ -61,11 +64,14 @@ pub struct ProxyProviderDetailComponent {
 }
 
 impl ProxyProviderDetailComponent {
-    pub fn new(ctx: &ComponentContext) -> Self {
-        Self {
+    pub fn new(ctx: &ComponentContext) -> Result<Self> {
+        let shared_store = ProviderStores::new(ctx)?;
+
+        Ok(Self {
             api: Arc::clone(&ctx.api),
             action_tx: ctx.actions.clone(),
             render_requester: ctx.render.clone(),
+            stores: shared_store,
 
             show: Default::default(),
             loading: Default::default(),
@@ -78,7 +84,7 @@ impl ProxyProviderDetailComponent {
             card_area_width: Default::default(),
             width_hint_ticks: Default::default(),
             card_width_save_ticks: Default::default(),
-        }
+        })
     }
 
     fn adjust_card_width(&mut self, delta: i16) {
@@ -86,12 +92,13 @@ impl ProxyProviderDetailComponent {
             return;
         }
         let max_width = self.card_area_width.max(MIN_CARD_WIDTH);
-        let previous = ProxyProviderDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+        let previous =
+            self.stores.detail_setting.read(|setting| setting.card_width.unwrap_or(CARD_WIDTH));
         let current = previous.min(max_width);
         let width = current.saturating_add_signed(delta).clamp(MIN_CARD_WIDTH, max_width);
         self.width_hint_ticks = WIDTH_HINT_TICKS;
         if previous != width {
-            ProxyProviderDetailSetting::update(|setting| setting.card_width = Some(width));
+            self.stores.detail_setting.update(|setting| setting.card_width = Some(width));
             self.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
         }
     }
@@ -142,10 +149,13 @@ impl ProxyProviderDetailComponent {
         let api = Arc::clone(&self.api);
         let loading = Arc::clone(&self.loading);
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-providers-loader").spawn(async move {
-            if let Err(e) = ProxyProviders::load(api).await {
+            let result = stores.providers.load(api, &stores.proxy_setting).await;
+
+            if let Err(e) = result {
                 error!(error = ?e, "Failed to get proxy providers")
             }
             loading.store(false, Ordering::Relaxed);
@@ -160,10 +170,14 @@ impl ProxyProviderDetailComponent {
         let api = Arc::clone(&self.api);
         let health_checking = Arc::clone(&self.health_checking);
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
         health_checking.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-health-check").spawn(async move {
-            if let Err(e) = ProxyProviders::health_check_and_reload(api, &name).await {
+            let result =
+                stores.providers.health_check_and_reload(api, &stores.proxy_setting, &name).await;
+
+            if let Err(e) = result {
                 error!(error = ?e, "Failed to health check and reload provider");
             }
             health_checking.store(false, Ordering::Relaxed);
@@ -179,10 +193,14 @@ impl ProxyProviderDetailComponent {
         let action_tx = self.action_tx.clone();
         let loading = Arc::clone(&self.loading);
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-update").spawn(async move {
-            if let Err(e) = ProxyProviders::update_and_reload(api, &name).await {
+            let result =
+                stores.providers.update_and_reload(api, &stores.proxy_setting, &name).await;
+
+            if let Err(e) = result {
                 error!(error = ?e, "Failed to update provider");
                 let _ = action_tx.send(Action::Error(("actions.update_proxy_provider", e).into()));
             }
@@ -191,6 +209,37 @@ impl ProxyProviderDetailComponent {
         })?;
 
         Ok(())
+    }
+
+    fn reload_after_sort(&self) {
+        let api = Arc::clone(&self.api);
+        let providers = self.stores.providers.clone();
+        let setting = self.stores.proxy_setting.clone();
+        let render_requester = self.render_requester.clone();
+
+        tokio::task::Builder::new()
+            .name("proxy-provider-loader")
+            .spawn(async move {
+                let result = providers.load(api, &setting).await;
+
+                if let Err(error) = result {
+                    error!(error = ?error, "Failed to reload proxy providers after sort change");
+                }
+                render_requester.request_render();
+            })
+            .expect("Failed to spawn proxy providers loader task");
+    }
+
+    fn change_sort_field(&self) {
+        if self.stores.providers.switch_sort_field() {
+            self.reload_after_sort();
+        }
+    }
+
+    fn toggle_sort_direction(&self) {
+        if self.stores.providers.toggle_sort_direction() {
+            self.reload_after_sort();
+        }
     }
 
     fn title_line(provider_view: &'_ ProviderView) -> Line<'_> {
@@ -211,7 +260,7 @@ impl ProxyProviderDetailComponent {
             return block;
         }
         let preferred_width =
-            ProxyProviderDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+            self.stores.detail_setting.read(|setting| setting.card_width.unwrap_or(CARD_WIDTH));
         let actual_width =
             card_layout(content_area, preferred_width).first().map_or(0, |card| card.width);
         block.title_bottom(
@@ -286,7 +335,7 @@ impl ProxyProviderDetailComponent {
         let provider = &provider.provider;
         self.card_area_width = area.width;
         let preferred_width =
-            ProxyProviderDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+            self.stores.detail_setting.read(|setting| setting.card_width.unwrap_or(CARD_WIDTH));
         let col_chunks = card_layout(area, preferred_width);
         let cols = col_chunks.len();
         let previous_cols = self.navigator.scroller.step_value();
@@ -306,7 +355,7 @@ impl ProxyProviderDetailComponent {
         }
         let visible =
             &provider.proxies[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
-        let threshold = ProxySetting::global().read().unwrap().latency_threshold;
+        let threshold = self.stores.proxy_setting.read(|setting| setting.latency_threshold);
         self.navigator.iter_layout(visible, CARD_HEIGHT, col_chunks).for_each(
             |(proxy, focused, rect)| Self::render_card(threshold, proxy, focused, frame, rect),
         );
@@ -316,12 +365,13 @@ impl ProxyProviderDetailComponent {
         let provider_name = self.provider_name.as_deref()?;
         if let Some(provider) = self
             .provider_index
-            .and_then(ProxyProviders::get)
+            .and_then(|index| self.stores.providers.read(|store| store.get(index)))
             .filter(|p| p.provider.name == provider_name)
         {
             return Some(provider);
         }
-        let (index, provider) = ProxyProviders::get_by_name(provider_name)?;
+        let (index, provider) =
+            self.stores.providers.read(|store| store.get_by_name(provider_name))?;
         self.provider_index = Some(index);
         Some(provider)
     }
@@ -406,13 +456,8 @@ impl Component for ProxyProviderDetailComponent {
             {
                 self.adjust_card_width(1);
             }
-            KeyCode::Char('s') => {
-                ProxyProviders::switch_sort_field(self.api.clone(), self.render_requester.clone())
-            }
-            KeyCode::Char('S') => ProxyProviders::toggle_sort_direction(
-                self.api.clone(),
-                self.render_requester.clone(),
-            ),
+            KeyCode::Char('s') => self.change_sort_field(),
+            KeyCode::Char('S') => self.toggle_sort_direction(),
             _ => (),
         }
 
@@ -483,7 +528,18 @@ mod tests {
 
     use super::*;
     use crate::models::proxy_provider::ProxyProvider;
-    use crate::utils::test::proxy_store_lock;
+    use crate::store::hub::StoreHub;
+    use crate::store::proxy::{ProxyProviderDetailSetting, ProxyProviders, ProxySetting};
+
+    fn stores() -> ProviderStores {
+        let hub = StoreHub::default();
+        let detail_setting = hub.register(ProxyProviderDetailSetting::default()).unwrap();
+        ProviderStores {
+            providers: hub.register(ProxyProviders::new(detail_setting.clone())).unwrap(),
+            proxy_setting: hub.register(ProxySetting::default()).unwrap(),
+            detail_setting,
+        }
+    }
 
     #[test]
     fn card_layout_respects_width_limits() {
@@ -503,31 +559,33 @@ mod tests {
 
     #[test]
     fn card_width_save_waits_four_ticks_after_last_change() {
-        let previous = ProxyProviderDetailSetting::snapshot();
-        ProxyProviderDetailSetting::update(|setting| setting.card_width = None);
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyProviderDetailComponent::new(&ComponentContext::test_ctx());
+        let mut component =
+            ProxyProviderDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;
+        component.stores = stores();
+        component.stores.detail_setting.update(|setting| setting.card_width = None);
         component.card_area_width = 80;
 
         component.adjust_card_width(1);
         component.update(Action::Tick).unwrap();
         component.adjust_card_width(1);
-        assert_eq!(ProxyProviderDetailSetting::snapshot().card_width, Some(27));
+        assert_eq!(component.stores.detail_setting.read(|setting| setting.card_width), Some(27));
         for _ in 0..3 {
             component.update(Action::Tick).unwrap();
             assert!(rx.try_recv().is_err());
         }
         component.update(Action::Tick).unwrap();
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
-        ProxyProviderDetailSetting::update(|setting| *setting = previous);
     }
 
     #[test]
     fn drop_flushes_pending_card_width_save() {
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyProviderDetailComponent::new(&ComponentContext::test_ctx());
+        let mut component =
+            ProxyProviderDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;
+        component.stores = stores();
         component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
         drop(component);
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
@@ -537,8 +595,10 @@ mod tests {
     #[test]
     fn quit_flushes_pending_card_width_save() {
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyProviderDetailComponent::new(&ComponentContext::test_ctx());
+        let mut component =
+            ProxyProviderDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;
+        component.stores = stores();
         component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
         component.update(Action::Quit).unwrap();
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
@@ -548,7 +608,7 @@ mod tests {
 
     #[test]
     fn i_inspects_focused_provider_proxy() {
-        let _guard = proxy_store_lock();
+        let stores = stores();
         let provider: ProxyProvider = serde_json::from_value(json!({
             "name": "provider",
             "vehicleType": "HTTP",
@@ -560,12 +620,14 @@ mod tests {
             }]
         }))
         .unwrap();
-        ProxyProviders::global()
-            .write()
-            .unwrap()
-            .push(IndexMap::from([("provider".to_string(), provider)]));
+        let threshold = stores.proxy_setting.read(|setting| setting.latency_threshold);
+        stores.providers.update(|store| {
+            store.push(IndexMap::from([("provider".to_string(), provider)]), threshold)
+        });
 
-        let mut component = ProxyProviderDetailComponent::new(&ComponentContext::test_ctx());
+        let mut component =
+            ProxyProviderDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
+        component.stores = stores;
         component.show = true;
         component.provider_name = Some("provider".to_string());
         component.navigator.focused = Some(0);
@@ -577,6 +639,5 @@ mod tests {
             Some(Action::ProxyInspect(proxy)) => assert_eq!(proxy.name, "node"),
             other => panic!("unexpected action: {other:?}"),
         }
-        ProxyProviders::global().write().unwrap().clear();
     }
 }

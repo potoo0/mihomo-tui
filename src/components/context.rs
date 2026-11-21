@@ -5,6 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::api::Api;
 use crate::app::action::Action;
 use crate::config::Config;
+use crate::store::hub::StoreHub;
 use crate::ui::render::RenderRequester;
 
 /// Shared dependencies used to construct fully initialized components.
@@ -15,6 +16,7 @@ use crate::ui::render::RenderRequester;
 pub struct ComponentContext {
     pub config: Arc<Config>,
     pub api: Arc<Api>,
+    pub stores: StoreHub,
     pub actions: UnboundedSender<Action>,
     pub render: RenderRequester,
 }
@@ -32,6 +34,6 @@ impl ComponentContext {
         let api = Arc::new(Api::new(&config).expect("test API client"));
         let (actions, _) = tokio::sync::mpsc::unbounded_channel();
         let scheduler = crate::app::RenderScheduler::default();
-        Self { config, api, actions, render: scheduler.requester() }
+        Self { config, api, stores: StoreHub::default(), actions, render: scheduler.requester() }
     }
 }

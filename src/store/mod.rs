@@ -1,11 +1,6 @@
 pub mod connections;
-pub mod connections_setting;
+pub mod hub;
 pub mod logs;
-pub mod proxies;
-pub mod proxy_detail_setting;
-pub mod proxy_provider_detail_setting;
-pub mod proxy_providers;
-pub mod proxy_setting;
+pub mod proxy;
 pub mod query;
-pub mod rule_providers;
 pub mod rules;

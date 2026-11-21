@@ -4,9 +4,8 @@ use super::*;
 use crate::components::ComponentId;
 use crate::models::sort::{ProxySortField, SortDir, SortSpec};
 use crate::store::connections::{
-    ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES,
+    ALIVE_COLUMN_INDEX, CONNECTION_COLS, ConnectionsSetting, DEFAULT_CONNECTION_COL_INDICES,
 };
-use crate::store::connections_setting::ConnectionsSetting;
 use crate::store::query::QueryState;
 
 fn connection_col_index(title: &str) -> usize {
@@ -618,7 +617,7 @@ ui:
     assert_eq!(connections.sort.as_ref().unwrap().field, "hOsT");
 
     assert_eq!(
-        setting.columns,
+        setting.columns.as_ref(),
         vec![
             connection_col_index("Alive"),
             connection_col_index("Rule"),
@@ -647,7 +646,7 @@ ui:
     let setting = ConnectionsSetting::try_from(connections).unwrap();
 
     assert_eq!(
-        setting.columns,
+        setting.columns.as_ref(),
         vec![
             connection_col_index("Alive"),
             connection_col_index("Host"),
@@ -741,7 +740,7 @@ fn test_config_runtime_connections_sort_alive_is_ignored() {
             sort: Some(SortSpec { col: 0, dir: SortDir::Asc }),
             max_cols: 2,
         },
-        columns: vec![ALIVE_COLUMN_INDEX, connection_col_index("Host")],
+        columns: vec![ALIVE_COLUMN_INDEX, connection_col_index("Host")].into(),
         column_widths: Default::default(),
         source_ip_alias: Default::default(),
     };
@@ -850,7 +849,7 @@ ui:
 
     assert!(connections.sort.is_none());
     assert!(connections.columns.is_none());
-    assert_eq!(setting.columns, DEFAULT_CONNECTION_COL_INDICES);
+    assert_eq!(setting.columns.as_ref(), DEFAULT_CONNECTION_COL_INDICES);
     assert!(ui.proxy_detail.is_none());
 
     drop(cfg_path);

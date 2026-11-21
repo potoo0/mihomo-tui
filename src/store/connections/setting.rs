@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::num::NonZeroU16;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 
@@ -9,10 +9,13 @@ use crate::models::sort::SortSpec;
 use crate::store::connections::{
     ALIVE_COLUMN_INDEX, CONNECTION_COLS, DEFAULT_CONNECTION_COL_INDICES, with_alive_column,
 };
+use crate::store::hub::StoreLifecycle;
 use crate::store::query::QueryState;
 
-pub static GLOBAL_CONNECTION_SETTING: OnceLock<RwLock<Arc<ConnectionsSetting>>> = OnceLock::new();
-
+/// Runtime settings for the connections table.
+///
+/// A snapshot is cloned on every render, so the heap-backed fields are shared
+/// through [`Arc`]; mutate them in place with [`Arc::make_mut`].
 #[derive(Clone)]
 pub struct ConnectionsSetting {
     /// Runtime filtering and sorting state.
@@ -26,41 +29,28 @@ pub struct ConnectionsSetting {
     /// Each value is a stable index into [`CONNECTION_COLS`], while its position in this vector
     /// is the column's visible index. The runtime-only Alive column is included here even though
     /// it is not stored in user configuration.
-    pub columns: Vec<usize>,
+    pub columns: Arc<[usize]>,
 
     /// User-defined column widths keyed by stable indices into [`CONNECTION_COLS`].
-    pub column_widths: HashMap<usize, u16>,
+    pub column_widths: Arc<HashMap<usize, u16>>,
 
     /// Display aliases keyed by source IP address.
-    pub source_ip_alias: HashMap<String, String>,
+    pub source_ip_alias: Arc<HashMap<String, String>>,
 }
 
-impl ConnectionsSetting {
-    pub fn global() -> &'static RwLock<Arc<Self>> {
-        GLOBAL_CONNECTION_SETTING.get_or_init(|| {
-            let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
-            let setting = ConnectionsSetting {
-                query_state: QueryState::new(columns.len()),
-                columns,
-                column_widths: Default::default(),
-                source_ip_alias: Default::default(),
-            };
-
-            RwLock::new(Arc::new(setting))
-        })
-    }
-
-    pub fn snapshot() -> Arc<Self> {
-        Arc::clone(&Self::global().read().unwrap())
-    }
-
-    pub fn update(f: impl FnOnce(&mut Self)) {
-        let mut guard = Self::global().write().unwrap();
-        let mut next = (**guard).clone();
-        f(&mut next);
-        *guard = Arc::new(next);
+impl Default for ConnectionsSetting {
+    fn default() -> Self {
+        let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
+        Self {
+            query_state: QueryState::new(columns.len()),
+            columns: columns.into(),
+            column_widths: Default::default(),
+            source_ip_alias: Default::default(),
+        }
     }
 }
+
+impl StoreLifecycle for ConnectionsSetting {}
 
 impl TryFrom<&ConnectionsUiConfig> for ConnectionsSetting {
     type Error = anyhow::Error;
@@ -95,8 +85,13 @@ impl TryFrom<&ConnectionsUiConfig> for ConnectionsSetting {
             .iter()
             .flatten()
             .map(|(source_ip, alias)| (source_ip.clone(), alias.clone()))
-            .collect();
-        Ok(Self { columns, query_state, column_widths, source_ip_alias })
+            .collect::<HashMap<_, _>>();
+        Ok(Self {
+            columns: columns.into(),
+            query_state,
+            column_widths: column_widths.into(),
+            source_ip_alias: source_ip_alias.into(),
+        })
     }
 }
 

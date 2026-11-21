@@ -103,7 +103,7 @@ pub struct ProxyDetailUiConfig {
     pub card_width: Option<u16>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProxySortConfig {
     pub field: ProxySortField,

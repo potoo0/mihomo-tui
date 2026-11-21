@@ -12,12 +12,15 @@ use ratatui::layout::Constraint;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use serde_json::Value;
 
+mod setting;
+
+pub use setting::ConnectionsSetting;
+
 use crate::models::Connection;
-use crate::store::connections_setting::ConnectionsSetting;
 use crate::ui::symbols::dot;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey, TableColDef, TextResolver};
-use crate::utils::filter::{FilterPattern, RowFilter};
+use crate::utils::filter::RowFilter;
 use crate::utils::time::format_time_from_now;
 
 pub struct Connections {
@@ -67,8 +70,7 @@ impl Connections {
         });
     }
 
-    pub fn compute_view(&self) {
-        let setting = ConnectionsSetting::snapshot();
+    pub fn compute_view(&self, setting: &ConnectionsSetting) {
         let query_state = &setting.query_state;
         let buffer = self.buffer.read().unwrap();
 
@@ -77,7 +79,7 @@ impl Connections {
         let filtered = RowFilter::new(
             buffer.iter(),
             &mut matcher,
-            query_state.pattern.as_ref().map(FilterPattern::expr),
+            query_state.pattern.as_ref().map(|pattern| pattern.expr()),
             setting.columns.iter().filter_map(|&idx| CONNECTION_COLS.get(idx)),
         )
         .with_text_resolver(&text_resolver);
@@ -463,8 +465,8 @@ mod tests {
     use std::cmp::Ordering as CmpOrdering;
     use std::collections::HashMap;
     use std::num::NonZeroUsize;
+    use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
-    use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 
     use ringbuffer::{AllocRingBuffer, RingBuffer};
     use serde_json::json;
@@ -473,11 +475,6 @@ mod tests {
     use super::*;
     use crate::models::sort::{SortDir, SortSpec};
     use crate::store::query::QueryState;
-
-    fn settings_test_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: OnceLock<StdMutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| StdMutex::new(())).lock().unwrap()
-    }
 
     fn connection(id: &str, source_ip: Option<&str>) -> Connection {
         let metadata =
@@ -545,108 +542,81 @@ mod tests {
 
     #[test]
     fn filters_only_visible_columns() {
-        let _guard = settings_test_lock();
         let store = Connections::new(NonZeroUsize::new(10).unwrap());
+        let mut setting = ConnectionsSetting::default();
         let mut conn = connection("1", None);
         conn.rule = "secret-rule".to_string();
         store.push(false, vec![conn]);
 
         let columns = with_alive_column([connection_col_index("host")]);
-        ConnectionsSetting::update(|setting| {
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.query_state.set_pattern(Some("secret-rule".to_string()));
-            setting.source_ip_alias.clear();
-        });
-        store.compute_view();
+        setting.columns = columns.clone().into();
+        setting.query_state = QueryState::new(columns.len());
+        setting.query_state.set_pattern(Some("secret-rule".to_string()));
+        Arc::make_mut(&mut setting.source_ip_alias).clear();
+        store.compute_view(&setting);
         assert_eq!(store.with_view(|records| records.len()), 0);
 
         let columns = with_alive_column([connection_col_index("rule")]);
-        ConnectionsSetting::update(|setting| {
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.query_state.set_pattern(Some("secret-rule".to_string()));
-            setting.source_ip_alias.clear();
-        });
-        store.compute_view();
+        setting.columns = columns.clone().into();
+        setting.query_state = QueryState::new(columns.len());
+        setting.query_state.set_pattern(Some("secret-rule".to_string()));
+        Arc::make_mut(&mut setting.source_ip_alias).clear();
+        store.compute_view(&setting);
         assert_eq!(
             store.with_view(|records| {
                 records.iter().map(|connection| connection.id.to_string()).collect::<Vec<_>>()
             }),
             vec!["1"]
         );
-
-        ConnectionsSetting::update(|setting| {
-            let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.source_ip_alias.clear();
-        });
     }
 
     #[test]
     fn field_filter_only_uses_visible_connection_columns() {
-        let _guard = settings_test_lock();
         let store = Connections::new(NonZeroUsize::new(10).unwrap());
+        let mut setting = ConnectionsSetting::default();
         let mut conn = connection("1", None);
         conn.rule = "secret-rule".to_string();
         store.push(false, vec![conn]);
 
         let columns = with_alive_column([connection_col_index("host")]);
-        ConnectionsSetting::update(|setting| {
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.query_state.set_pattern(Some("rule:secret-rule".to_string()));
-            setting.source_ip_alias.clear();
-        });
-        store.compute_view();
+        setting.columns = columns.clone().into();
+        setting.query_state = QueryState::new(columns.len());
+        setting.query_state.set_pattern(Some("rule:secret-rule".to_string()));
+        Arc::make_mut(&mut setting.source_ip_alias).clear();
+        store.compute_view(&setting);
         assert_eq!(store.with_view(|records| records.len()), 0);
 
         let columns = with_alive_column([connection_col_index("rule")]);
-        ConnectionsSetting::update(|setting| {
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.query_state.set_pattern(Some("rule:secret-rule".to_string()));
-            setting.source_ip_alias.clear();
-        });
-        store.compute_view();
+        setting.columns = columns.clone().into();
+        setting.query_state = QueryState::new(columns.len());
+        setting.query_state.set_pattern(Some("rule:secret-rule".to_string()));
+        Arc::make_mut(&mut setting.source_ip_alias).clear();
+        store.compute_view(&setting);
         assert_eq!(
             store.with_view(|records| {
                 records.iter().map(|connection| connection.id.to_string()).collect::<Vec<_>>()
             }),
             vec!["1"]
         );
-
-        ConnectionsSetting::update(|setting| {
-            let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.source_ip_alias.clear();
-        });
     }
 
     #[test]
     fn source_ip_alias_filters_and_sorts_view() {
-        let _guard = settings_test_lock();
         let store = Connections::new(NonZeroUsize::new(10).unwrap());
+        let mut setting = ConnectionsSetting::default();
         store.push(
             false,
             vec![connection("1", Some("10.0.0.2")), connection("2", Some("10.0.0.1"))],
         );
 
         let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
-        ConnectionsSetting::update(|setting| {
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.source_ip_alias =
-                HashMap::from([("10.0.0.1".to_string(), "phone".to_string())]);
-        });
-
-        ConnectionsSetting::update(|setting| {
-            setting.query_state.set_pattern(Some("phone".to_string()));
-            setting.query_state.sort = None;
-        });
-        store.compute_view();
+        setting.columns = columns.clone().into();
+        setting.query_state = QueryState::new(columns.len());
+        setting.source_ip_alias =
+            HashMap::from([("10.0.0.1".to_string(), "phone".to_string())]).into();
+        setting.query_state.set_pattern(Some("phone".to_string()));
+        setting.query_state.sort = None;
+        store.compute_view(&setting);
         assert_eq!(
             store.with_view(|records| {
                 records.iter().map(|connection| connection.id.to_string()).collect::<Vec<_>>()
@@ -655,25 +625,20 @@ mod tests {
         );
 
         let columns = with_alive_column([connection_col_index("host")]);
-        ConnectionsSetting::update(|setting| {
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.query_state.set_pattern(Some("phone".to_string()));
-        });
-        store.compute_view();
+        setting.columns = columns.clone().into();
+        setting.query_state = QueryState::new(columns.len());
+        setting.query_state.set_pattern(Some("phone".to_string()));
+        store.compute_view(&setting);
         assert_eq!(store.with_view(|records| records.len()), 0);
 
         let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
         let source_ip_visible_col =
             columns.iter().position(|&col| CONNECTION_COLS[col].col.id == "source_ip").unwrap();
-        ConnectionsSetting::update(|setting| {
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.query_state.set_pattern(None);
-            setting.query_state.sort =
-                Some(SortSpec { col: source_ip_visible_col, dir: SortDir::Asc });
-        });
-        store.compute_view();
+        setting.columns = columns.clone().into();
+        setting.query_state = QueryState::new(columns.len());
+        setting.query_state.set_pattern(None);
+        setting.query_state.sort = Some(SortSpec { col: source_ip_visible_col, dir: SortDir::Asc });
+        store.compute_view(&setting);
         assert_eq!(
             store.with_view(|records| {
                 records.iter().map(|connection| connection.id.to_string()).collect::<Vec<_>>()
@@ -683,13 +648,6 @@ mod tests {
 
         let source_ip_col = CONNECTION_COLS.iter().find(|col| col.col.id == "source_ip").unwrap();
         assert_eq!((source_ip_col.col.accessor)(&connection("3", Some("10.0.0.1"))), "10.0.0.1");
-
-        ConnectionsSetting::update(|setting| {
-            let columns = DEFAULT_CONNECTION_COL_INDICES.to_vec();
-            setting.columns = columns.clone();
-            setting.query_state = QueryState::new(columns.len());
-            setting.source_ip_alias.clear();
-        });
     }
 
     #[test]

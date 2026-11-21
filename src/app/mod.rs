@@ -12,12 +12,9 @@ use crate::app::action::Action;
 use crate::app::message::AppMessage;
 use crate::components::{Component, ComponentContext, RootComponent};
 use crate::config::{Config, runtime};
-use crate::store::connections_setting::ConnectionsSetting;
-use crate::store::proxies::Proxies;
-use crate::store::proxy_detail_setting::ProxyDetailSetting;
-use crate::store::proxy_provider_detail_setting::ProxyProviderDetailSetting;
-use crate::store::proxy_providers::ProxyProviders;
-use crate::store::proxy_setting::ProxySetting;
+use crate::store::connections::ConnectionsSetting;
+use crate::store::hub::StoreHub;
+use crate::store::proxy::{ProxyDetailSetting, ProxyProviderDetailSetting, ProxySetting};
 use crate::ui::terminal::{Event, Tui};
 
 pub mod action;
@@ -34,6 +31,7 @@ pub struct App {
     config: Arc<Config>,
     runtime_path: PathBuf,
     token: CancellationToken,
+    stores: StoreHub,
     root: RootComponent,
 
     action_tx: UnboundedSender<Action>,
@@ -49,9 +47,11 @@ impl App {
         render_scheduler.requester().request_render();
         let config = Arc::new(config);
         let api = Arc::new(api);
+        let stores = StoreHub::default();
         let ctx = ComponentContext {
             config: Arc::clone(&config),
             api: Arc::clone(&api),
+            stores: stores.clone(),
             actions: action_tx.clone(),
             render: render_scheduler.requester(),
         };
@@ -59,6 +59,7 @@ impl App {
             config,
             runtime_path,
             token: CancellationToken::new(),
+            stores,
             root: RootComponent::new(&ctx, startup_tab),
 
             action_tx,
@@ -71,7 +72,6 @@ impl App {
         let mut tui = Tui::new()?;
         tui.enter()?;
 
-        self.init_global_settings()?;
         // initialize root component
         self.root.start()?;
 
@@ -112,31 +112,6 @@ impl App {
             }
         }
         tui.exit()?;
-        Ok(())
-    }
-
-    fn init_global_settings(&self) -> Result<()> {
-        let ui = self.config.ui.as_ref();
-        Proxies::init_sort_config(
-            ui.and_then(|ui| ui.proxy_detail.as_ref()).and_then(|detail| detail.sort.clone()),
-        );
-        ProxyProviders::init_sort_config(
-            ui.and_then(|ui| ui.proxy_provider_detail.as_ref())
-                .and_then(|detail| detail.sort.clone()),
-        );
-        *ProxySetting::global().write().unwrap() = self.config.proxy_setting.clone();
-        ProxyDetailSetting::update(|setting| {
-            setting.card_width =
-                ui.and_then(|ui| ui.proxy_detail.as_ref()).and_then(|detail| detail.card_width);
-        });
-        ProxyProviderDetailSetting::update(|setting| {
-            setting.card_width = ui
-                .and_then(|ui| ui.proxy_provider_detail.as_ref())
-                .and_then(|detail| detail.card_width);
-        });
-        if let Some(connections) = ui.and_then(|ui| ui.connections.as_ref()) {
-            *ConnectionsSetting::global().write().unwrap() = Arc::new(connections.try_into()?);
-        }
         Ok(())
     }
 
@@ -195,14 +170,47 @@ impl App {
         if !self.config.runtime_config {
             return Ok(());
         }
-        let connections = ConnectionsSetting::snapshot();
-        let proxy_setting = ProxySetting::global().read().unwrap().clone();
+        let ui = self.config.ui.as_ref();
+        let connections = match self.stores.try_get::<ConnectionsSetting>() {
+            Some(setting) => setting.snapshot(),
+            None => match ui.and_then(|ui| ui.connections.as_ref()) {
+                Some(connections) => connections.try_into()?,
+                None => ConnectionsSetting::default(),
+            },
+        };
+        let proxy_setting = self
+            .stores
+            .try_get::<ProxySetting>()
+            .map(|setting| setting.snapshot())
+            .unwrap_or_else(|| self.config.proxy_setting.clone());
+        let proxy_detail = self
+            .stores
+            .try_get::<ProxyDetailSetting>()
+            .map(|setting| setting.snapshot())
+            .unwrap_or_else(|| ProxyDetailSetting {
+                sort: None,
+                card_width: ui
+                    .and_then(|ui| ui.proxy_detail.as_ref())
+                    .and_then(|detail| detail.card_width),
+            });
+        let proxy_provider_detail = self
+            .stores
+            .try_get::<ProxyProviderDetailSetting>()
+            .map(|setting| setting.snapshot())
+            .unwrap_or_else(|| {
+                ProxyProviderDetailSetting(ProxyDetailSetting {
+                    sort: None,
+                    card_width: ui
+                        .and_then(|ui| ui.proxy_provider_detail.as_ref())
+                        .and_then(|detail| detail.card_width),
+                })
+            });
         runtime::save(
             &self.runtime_path,
             &connections,
             &proxy_setting,
-            ProxyDetailSetting::snapshot(),
-            ProxyProviderDetailSetting::snapshot(),
+            proxy_detail,
+            proxy_provider_detail,
         )
     }
 

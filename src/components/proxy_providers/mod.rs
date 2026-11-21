@@ -14,14 +14,16 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, WhichUse};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{error, info, warn};
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info};
 
 pub(super) use self::detail::ProxyProviderDetailComponent;
 use crate::api::Api;
 use crate::app::action::Action;
 use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity};
 use crate::shortcut;
-use crate::store::proxy_providers::{ProviderView, ProxyProviders};
+use crate::store::hub::StoreRef;
+use crate::store::proxy::{ProviderView, ProxyProviderDetailSetting, ProxyProviders, ProxySetting};
 use crate::ui::layout::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, space_between_many};
 use crate::ui::render::RenderRequester;
 use crate::ui::scrollable_navigator::ScrollableNavigator;
@@ -33,11 +35,42 @@ use crate::utils::time::format_timestamp;
 const CARD_HEIGHT: u16 = 6;
 const CARDS_PER_ROW: usize = 2;
 
+#[derive(Clone, Debug)]
+struct ProviderStores {
+    providers: StoreRef<ProxyProviders>,
+    proxy_setting: StoreRef<ProxySetting>,
+    detail_setting: StoreRef<ProxyProviderDetailSetting>,
+}
+
+impl ProviderStores {
+    fn new(ctx: &ComponentContext) -> Result<Self> {
+        let detail_setting = ctx.stores.get_or_register(|| {
+            Ok(ctx
+                .config
+                .ui
+                .as_ref()
+                .and_then(|ui| ui.proxy_provider_detail.as_ref())
+                .map(ProxyProviderDetailSetting::from)
+                .unwrap_or_default())
+        })?;
+
+        Ok(Self {
+            providers: ctx
+                .stores
+                .get_or_register(|| Ok(ProxyProviders::new(detail_setting.clone())))?,
+            proxy_setting: ctx.stores.get_or_register(|| Ok(ctx.config.proxy_setting.clone()))?,
+            detail_setting,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct ProxyProvidersComponent {
     api: Arc<Api>,
     action_tx: UnboundedSender<Action>,
     render_requester: RenderRequester,
+    stores: ProviderStores,
+    token: CancellationToken,
 
     navigator: ScrollableNavigator,
     loading: Arc<AtomicBool>,
@@ -48,18 +81,22 @@ pub struct ProxyProvidersComponent {
 }
 
 impl ProxyProvidersComponent {
-    pub fn new(ctx: &ComponentContext) -> Self {
-        Self {
+    pub fn new(ctx: &ComponentContext) -> Result<Self> {
+        let shared_store = ProviderStores::new(ctx)?;
+
+        Ok(Self {
             api: Arc::clone(&ctx.api),
             action_tx: ctx.actions.clone(),
             render_requester: ctx.render.clone(),
+            stores: shared_store,
+            token: CancellationToken::new(),
 
             navigator: Default::default(),
             loading: Default::default(),
             throbber: Default::default(),
             pending_test: Default::default(),
             pending_test_throbber: Default::default(),
-        }
+        })
     }
 
     fn load_providers(&self) -> Result<()> {
@@ -67,10 +104,17 @@ impl ProxyProvidersComponent {
         let api = Arc::clone(&self.api);
         let loading = Arc::clone(&self.loading);
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
+        let token = self.token.clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-providers-loader").spawn(async move {
-            if let Err(e) = ProxyProviders::load(api).await {
+            let result = tokio::select! {
+                _ = token.cancelled() => None,
+                result = stores.providers.load(api, &stores.proxy_setting) => Some(result),
+            };
+
+            if let Some(Err(e)) = result {
                 error!(error = ?e, "Failed to get proxy providers")
             }
             loading.store(false, Ordering::Relaxed);
@@ -85,10 +129,21 @@ impl ProxyProvidersComponent {
         let api = Arc::clone(&self.api);
         let pending_test = Arc::clone(&self.pending_test);
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
+        let token = self.token.clone();
         pending_test.fetch_add(1, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-health-check").spawn(async move {
-            if let Err(e) = ProxyProviders::health_check_and_reload(api, &name).await {
+            let result = tokio::select! {
+                _ = token.cancelled() => None,
+                result = stores.providers.health_check_and_reload(
+                    api,
+                    &stores.proxy_setting,
+                    &name,
+                ) => Some(result),
+            };
+
+            if let Some(Err(e)) = result {
                 error!(error = ?e, "Failed to health check and reload provider");
             }
             pending_test.update(Ordering::Relaxed, Ordering::Relaxed, |n| n.saturating_sub(1));
@@ -104,10 +159,19 @@ impl ProxyProvidersComponent {
         let action_tx = self.action_tx.clone();
         let loading = Arc::clone(&self.loading);
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
+        let token = self.token.clone();
         loading.store(true, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-provider-update").spawn(async move {
-            if let Err(e) = ProxyProviders::update_and_reload(api, &name).await {
+            let result = tokio::select! {
+                _ = token.cancelled() => None,
+                result = stores.providers.update_and_reload(api, &stores.proxy_setting, &name) => {
+                    Some(result)
+                }
+            };
+
+            if let Some(Err(e)) = result {
                 error!(error = ?e, "Failed to update provider");
                 let _ = action_tx.send(Action::Error(("actions.update_proxy_provider", e).into()));
             }
@@ -241,44 +305,42 @@ impl ProxyProvidersComponent {
     }
 
     fn render_providers(&mut self, frame: &mut Frame, outer: Rect) {
-        let providers = {
-            let guard = ProxyProviders::global().read().unwrap();
-            guard.view()
-        };
+        let stores = self.stores.clone();
+        stores.providers.read(|store| {
+            store.with_view(|providers| {
+                let title_line = Line::from(vec![
+                    Span::raw(TOP_TITLE_LEFT),
+                    Span::raw(rust_i18n::t!("tabs.proxy_providers")),
+                    Span::raw(" ("),
+                    Span::styled(format!("{}", providers.len()), Color::LightCyan),
+                    Span::raw(")"),
+                    Span::raw(TOP_TITLE_RIGHT),
+                ]);
+                let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
+                let area = block.inner(outer);
+                frame.render_widget(block, outer);
 
-        let title_line = Line::from(vec![
-            Span::raw(TOP_TITLE_LEFT),
-            Span::raw(rust_i18n::t!("tabs.proxy_providers")),
-            Span::raw(" ("),
-            Span::styled(format!("{}", providers.len()), Color::LightCyan),
-            Span::raw(")"),
-            Span::raw(TOP_TITLE_RIGHT),
-        ]);
-        let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
-        let area = block.inner(outer);
-        frame.render_widget(block, outer);
-
-        let col_chunks =
-            Layout::horizontal((0..CARDS_PER_ROW).map(|_| Constraint::Fill(1))).split(area);
-        self.navigator
-            .step(CARDS_PER_ROW)
-            .length(providers.len(), ((area.height / CARD_HEIGHT) as usize) * col_chunks.len());
-        let visible = &providers[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
-        self.navigator.iter_layout(visible, CARD_HEIGHT, col_chunks).for_each(
-            |(proxy, focused, rect)| {
-                Self::render_provider(proxy, focused, frame, rect);
-            },
-        );
+                let col_chunks =
+                    Layout::horizontal((0..CARDS_PER_ROW).map(|_| Constraint::Fill(1))).split(area);
+                self.navigator.step(CARDS_PER_ROW).length(
+                    providers.len(),
+                    ((area.height / CARD_HEIGHT) as usize) * col_chunks.len(),
+                );
+                let visible =
+                    &providers[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
+                self.navigator.iter_layout(visible, CARD_HEIGHT, col_chunks).for_each(
+                    |(proxy, focused, rect)| {
+                        Self::render_provider(proxy, focused, frame, rect);
+                    },
+                );
+            })
+        })
     }
 }
 
 impl Drop for ProxyProvidersComponent {
     fn drop(&mut self) {
-        info!("`ProxyProvidersComponent` dropped");
-        match ProxyProviders::global().write() {
-            Ok(mut p) => p.clear(),
-            Err(_) => warn!("Failed to acquire write lock to clear proxy providers store"),
-        }
+        self.token.cancel();
     }
 }
 
@@ -330,7 +392,10 @@ impl Component for ProxyProvidersComponent {
             KeyCode::Char('s') => return Ok(Some(Action::ProxySetting)),
             KeyCode::Enter => {
                 if let Some(idx) = self.navigator.focused {
-                    let action = ProxyProviders::get(idx)
+                    let action = self
+                        .stores
+                        .providers
+                        .read(|store| store.get(idx))
                         .map(|v| v.provider.name.clone())
                         .map(Action::ProxyProviderDetail);
                     return Ok(action);
@@ -338,14 +403,14 @@ impl Component for ProxyProvidersComponent {
             }
             KeyCode::Char('t') => {
                 if let Some(idx) = self.navigator.focused
-                    && let Some(p) = ProxyProviders::get(idx)
+                    && let Some(p) = self.stores.providers.read(|store| store.get(idx))
                 {
                     self.provider_health_check(p.provider.name.clone())?;
                 }
             }
             KeyCode::Char('u') => {
                 if let Some(idx) = self.navigator.focused
-                    && let Some(p) = ProxyProviders::get(idx)
+                    && let Some(p) = self.stores.providers.read(|store| store.get(idx))
                 {
                     self.update_provider(p.provider.name.clone())?;
                 }

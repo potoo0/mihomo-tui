@@ -1,21 +1,21 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::Arc;
 
 use anyhow::Result;
 use indexmap::IndexMap;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
+use super::sorting::{next_sort_field, toggle_sort_direction as toggle_dir};
+use super::{ProxyDetailSetting, ProxySetting};
 use crate::api::Api;
+use crate::components::{ComponentId, PopupId};
 use crate::config::{LatencyThreshold, ProxySortConfig};
 use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
 use crate::models::sort::{ProxySortField, SortDir};
-use crate::store::proxy_setting::ProxySetting;
+use crate::store::hub::{StoreDisposition, StoreLifecycle, StoreRef};
 use crate::ui::latency::{LatencyQuality, QualityStats};
-use crate::ui::render::RenderRequester;
-
-pub static GLOBAL_PROXIES: OnceLock<RwLock<Proxies>> = OnceLock::new();
 
 /// Special root proxy group used as the source of top-level proxy order.
 /// It should not be sorted in proxy-detail group sorting.
@@ -27,203 +27,149 @@ pub struct ProxyView {
     pub quality_stats: QualityStats,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Proxies {
-    sort: Option<ProxySortConfig>,
+    detail_setting: StoreRef<ProxyDetailSetting>,
     proxies: HashMap<String, Arc<Proxy>>,
     visible: Vec<Arc<ProxyView>>,
 }
 
-/// Global store for proxies, providing thread-safe access and update methods.
 impl Proxies {
-    pub fn global() -> &'static RwLock<Self> {
-        GLOBAL_PROXIES.get_or_init(Default::default)
+    pub fn new(detail_setting: StoreRef<ProxyDetailSetting>) -> Self {
+        Self { detail_setting, proxies: HashMap::new(), visible: Vec::new() }
     }
 
-    pub fn get(index: usize) -> Option<Arc<ProxyView>> {
-        match Self::global().read() {
-            Ok(p) => p.visible.get(index).cloned(),
-            Err(e) => {
-                error!(error = ?e, "Failed to acquire read lock");
-                None
-            }
-        }
+    pub fn get(&self, index: usize) -> Option<Arc<ProxyView>> {
+        self.visible.get(index).cloned()
     }
 
-    pub fn get_by_name(name: &str) -> Option<Arc<Proxy>> {
-        match Self::global().read() {
-            Ok(p) => p.proxies.get(name).cloned(),
-            Err(e) => {
-                error!(error = ?e, "Failed to acquire read lock");
-                None
-            }
-        }
+    pub fn get_by_name(&self, name: &str) -> Option<Arc<Proxy>> {
+        self.proxies.get(name).cloned()
     }
 
-    pub fn with_by_names<R, F>(names: &[String], f: F) -> R
-    where
-        F: FnOnce(&[&Arc<Proxy>]) -> R,
-    {
-        match Self::global().read() {
-            Ok(p) => {
-                let proxies: Vec<_> = names.iter().flat_map(|name| p.proxies.get(name)).collect();
-                f(&proxies)
-            }
-            Err(e) => {
-                error!(error = ?e, "Failed to acquire read lock");
-                f(&[])
-            }
-        }
-    }
-
-    pub fn with_view<R, F>(f: F) -> R
+    pub fn with_view<R, F>(&self, f: F) -> R
     where
         F: FnOnce(&[Arc<ProxyView>]) -> R,
     {
-        match Self::global().read() {
-            Ok(p) => f(&p.visible),
-            Err(e) => {
-                error!(error = ?e, "Failed to acquire read lock");
-                f(&[])
-            }
-        }
+        f(&self.visible)
     }
 
-    /// Load proxies from API and update the store.
-    pub async fn load(api: Arc<Api>) -> Result<()> {
+    pub fn by_names(&self, names: &[String]) -> Vec<Arc<Proxy>> {
+        names.iter().filter_map(|name| self.proxies.get(name).map(Arc::clone)).collect()
+    }
+}
+
+impl StoreLifecycle for Proxies {
+    fn disposition() -> StoreDisposition {
+        StoreDisposition::RemoveIfNoOwners(&[
+            ComponentId::Proxies,
+            ComponentId::Popup(PopupId::ProxyDetail),
+        ])
+    }
+
+    fn on_release(&mut self) {
+        self.proxies.clear();
+        self.visible.clear();
+    }
+}
+
+impl StoreRef<Proxies> {
+    pub async fn load(&self, api: Arc<Api>, setting: &StoreRef<ProxySetting>) -> Result<()> {
         // `GET /proxies` only contains groups and proxies defined inline in the
         // core config; nodes sourced from proxy providers are only exposed via
         // `GET /providers/proxies`. Merge them in so group children referencing
         // provider nodes can be resolved by name.
-        let (proxies, providers) = tokio::join!(api.get_proxies(), api.get_providers());
-        let mut proxies = proxies?;
+        let (proxies_result, providers) = tokio::join!(api.get_proxies(), api.get_providers());
+        let mut loaded = proxies_result?;
         match providers {
-            Ok(providers) => Self::merge_provider_proxies(&mut proxies, providers),
+            Ok(providers) => Proxies::merge_provider_proxies(&mut loaded, providers),
             Err(e) => warn!(error = ?e, "Failed to load providers, provider nodes may be missing"),
         }
         debug!("Proxies loaded");
-        match Self::global().write() {
-            Ok(mut p) => p.push(proxies),
-            Err(e) => error!(error = ?e, "Failed to acquire write lock"),
-        }
-
+        let threshold = setting.read(|setting| setting.latency_threshold);
+        self.update(|store| store.push(loaded, threshold));
         Ok(())
     }
 
-    /// Update proxy selection and reload proxies.
-    pub async fn update_and_reload(api: Arc<Api>, selector: &str, name: &str) -> Result<()> {
-        match api.update_proxy(selector, name).await {
-            Ok(_) => Self::load(api).await,
-            Err(e) => {
-                error!(error = ?e, "Failed to update proxy");
-                Err(e)
-            }
-        }
+    pub async fn update_and_reload(
+        &self,
+        api: Arc<Api>,
+        setting: &StoreRef<ProxySetting>,
+        selector: &str,
+        name: &str,
+    ) -> Result<()> {
+        api.update_proxy(selector, name).await?;
+        self.load(api, setting).await
     }
 
-    pub async fn test_and_reload(api: Arc<Api>, name: &str) -> Result<()> {
-        let (test_url, test_timeout) = {
-            let setting = ProxySetting::global().read().unwrap();
-            (setting.test_url.clone(), setting.test_timeout.get())
-        };
-
-        let result = api.test_proxy(name, &test_url, test_timeout).await;
-        // Even if testing fails, we still want to
-        // reload the proxies to get the latest latency info.
-        if let Err(e) = result {
-            warn!(error = ?e, "Failed to test proxy: {}", name);
+    pub async fn test_and_reload(
+        &self,
+        api: Arc<Api>,
+        setting: &StoreRef<ProxySetting>,
+        name: &str,
+    ) -> Result<()> {
+        let (test_url, test_timeout) =
+            setting.read(|setting| (setting.test_url.clone(), setting.test_timeout.get()));
+        if let Err(error) = api.test_proxy(name, &test_url, test_timeout).await {
+            warn!(error = ?error, "Failed to test proxy: {}", name);
         }
-        Self::load(api).await
+        self.load(api, setting).await
     }
 
-    pub async fn test_group_and_reload(api: Arc<Api>, name: &str) -> Result<()> {
-        let (test_url, test_timeout) = {
-            let setting = ProxySetting::global().read().unwrap();
-            (setting.test_url.clone(), setting.test_timeout.get())
-        };
-
-        let result = api.test_proxy_group(name, &test_url, test_timeout).await;
-        // Even if testing fails, we still want to
-        // reload the proxies to get the latest latency info.
-        if let Err(e) = result {
-            warn!(error = ?e, "Failed to test proxy group: {}", name);
+    pub async fn test_group_and_reload(
+        &self,
+        api: Arc<Api>,
+        setting: &StoreRef<ProxySetting>,
+        name: &str,
+    ) -> Result<()> {
+        let (test_url, test_timeout) =
+            setting.read(|setting| (setting.test_url.clone(), setting.test_timeout.get()));
+        if let Err(error) = api.test_proxy_group(name, &test_url, test_timeout).await {
+            warn!(error = ?error, "Failed to test proxy group: {}", name);
         }
-        Self::load(api).await
+        self.load(api, setting).await
     }
 
-    pub fn init_sort_config(sort: Option<ProxySortConfig>) {
-        let mut p = Self::global().write().expect("proxies store poisoned");
-        if p.sort.is_none() {
-            info!(?sort, "Initializing sort config");
-            p.sort = sort;
-        }
+    pub fn switch_sort_field(&self) -> bool {
+        self.update_sort(next_sort_field)
     }
 
-    fn update_sort_and_reload<F>(api: Arc<Api>, render_requester: RenderRequester, f: F)
+    pub fn toggle_sort_direction(&self) -> bool {
+        self.update_sort(toggle_dir)
+    }
+
+    fn update_sort<F>(&self, update: F) -> bool
     where
         F: FnOnce(Option<ProxySortConfig>) -> Option<ProxySortConfig>,
     {
-        {
-            let mut p = Self::global().write().expect("proxies store poisoned");
-            let old_sort = p.sort.take();
-            let new_sort = f(old_sort.clone());
-            if old_sort.is_none() && new_sort.is_none() {
-                p.sort = new_sort;
-                return;
-            }
-            info!(old = ?old_sort, new = ?new_sort, "Changed proxy detail sort");
-            p.sort = new_sort;
-        } // release lock
-
-        tokio::task::Builder::new()
-            .name("proxies-loader")
-            .spawn(async move {
-                if let Err(e) = Self::load(api).await {
-                    error!(error = ?e, "Failed to reload proxies after sort change");
-                }
-                render_requester.request_render();
-            })
-            .expect("Failed to spawn proxies loader task");
-    }
-
-    pub fn switch_sort_field(api: Arc<Api>, render_requester: RenderRequester) {
-        Self::update_sort_and_reload(api, render_requester, |old_sort| match old_sort {
-            None => Some(ProxySortConfig { field: ProxySortField::Latency, dir: SortDir::Asc }),
-            Some(old) => match old.field {
-                ProxySortField::Latency => {
-                    Some(ProxySortConfig { field: ProxySortField::Name, dir: old.dir })
-                }
-                ProxySortField::Name => None,
-            },
+        let detail_setting = self.read(|store| store.detail_setting.clone());
+        let (old_sort, new_sort) = detail_setting.update(|setting| {
+            let old = setting.sort.clone();
+            let new_sort = update(old.clone());
+            setting.sort = new_sort.clone();
+            (old, new_sort)
         });
-    }
 
-    pub fn toggle_sort_direction(api: Arc<Api>, render_requester: RenderRequester) {
-        Self::update_sort_and_reload(api, render_requester, |old_sort| {
-            old_sort.map(|old| ProxySortConfig { dir: old.dir.toggle(), ..old })
-        });
+        if old_sort == new_sort {
+            return false;
+        }
+
+        info!(old = ?old_sort, new = ?new_sort, "Changed proxy detail sort");
+        true
     }
 }
 
 /// Internal methods for managing proxies
 impl Proxies {
-    pub fn clear(&mut self) {
-        self.proxies.clear();
-        self.proxies.shrink_to_fit();
-        self.visible.clear();
-        self.visible.shrink_to_fit();
-    }
-
-    pub fn push(&mut self, mut proxies: IndexMap<String, Proxy>) {
+    pub fn push(&mut self, mut proxies: IndexMap<String, Proxy>, threshold: LatencyThreshold) {
         Self::remove_missing_children(&mut proxies);
         Self::update_delay(&mut proxies);
-        if let Some(sort) = &self.sort {
-            Self::sort_proxies(&mut proxies, sort);
+        let sort = self.detail_setting.read(|setting| setting.sort.clone());
+        if let Some(sort) = sort {
+            Self::sort_proxies(&mut proxies, &sort);
         }
 
         self.proxies = proxies.into_iter().map(|(k, v)| (k, Arc::new(v))).collect();
-        let threshold = ProxySetting::global().read().unwrap().latency_threshold;
-
         let sort_index = self.build_sort_index();
         let mut visible: Vec<Arc<ProxyView>> = self
             .proxies

@@ -16,7 +16,8 @@ use tui_input::Input;
 use crate::app::action::Action;
 use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::config::LatencyThreshold;
-use crate::store::proxy_setting::ProxySetting;
+use crate::store::hub::StoreRef;
+use crate::store::proxy::ProxySetting;
 use crate::ui::input::input_request;
 use crate::ui::layout::{popup_area, top_title_line};
 use crate::ui::shortcut::{Fragment, Shortcut};
@@ -56,10 +57,7 @@ impl ProxySettingField {
         }
     }
 
-    pub fn value(&self) -> String {
-        let lock = ProxySetting::global();
-        let setting = lock.read().unwrap();
-
+    pub fn value(&self, setting: &ProxySetting) -> String {
         match self {
             ProxySettingField::TestUrl => setting.test_url.clone(),
             ProxySettingField::TestTimeout => setting.test_timeout.to_string(),
@@ -74,6 +72,7 @@ impl ProxySettingField {
 #[derive(Debug)]
 pub struct ProxySettingComponent {
     action_tx: UnboundedSender<Action>,
+    setting: StoreRef<ProxySetting>,
 
     show: bool,
     focused: ProxySettingField,
@@ -82,21 +81,26 @@ pub struct ProxySettingComponent {
 }
 
 impl ProxySettingComponent {
-    pub fn new(ctx: &ComponentContext) -> Self {
-        Self {
+    pub fn new(ctx: &ComponentContext) -> Result<Self> {
+        let stores = &ctx.stores;
+        let initial = ctx.config.proxy_setting.clone();
+        let shared_store = stores.get_or_register(|| Ok(initial))?;
+
+        Ok(Self {
             action_tx: ctx.actions.clone(),
+            setting: shared_store,
 
             show: Default::default(),
             focused: Default::default(),
             input: Default::default(),
             error: Default::default(),
-        }
+        })
     }
 
     fn show(&mut self) {
         self.show = true;
         self.focused = ProxySettingField::default();
-        self.input = self.focused.value().into();
+        self.input = self.setting.read(|setting| self.focused.value(setting)).into();
         self.error = None;
     }
 
@@ -108,13 +112,11 @@ impl ProxySettingComponent {
 
     fn submit(&self) -> Result<(), String> {
         let input = self.input.value().trim();
-        let lock = ProxySetting::global();
-        let mut setting = lock.write().unwrap();
 
         match self.focused {
             ProxySettingField::TestUrl => {
                 ProxySetting::validate_test_url(input).map_err(|e| e.to_string())?;
-                setting.test_url = input.into();
+                self.setting.update(|setting| setting.test_url = input.into());
                 Ok(())
             }
 
@@ -123,7 +125,7 @@ impl ProxySettingComponent {
                     let timeout = NonZeroUsize::new(v)
                         .ok_or_else(|| "proxy_settings.timeout_invalid".to_string())?;
                     ProxySetting::validate_test_timeout(timeout).map_err(|e| e.to_string())?;
-                    setting.test_timeout = timeout;
+                    self.setting.update(|setting| setting.test_timeout = timeout);
                     Ok(())
                 }
                 Err(_) => Err("proxy_settings.timeout_invalid".into()),
@@ -132,15 +134,16 @@ impl ProxySettingComponent {
             ProxySettingField::Threshold => {
                 let threshold = input.parse::<LatencyThreshold>().map_err(|e| e.to_string())?;
                 ProxySetting::validate_latency_threshold(threshold).map_err(|e| e.to_string())?;
-                setting.latency_threshold = threshold;
+                self.setting.update(|setting| setting.latency_threshold = threshold);
                 Ok(())
             }
 
             ProxySettingField::AutoTerminateConnections => {
                 // TODO support "true"/"false" or "1"/"0"
-                setting.auto_terminate_connections = input
+                let enabled = input
                     .parse::<bool>()
                     .map_err(|_| "proxy_settings.auto_terminate_invalid".to_string())?;
+                self.setting.update(|setting| setting.auto_terminate_connections = enabled);
                 Ok(())
             }
         }
@@ -152,7 +155,7 @@ impl ProxySettingComponent {
             return;
         }
         self.focused = self.focused.next();
-        self.input = self.focused.value().into();
+        self.input = self.setting.read(|setting| self.focused.value(setting)).into();
     }
 
     fn prev(&mut self) {
@@ -161,7 +164,7 @@ impl ProxySettingComponent {
             return;
         }
         self.focused = self.focused.prev();
-        self.input = self.focused.value().into();
+        self.input = self.setting.read(|setting| self.focused.value(setting)).into();
     }
 
     fn render_settings(&self, frame: &mut Frame, mut area: Rect) {
@@ -172,7 +175,7 @@ impl ProxySettingComponent {
             let (border_color, val) = if focused {
                 (Color::Cyan, Cow::from(self.input.value()))
             } else {
-                (Color::DarkGray, field.value().into())
+                (Color::DarkGray, self.setting.read(|setting| field.value(setting)).into())
             };
             let field_label = field.to_string();
             let block = Block::bordered()
@@ -295,13 +298,17 @@ impl Component for ProxySettingComponent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store::hub::StoreHub;
 
     #[test]
     fn q_is_typed_instead_of_closing_proxy_settings() {
+        let stores = StoreHub::default();
+        stores.register(ProxySetting::default()).unwrap();
         let mut component = ProxySettingComponent {
             show: true,
-            ..ProxySettingComponent::new(&ComponentContext::test_ctx())
+            ..ProxySettingComponent::new(&ComponentContext::test_ctx()).unwrap()
         };
+        component.setting = stores.get::<ProxySetting>().unwrap();
 
         let action = component.handle_key_event(KeyEvent::from(KeyCode::Char('q'))).unwrap();
 

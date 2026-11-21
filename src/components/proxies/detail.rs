@@ -12,15 +12,15 @@ use throbber_widgets_tui::{BLACK_CIRCLE, BRAILLE_SIX, Throbber, ThrobberState, W
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error, info, warn};
 
+use super::ProxyStores;
 use crate::api::Api;
 use crate::app::action::Action;
 use crate::components::{Component, ComponentContext, MIN_CARD_WIDTH, PopupComponent, PopupId};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
 use crate::shortcut;
-use crate::store::proxies::Proxies;
-use crate::store::proxy_detail_setting::ProxyDetailSetting;
-use crate::store::proxy_setting::ProxySetting;
+use crate::store::hub::StoreRef;
+use crate::store::proxy::ProxySetting;
 use crate::ui::layout::{
     TOP_TITLE_LEFT, TOP_TITLE_RIGHT, padded_styled_title, popup_area, space_between,
 };
@@ -40,11 +40,14 @@ fn card_layout(area: Rect, preferred_width: u16) -> std::rc::Rc<[Rect]> {
     Layout::horizontal((0..cols).map(|_| Constraint::Min(width))).split(area)
 }
 
+/// Tasks must finish after this popup closes so server updates can be followed by a reload.
+/// They own their shared handles and use API timeouts, so outliving the component is safe.
 #[derive(Debug)]
 pub struct ProxyDetailComponent {
     api: Arc<Api>,
     action_tx: UnboundedSender<Action>,
     render_requester: RenderRequester,
+    stores: ProxyStores,
 
     show: bool,
     proxy_name: Option<String>,
@@ -73,11 +76,14 @@ struct Layer {
 }
 
 impl ProxyDetailComponent {
-    pub fn new(ctx: &ComponentContext) -> Self {
-        Self {
+    pub fn new(ctx: &ComponentContext) -> Result<Self> {
+        let shared_store = ProxyStores::new(ctx)?;
+
+        Ok(Self {
             api: Arc::clone(&ctx.api),
             action_tx: ctx.actions.clone(),
             render_requester: ctx.render.clone(),
+            stores: shared_store,
 
             show: Default::default(),
             proxy_name: Default::default(),
@@ -90,7 +96,7 @@ impl ProxyDetailComponent {
             throbber: Default::default(),
             pending_test: Default::default(),
             pending_test_throbber: Default::default(),
-        }
+        })
     }
 
     fn adjust_card_width(&mut self, delta: i16) {
@@ -98,12 +104,13 @@ impl ProxyDetailComponent {
             return;
         }
         let max_width = self.card_area_width.max(MIN_CARD_WIDTH);
-        let previous = ProxyDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+        let previous =
+            self.stores.detail_setting.read(|setting| setting.card_width.unwrap_or(CARD_WIDTH));
         let current = previous.min(max_width);
         let width = current.saturating_add_signed(delta).clamp(MIN_CARD_WIDTH, max_width);
         self.width_hint_ticks = WIDTH_HINT_TICKS;
         if previous != width {
-            ProxyDetailSetting::update(|setting| setting.card_width = Some(width));
+            self.stores.detail_setting.update(|setting| setting.card_width = Some(width));
             self.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
         }
     }
@@ -132,7 +139,7 @@ impl ProxyDetailComponent {
 
     pub fn show(&mut self, proxy_name: String) {
         debug!("Show proxy detail: {}", proxy_name);
-        if Proxies::get_by_name(&proxy_name).is_none() {
+        if self.stores.proxies.read(|store| store.get_by_name(&proxy_name)).is_none() {
             error!("Proxy not found: {}", proxy_name);
             self.close();
             return;
@@ -187,9 +194,12 @@ impl ProxyDetailComponent {
         let loading = Arc::clone(&self.loading);
         let action_tx = self.action_tx.clone();
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
 
         tokio::task::Builder::new().name("proxies-loader").spawn(async move {
-            if let Err(e) = Proxies::load(api).await {
+            let result = stores.proxies.load(api, &stores.proxy_setting).await;
+
+            if let Err(e) = result {
                 error!(error = ?e, "Failed to load proxies");
                 let _ = action_tx.send(Action::Error(("actions.load_proxy", e).into()));
             }
@@ -206,10 +216,20 @@ impl ProxyDetailComponent {
         let loading = Arc::clone(&self.loading);
         let action_tx = self.action_tx.clone();
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
 
         tokio::task::Builder::new().name("proxy-updater").spawn(async move {
-            match Proxies::update_and_reload(api.clone(), &selector_name, &name).await {
-                Ok(()) => Self::spawn_connection_terminator(api, selector_name),
+            let result = stores.proxies.update_and_reload(
+                    api.clone(),
+                    &stores.proxy_setting,
+                    &selector_name,
+                    &name,
+                ).await;
+
+            match result {
+                Ok(()) => {
+                    Self::spawn_connection_terminator(api, stores.proxy_setting, selector_name)
+                }
                 Err(e) => {
                     warn!(error = ?e, "Failed to update selected proxy for {}: {}", selector_name, name);
                     let _ = action_tx.send(Action::Error(("actions.update_selected_proxy", e).into()));
@@ -228,14 +248,16 @@ impl ProxyDetailComponent {
         let api = Arc::clone(&self.api);
         let pending_test = Arc::clone(&self.pending_test);
         let render_requester = self.render_requester.clone();
+        let stores = self.stores.clone();
         pending_test.fetch_add(1, Ordering::Relaxed);
 
         tokio::task::Builder::new().name("proxy-tester").spawn(async move {
             let result = if is_group {
-                Proxies::test_group_and_reload(api, &name).await
+                stores.proxies.test_group_and_reload(api, &stores.proxy_setting, &name).await
             } else {
-                Proxies::test_and_reload(api, &name).await
+                stores.proxies.test_and_reload(api, &stores.proxy_setting, &name).await
             };
+
             if let Err(e) = result {
                 error!(error = ?e, name = %name, is_group, "Failed to test and load proxy");
             }
@@ -250,8 +272,43 @@ impl ProxyDetailComponent {
         Ok(())
     }
 
-    fn spawn_connection_terminator(api: Arc<Api>, selector_name: String) {
-        if !ProxySetting::global().read().unwrap().auto_terminate_connections {
+    fn reload_after_sort(&self) {
+        let api = Arc::clone(&self.api);
+        let proxies = self.stores.proxies.clone();
+        let setting = self.stores.proxy_setting.clone();
+        let render_requester = self.render_requester.clone();
+
+        tokio::task::Builder::new()
+            .name("proxies-loader")
+            .spawn(async move {
+                let result = proxies.load(api, &setting).await;
+
+                if let Err(error) = result {
+                    error!(error = ?error, "Failed to reload proxies after sort change");
+                }
+                render_requester.request_render();
+            })
+            .expect("Failed to spawn proxies loader task");
+    }
+
+    fn change_sort_field(&self) {
+        if self.stores.proxies.switch_sort_field() {
+            self.reload_after_sort();
+        }
+    }
+
+    fn toggle_sort_direction(&self) {
+        if self.stores.proxies.toggle_sort_direction() {
+            self.reload_after_sort();
+        }
+    }
+
+    fn spawn_connection_terminator(
+        api: Arc<Api>,
+        proxy_setting: StoreRef<ProxySetting>,
+        selector_name: String,
+    ) {
+        if !proxy_setting.read(|setting| setting.auto_terminate_connections) {
             return;
         }
         debug!("Auto-terminating connections for selector {} after proxy update", selector_name);
@@ -307,7 +364,8 @@ impl ProxyDetailComponent {
         if self.width_hint_ticks == 0 {
             return block;
         }
-        let preferred_width = ProxyDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+        let preferred_width =
+            self.stores.detail_setting.read(|setting| setting.card_width.unwrap_or(CARD_WIDTH));
         let actual_width =
             card_layout(content_area, preferred_width).first().map_or(0, |card| card.width);
         block.title_bottom(
@@ -386,7 +444,8 @@ impl ProxyDetailComponent {
     fn render_cards(&mut self, group: &Proxy, frame: &mut Frame, area: Rect) {
         let children_names = group.children.as_deref().unwrap_or_default();
         self.card_area_width = area.width;
-        let preferred_width = ProxyDetailSetting::snapshot().card_width.unwrap_or(CARD_WIDTH);
+        let preferred_width =
+            self.stores.detail_setting.read(|setting| setting.card_width.unwrap_or(CARD_WIDTH));
         let col_chunks = card_layout(area, preferred_width);
         let cols = col_chunks.len();
         let previous_cols = self.navigator.scroller.step_value();
@@ -405,14 +464,13 @@ impl ProxyDetailComponent {
         }
         let visible_names =
             &children_names[self.navigator.scroller.pos()..self.navigator.scroller.end_pos()];
-        let threshold = ProxySetting::global().read().unwrap().latency_threshold;
-        Proxies::with_by_names(visible_names, |proxies| {
-            self.navigator.iter_layout(proxies, CARD_HEIGHT, col_chunks).for_each(
-                |(proxy, focused, rect)| {
-                    Self::render_card(threshold, group, proxy, focused, frame, rect)
-                },
-            )
-        });
+        let threshold = self.stores.proxy_setting.read(|setting| setting.latency_threshold);
+        let proxies = self.stores.proxies.read(|store| store.by_names(visible_names));
+        self.navigator.iter_layout(&proxies, CARD_HEIGHT, col_chunks).for_each(
+            |(proxy, focused, rect)| {
+                Self::render_card(threshold, group, proxy, focused, frame, rect)
+            },
+        );
     }
 }
 
@@ -470,7 +528,11 @@ impl Component for ProxyDetailComponent {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        let Some(proxy) = self.proxy_name.as_ref().and_then(|n| Proxies::get_by_name(n)) else {
+        let Some(proxy) = self
+            .proxy_name
+            .as_ref()
+            .and_then(|name| self.stores.proxies.read(|store| store.get_by_name(name)))
+        else {
             return Ok(None);
         };
         if self.navigator.handle_key_event(true, key).is_consumed() {
@@ -515,7 +577,7 @@ impl Component for ProxyDetailComponent {
                     .navigator
                     .focused
                     .and_then(|idx| proxy.children.as_ref().and_then(|children| children.get(idx)))
-                    .and_then(|name| Proxies::get_by_name(name))
+                    .and_then(|name| self.stores.proxies.read(|store| store.get_by_name(name)))
                     .unwrap_or_else(|| Arc::clone(&proxy));
                 return Ok(Some(Action::ProxyInspect(action)));
             }
@@ -525,7 +587,10 @@ impl Component for ProxyDetailComponent {
                     .focused
                     .and_then(|idx| proxy.children.as_ref().and_then(|v| v.get(idx)))
                     .map(|name| {
-                        let is_group = Proxies::get_by_name(name)
+                        let is_group = self
+                            .stores
+                            .proxies
+                            .read(|store| store.get_by_name(name))
                             .map(|p| p.children.as_ref().is_some_and(|c| !c.is_empty()))
                             .unwrap_or(false);
                         (name.clone(), is_group, false)
@@ -533,12 +598,8 @@ impl Component for ProxyDetailComponent {
                     .unwrap_or_else(|| (proxy.name.clone(), proxy.children.is_some(), true));
                 self.test_proxy(name, is_group, reset_pending)?;
             }
-            KeyCode::Char('s') => {
-                Proxies::switch_sort_field(self.api.clone(), self.render_requester.clone())
-            }
-            KeyCode::Char('S') => {
-                Proxies::toggle_sort_direction(self.api.clone(), self.render_requester.clone())
-            }
+            KeyCode::Char('s') => self.change_sort_field(),
+            KeyCode::Char('S') => self.toggle_sort_direction(),
             KeyCode::Char('[')
                 if !self.loading.load(Ordering::Relaxed) && self.layers.len() > 1 =>
             {
@@ -556,7 +617,7 @@ impl Component for ProxyDetailComponent {
                 };
                 if let Some(proxy) = proxy_name
                     .map(String::as_str)
-                    .and_then(Proxies::get_by_name)
+                    .and_then(|name| self.stores.proxies.read(|store| store.get_by_name(name)))
                     .filter(|p| p.children.as_ref().is_some_and(|c| !c.is_empty()))
                 {
                     // Save current focus index before navigating
@@ -597,7 +658,11 @@ impl Component for ProxyDetailComponent {
             return Ok(());
         }
 
-        let proxy = match Proxies::get_by_name(self.proxy_name.as_ref().unwrap()) {
+        let proxy = match self
+            .stores
+            .proxies
+            .read(|store| store.get_by_name(self.proxy_name.as_ref().unwrap()))
+        {
             None => {
                 error!("Proxy not found: {}", self.proxy_name.as_ref().unwrap());
                 self.close();
@@ -635,7 +700,18 @@ mod tests {
     use tokio::sync::mpsc::unbounded_channel;
 
     use super::*;
-    use crate::utils::test::proxy_store_lock;
+    use crate::store::hub::StoreHub;
+    use crate::store::proxy::{Proxies, ProxyDetailSetting};
+
+    fn stores() -> ProxyStores {
+        let hub = StoreHub::default();
+        let detail_setting = hub.register(ProxyDetailSetting::default()).unwrap();
+        ProxyStores {
+            proxies: hub.register(Proxies::new(detail_setting.clone())).unwrap(),
+            proxy_setting: hub.register(ProxySetting::default()).unwrap(),
+            detail_setting,
+        }
+    }
 
     fn proxy(name: &str, children: Option<Vec<&str>>) -> Proxy {
         serde_json::from_value(json!({
@@ -671,31 +747,31 @@ mod tests {
 
     #[test]
     fn card_width_save_waits_four_ticks_after_last_change() {
-        let previous = ProxyDetailSetting::snapshot();
-        ProxyDetailSetting::update(|setting| setting.card_width = None);
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx());
+        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;
+        component.stores = stores();
+        component.stores.detail_setting.update(|setting| setting.card_width = None);
         component.card_area_width = 80;
 
         component.adjust_card_width(1);
         component.update(Action::Tick).unwrap();
         component.adjust_card_width(1);
-        assert_eq!(ProxyDetailSetting::snapshot().card_width, Some(27));
+        assert_eq!(component.stores.detail_setting.read(|setting| setting.card_width), Some(27));
         for _ in 0..3 {
             component.update(Action::Tick).unwrap();
             assert!(rx.try_recv().is_err());
         }
         component.update(Action::Tick).unwrap();
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyDetailLayoutChanged)));
-        ProxyDetailSetting::update(|setting| *setting = previous);
     }
 
     #[test]
     fn drop_flushes_pending_card_width_save() {
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx());
+        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;
+        component.stores = stores();
         component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
         drop(component);
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyDetailLayoutChanged)));
@@ -705,8 +781,9 @@ mod tests {
     #[test]
     fn quit_flushes_pending_card_width_save() {
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx());
+        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;
+        component.stores = stores();
         component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
         component.update(Action::Quit).unwrap();
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyDetailLayoutChanged)));
@@ -716,14 +793,16 @@ mod tests {
 
     #[test]
     fn i_inspects_focused_child_or_current_group() {
-        let _guard = proxy_store_lock();
+        let stores = stores();
         let proxies = IndexMap::from([
             ("group".to_string(), proxy("group", Some(vec!["node"]))),
             ("node".to_string(), proxy("node", None)),
         ]);
-        Proxies::global().write().unwrap().push(proxies);
+        let threshold = stores.proxy_setting.read(|setting| setting.latency_threshold);
+        stores.proxies.update(|store| store.push(proxies, threshold));
 
-        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx());
+        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
+        component.stores = stores;
         component.show = true;
         component.proxy_name = Some("group".to_string());
 
@@ -738,6 +817,5 @@ mod tests {
                 other => panic!("unexpected action: {other:?}"),
             }
         }
-        Proxies::global().write().unwrap().clear();
     }
 }

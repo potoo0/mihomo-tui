@@ -32,9 +32,9 @@ use crate::models::Connection;
 use crate::models::sort::SortDir;
 use crate::shortcut;
 use crate::store::connections::{
-    ALIVE_COLUMN_INDEX, CONNECTION_COLS, Connections, SourceIpAliasTextResolver,
+    ALIVE_COLUMN_INDEX, CONNECTION_COLS, Connections, ConnectionsSetting, SourceIpAliasTextResolver,
 };
-use crate::store::connections_setting::ConnectionsSetting;
+use crate::store::hub::StoreRef;
 use crate::ui::layout::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
 use crate::ui::render::RenderRequester;
 use crate::ui::scrollable_navigator::ScrollableNavigator;
@@ -50,6 +50,7 @@ const LAYOUT_SAVE_TICKS: u8 = 4;
 pub struct ConnectionsComponent {
     action_tx: UnboundedSender<Action>,
     render_requester: RenderRequester,
+    setting: StoreRef<ConnectionsSetting>,
 
     token: CancellationToken,
     conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>,
@@ -71,10 +72,21 @@ impl ConnectionsComponent {
     pub fn new(
         ctx: &ComponentContext,
         conns_rx: Arc<AsyncMutex<Receiver<Vec<Connection>>>>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let stores = &ctx.stores;
+        let ui = ctx.config.ui.as_ref();
+        let shared_store = stores.get_or_register(|| {
+            Ok(ui
+                .and_then(|ui| ui.connections.as_ref())
+                .map(ConnectionsSetting::try_from)
+                .transpose()?
+                .unwrap_or_default())
+        })?;
+
+        Ok(Self {
             action_tx: ctx.actions.clone(),
             render_requester: ctx.render.clone(),
+            setting: shared_store,
 
             token: CancellationToken::new(),
             conns_rx,
@@ -87,7 +99,12 @@ impl ConnectionsComponent {
             live_throbber: Default::default(),
             capture_mode: Default::default(),
             capture_throbber: Default::default(),
-        }
+        })
+    }
+
+    fn compute_view(&self) {
+        let setting = self.setting.snapshot();
+        self.store.compute_view(&setting);
     }
 
     fn load_connections(&mut self) -> Result<()> {
@@ -96,6 +113,7 @@ impl ConnectionsComponent {
         let capture_mode = Arc::clone(&self.capture_mode);
         let rx = Arc::clone(&self.conns_rx);
         let render_requester = self.render_requester.clone();
+        let setting = self.setting.clone();
 
         let token = self.token.clone();
         tokio::task::Builder::new().name("connections-loader").spawn(async move {
@@ -106,7 +124,8 @@ impl ConnectionsComponent {
                         Some(records) => {
                             store.push(capture_mode.load(Ordering::Relaxed), records);
                             if live_mode.load(Ordering::Relaxed) {
-                                store.compute_view();
+                                let setting = setting.snapshot();
+                                store.compute_view(&setting);
                                 render_requester.request_render();
                             }
                         },
@@ -179,7 +198,7 @@ impl ConnectionsComponent {
             Span::raw(TOP_TITLE_RIGHT),
         ]);
         let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
-        let setting = ConnectionsSetting::snapshot();
+        let setting = self.setting.snapshot();
         let sort = setting.query_state.sort;
         let header = setting
             .columns
@@ -242,13 +261,13 @@ impl ConnectionsComponent {
     fn handle_query_state_changed(&self) {
         // recompute view only when not in live mode, and has sorting specified
         if !self.live_mode.load(Ordering::Relaxed) {
-            self.store.compute_view();
+            self.compute_view();
         }
         let _ = self.action_tx.send(Action::ConnectionsSettingChanged);
     }
 
-    fn filter_placeholder() -> Option<Vec<&'static str>> {
-        let setting = ConnectionsSetting::snapshot();
+    fn filter_placeholder(&self) -> Option<Vec<&'static str>> {
+        let setting = self.setting.snapshot();
         filter_placeholder(
             setting.columns.iter().filter_map(|&idx| CONNECTION_COLS.get(idx)).map(|col| &col.col),
         )
@@ -312,9 +331,9 @@ impl ConnectionsComponent {
         for &(_, visible_index, width) in &updates {
             constraints[visible_index] = Constraint::Length(width);
         }
-        ConnectionsSetting::update(|setting| {
+        self.setting.update(|setting| {
             for &(index, _, width) in &updates {
-                setting.column_widths.insert(index, width);
+                Arc::make_mut(&mut setting.column_widths).insert(index, width);
             }
         });
         self.schedule_layout_save();
@@ -393,7 +412,7 @@ impl ConnectionsComponent {
     }
 
     fn adjust_column_width(&mut self, delta: i16) {
-        let setting = ConnectionsSetting::snapshot();
+        let setting = self.setting.snapshot();
         let Some(index) = Self::selected_column_index(&setting) else {
             return;
         };
@@ -405,8 +424,8 @@ impl ConnectionsComponent {
                 return;
             }
 
-            ConnectionsSetting::update(|setting| {
-                setting.column_widths.insert(index, next);
+            self.setting.update(|setting| {
+                Arc::make_mut(&mut setting.column_widths).insert(index, next);
             });
             self.schedule_layout_save();
         } else {
@@ -415,7 +434,7 @@ impl ConnectionsComponent {
     }
 
     fn reset_column_width(&mut self) {
-        let setting = ConnectionsSetting::snapshot();
+        let setting = self.setting.snapshot();
         let Some(index) = Self::selected_column_index(&setting) else {
             return;
         };
@@ -424,8 +443,8 @@ impl ConnectionsComponent {
             return;
         }
 
-        ConnectionsSetting::update(|setting| {
-            setting.column_widths.remove(&index);
+        self.setting.update(|setting| {
+            Arc::make_mut(&mut setting.column_widths).remove(&index);
         });
         self.schedule_layout_save();
     }
@@ -525,11 +544,11 @@ impl Component for ConnectionsComponent {
         match key.code {
             KeyCode::Esc => self.live_mode(true),
             KeyCode::Char('h') | KeyCode::Left => {
-                ConnectionsSetting::update(|setting| setting.query_state.sort_prev());
+                self.setting.update(|setting| setting.query_state.sort_prev());
                 self.handle_query_state_changed();
             }
             KeyCode::Char('l') | KeyCode::Right => {
-                ConnectionsSetting::update(|setting| {
+                self.setting.update(|setting| {
                     // When capture mode is off, the runtime Alive column is hidden with zero width.
                     // If sorting starts from None, advance once more so Right lands on the first
                     // visible user column instead of the hidden Alive column.
@@ -543,7 +562,7 @@ impl Component for ConnectionsComponent {
                 self.handle_query_state_changed();
             }
             KeyCode::Char('r') => {
-                ConnectionsSetting::update(|setting| setting.query_state.sort_rev());
+                self.setting.update(|setting| setting.query_state.sort_rev());
                 self.handle_query_state_changed();
             }
             KeyCode::Char('-') if key.modifiers == KeyModifiers::NONE => {
@@ -609,24 +628,20 @@ impl Component for ConnectionsComponent {
             }
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
-                ConnectionsSetting::update(|setting| setting.query_state.set_pattern(pattern));
+                self.setting.update(|setting| setting.query_state.set_pattern(pattern));
             }
-            Action::LanguageChanged(_) => self.store.compute_view(),
+            Action::LanguageChanged(_) => self.compute_view(),
             Action::TabSwitch(to) if to == self.id() => {
-                let pattern = ConnectionsSetting::global()
-                    .write()
-                    .unwrap()
-                    .query_state
-                    .pattern
-                    .as_ref()
-                    .map(|pattern| pattern.raw().into());
+                let pattern = self.setting.read(|setting| {
+                    setting.query_state.pattern.as_ref().map(|pattern| pattern.raw().into())
+                });
                 debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
-                self.action_tx.send(Action::FilterPlaceholder(Self::filter_placeholder()))?;
+                self.action_tx.send(Action::FilterPlaceholder(self.filter_placeholder()))?;
                 return Ok(Some(Action::FilterSet(pattern)));
             }
             Action::ConnectionsSettingChanged => {
-                self.store.compute_view();
-                self.action_tx.send(Action::FilterPlaceholder(Self::filter_placeholder()))?;
+                self.compute_view();
+                self.action_tx.send(Action::FilterPlaceholder(self.filter_placeholder()))?;
             }
             _ => {}
         }
@@ -646,6 +661,7 @@ impl Component for ConnectionsComponent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store::hub::StoreHub;
     use crate::store::query::QueryState;
 
     fn connection_col_index(id: &str) -> usize {
@@ -657,7 +673,13 @@ mod tests {
 
     fn component() -> ConnectionsComponent {
         let (_tx, rx) = tokio::sync::mpsc::channel(1);
-        ConnectionsComponent::new(&ComponentContext::test_ctx(), Arc::new(AsyncMutex::new(rx)))
+        let hub = StoreHub::default();
+        hub.register(ConnectionsSetting::default()).unwrap();
+        ConnectionsComponent::new(
+            &ComponentContext { stores: hub, ..ComponentContext::test_ctx() },
+            Arc::new(AsyncMutex::new(rx)),
+        )
+        .unwrap()
     }
 
     fn setting() -> ConnectionsSetting {
@@ -665,9 +687,9 @@ mod tests {
             vec![ALIVE_COLUMN_INDEX, connection_col_index("host"), connection_col_index("rule")];
         ConnectionsSetting {
             query_state: QueryState { pattern: None, sort: None, max_cols: columns.len() },
-            columns,
-            column_widths: HashMap::new(),
-            source_ip_alias: HashMap::new(),
+            columns: columns.into(),
+            column_widths: Default::default(),
+            source_ip_alias: Default::default(),
         }
     }
 
@@ -729,7 +751,7 @@ mod tests {
         let mut setting = setting();
         let host = connection_col_index("host");
         component.queue_column_width_delta(host, -3);
-        setting.column_widths.insert(host, 28);
+        Arc::make_mut(&mut setting.column_widths).insert(host, 28);
         let constraints = component.table_constraints(&setting);
 
         assert_eq!(
