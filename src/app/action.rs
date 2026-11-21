@@ -38,8 +38,8 @@ pub enum Action {
     ConnectionDetail(Arc<Connection>),
     ConnectionsSetting(Vec<String>),
     ConnectionsSettingChanged,
-    /// Sent when connection layout settings change without affecting the data view.
-    ConnectionsLayoutChanged,
+    /// Runtime settings changed; schedule persistence without refreshing data.
+    RuntimeConfigChanged,
     /// Sent when the filter pattern is changed via user input.
     FilterChanged(Option<String>),
     /// Programmatically sets the filter placeholder field list for the current tab.
@@ -49,12 +49,10 @@ pub enum Action {
     ConnectionTerminateRequest(Arc<Connection>),
     ConnectionBatchTerminateRequest(Vec<String>),
     ProxyDetail(String),
-    ProxyDetailLayoutChanged,
     ProxyInspect(Arc<Proxy>),
     ProxySetting,
     ProxySettingChanged,
     ProxyProviderDetail(String),
-    ProxyProviderDetailLayoutChanged,
     DnsQuery,
     DnsQueryResultReady,
 }

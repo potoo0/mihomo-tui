@@ -26,6 +26,7 @@ impl App {
                 .msg_box_size(45, 30),
             ),
             Ok(self_update::VersionStatus::Updated(version)) if restart => {
+                self.runtime_config_saver.flush()?;
                 info!(version, "TUI upgraded, trying to restart...");
                 println!("TUI upgraded to {version}. Trying to restart...");
                 match version_update::restart_app(&exe_path)? {

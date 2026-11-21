@@ -45,7 +45,6 @@ use crate::utils::columns::{TextResolver, filter_placeholder};
 const ROW_HEIGHT: usize = 1;
 const COLUMN_SPACING: u16 = 2;
 const TABLE_FLEX: Flex = Flex::Start;
-const LAYOUT_SAVE_TICKS: u8 = 4;
 
 pub struct ConnectionsComponent {
     action_tx: UnboundedSender<Action>,
@@ -59,7 +58,6 @@ pub struct ConnectionsComponent {
     navigator: ScrollableNavigator,
     table_state: TableState,
     pending_column_width_deltas: HashMap<usize, i16>,
-    layout_save_ticks_remaining: u8,
 
     live_mode: Arc<AtomicBool>,
     live_throbber: ThrobberState,
@@ -94,7 +92,6 @@ impl ConnectionsComponent {
             navigator: Default::default(),
             table_state: Default::default(),
             pending_column_width_deltas: Default::default(),
-            layout_save_ticks_remaining: 0,
             live_mode: Arc::new(AtomicBool::new(true)),
             live_throbber: Default::default(),
             capture_mode: Default::default(),
@@ -336,7 +333,7 @@ impl ConnectionsComponent {
                 Arc::make_mut(&mut setting.column_widths).insert(index, width);
             }
         });
-        self.schedule_layout_save();
+        self.notify_runtime_config_changed();
     }
 
     /// Resolves pending column-width deltas into updates for the current layout.
@@ -427,7 +424,7 @@ impl ConnectionsComponent {
             self.setting.update(|setting| {
                 Arc::make_mut(&mut setting.column_widths).insert(index, next);
             });
-            self.schedule_layout_save();
+            self.notify_runtime_config_changed();
         } else {
             self.queue_column_width_delta(index, delta);
         }
@@ -446,35 +443,11 @@ impl ConnectionsComponent {
         self.setting.update(|setting| {
             Arc::make_mut(&mut setting.column_widths).remove(&index);
         });
-        self.schedule_layout_save();
+        self.notify_runtime_config_changed();
     }
 
-    fn schedule_layout_save(&mut self) {
-        self.layout_save_ticks_remaining = LAYOUT_SAVE_TICKS;
-    }
-
-    fn tick_layout_save(&mut self) {
-        if self.layout_save_ticks_remaining == 0 {
-            return;
-        }
-
-        self.layout_save_ticks_remaining -= 1;
-        if self.layout_save_ticks_remaining == 0 {
-            self.notify_connections_layout_changed();
-        }
-    }
-
-    fn flush_layout_save(&mut self) {
-        if self.layout_save_ticks_remaining == 0 {
-            return;
-        }
-
-        self.layout_save_ticks_remaining = 0;
-        self.notify_connections_layout_changed();
-    }
-
-    fn notify_connections_layout_changed(&self) {
-        let _ = self.action_tx.send(Action::ConnectionsLayoutChanged);
+    fn notify_runtime_config_changed(&self) {
+        let _ = self.action_tx.send(Action::RuntimeConfigChanged);
     }
 }
 
@@ -616,15 +589,11 @@ impl Component for ConnectionsComponent {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::Quit => {
-                self.token.cancel();
-                self.flush_layout_save();
-            }
+            Action::Quit => self.token.cancel(),
             Action::Tick => {
                 if self.live_mode.load(Ordering::Relaxed) {
                     self.live_throbber.calc_next();
                 }
-                self.tick_layout_save();
             }
             Action::FilterChanged(pattern) => {
                 debug!("handle Action::FilterChanged, got pattern={pattern:?}");
@@ -661,6 +630,7 @@ impl Component for ConnectionsComponent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::sort::SortSpec;
     use crate::store::hub::StoreHub;
     use crate::store::query::QueryState;
 
@@ -708,41 +678,24 @@ mod tests {
     }
 
     #[test]
-    fn layout_save_waits_four_ticks_and_resets_countdown() {
+    fn column_width_changes_notify_immediately() {
         let mut component = component();
         let (action_tx, mut action_rx) = tokio::sync::mpsc::unbounded_channel();
         component.action_tx = action_tx;
+        component.setting.update(|setting| {
+            setting.query_state.sort = Some(SortSpec { col: 1, dir: Default::default() });
+            let index = setting.columns[1];
+            Arc::make_mut(&mut setting.column_widths).insert(index, 24);
+        });
 
-        component.schedule_layout_save();
-        for _ in 0..3 {
-            component.update(Action::Tick).unwrap();
-        }
-        assert!(action_rx.try_recv().is_err());
-
-        component.schedule_layout_save();
-        for _ in 0..3 {
-            component.update(Action::Tick).unwrap();
-        }
-        assert!(action_rx.try_recv().is_err());
-
+        component.adjust_column_width(1);
+        assert!(matches!(action_rx.try_recv(), Ok(Action::RuntimeConfigChanged)));
+        component.reset_column_width();
+        assert!(matches!(action_rx.try_recv(), Ok(Action::RuntimeConfigChanged)));
+        component.reset_column_width();
         component.update(Action::Tick).unwrap();
-        assert!(matches!(action_rx.try_recv(), Ok(Action::ConnectionsLayoutChanged)));
-
-        component.update(Action::Tick).unwrap();
-        assert!(action_rx.try_recv().is_err());
-    }
-
-    #[test]
-    fn quit_flushes_pending_layout_save() {
-        let mut component = component();
-        let (action_tx, mut action_rx) = tokio::sync::mpsc::unbounded_channel();
-        component.action_tx = action_tx;
-        component.schedule_layout_save();
-
         component.update(Action::Quit).unwrap();
-
-        assert!(matches!(action_rx.try_recv(), Ok(Action::ConnectionsLayoutChanged)));
-        assert_eq!(component.layout_save_ticks_remaining, 0);
+        assert!(action_rx.try_recv().is_err());
     }
 
     #[test]

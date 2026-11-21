@@ -30,7 +30,6 @@ use crate::ui::symbols::arrow;
 const CARD_HEIGHT: u16 = 3;
 const CARD_WIDTH: u16 = 25;
 const WIDTH_HINT_TICKS: u8 = 4;
-const CARD_WIDTH_SAVE_TICKS: u8 = 4;
 
 fn card_layout(area: Rect, preferred_width: u16) -> std::rc::Rc<[Rect]> {
     let width = preferred_width.max(MIN_CARD_WIDTH).min(area.width);
@@ -60,7 +59,6 @@ pub struct ProxyProviderDetailComponent {
     navigator: ScrollableNavigator,
     card_area_width: u16,
     width_hint_ticks: u8,
-    card_width_save_ticks: u8,
 }
 
 impl ProxyProviderDetailComponent {
@@ -83,7 +81,6 @@ impl ProxyProviderDetailComponent {
             navigator: Default::default(),
             card_area_width: Default::default(),
             width_hint_ticks: Default::default(),
-            card_width_save_ticks: Default::default(),
         })
     }
 
@@ -99,30 +96,8 @@ impl ProxyProviderDetailComponent {
         self.width_hint_ticks = WIDTH_HINT_TICKS;
         if previous != width {
             self.stores.detail_setting.update(|setting| setting.card_width = Some(width));
-            self.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
+            let _ = self.action_tx.send(Action::RuntimeConfigChanged);
         }
-    }
-
-    fn notify_card_width_save(&self) {
-        let _ = self.action_tx.send(Action::ProxyProviderDetailLayoutChanged);
-    }
-
-    fn tick_card_width_save(&mut self) {
-        if self.card_width_save_ticks == 0 {
-            return;
-        }
-        self.card_width_save_ticks -= 1;
-        if self.card_width_save_ticks == 0 {
-            self.notify_card_width_save();
-        }
-    }
-
-    fn flush_card_width_save(&mut self) {
-        if self.card_width_save_ticks == 0 {
-            return;
-        }
-        self.card_width_save_ticks = 0;
-        self.notify_card_width_save();
     }
 
     pub fn show(&mut self, provider_name: String) {
@@ -232,12 +207,14 @@ impl ProxyProviderDetailComponent {
 
     fn change_sort_field(&self) {
         if self.stores.providers.switch_sort_field() {
+            let _ = self.action_tx.send(Action::RuntimeConfigChanged);
             self.reload_after_sort();
         }
     }
 
     fn toggle_sort_direction(&self) {
         if self.stores.providers.toggle_sort_direction() {
+            let _ = self.action_tx.send(Action::RuntimeConfigChanged);
             self.reload_after_sort();
         }
     }
@@ -377,12 +354,6 @@ impl ProxyProviderDetailComponent {
     }
 }
 
-impl Drop for ProxyProviderDetailComponent {
-    fn drop(&mut self) {
-        self.flush_card_width_save();
-    }
-}
-
 impl PopupComponent for ProxyProviderDetailComponent {
     fn popup_id(&self) -> PopupId {
         PopupId::ProxyProviderDetail
@@ -467,10 +438,8 @@ impl Component for ProxyProviderDetailComponent {
     fn update(&mut self, action: Action) -> anyhow::Result<Option<Action>> {
         match action {
             Action::ProxyProviderDetail(name) => self.show(name),
-            Action::Quit => self.flush_card_width_save(),
             Action::Tick => {
                 self.width_hint_ticks = self.width_hint_ticks.saturating_sub(1);
-                self.tick_card_width_save();
                 if self.loading.load(Ordering::Relaxed) {
                     self.throbber.calc_next();
                 }
@@ -558,51 +527,44 @@ mod tests {
     }
 
     #[test]
-    fn card_width_save_waits_four_ticks_after_last_change() {
+    fn card_width_changes_notify_before_popup_is_dropped() {
         let (tx, mut rx) = unbounded_channel();
         let mut component =
             ProxyProviderDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;
         component.stores = stores();
-        component.stores.detail_setting.update(|setting| setting.card_width = None);
         component.card_area_width = 80;
 
         component.adjust_card_width(1);
-        component.update(Action::Tick).unwrap();
+        assert!(matches!(rx.try_recv(), Ok(Action::RuntimeConfigChanged)));
+        assert_eq!(component.stores.detail_setting.read(|setting| setting.card_width), Some(26));
+        component.card_area_width = 0;
         component.adjust_card_width(1);
-        assert_eq!(component.stores.detail_setting.read(|setting| setting.card_width), Some(27));
-        for _ in 0..3 {
-            component.update(Action::Tick).unwrap();
-            assert!(rx.try_recv().is_err());
-        }
         component.update(Action::Tick).unwrap();
-        assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
-    }
-
-    #[test]
-    fn drop_flushes_pending_card_width_save() {
-        let (tx, mut rx) = unbounded_channel();
-        let mut component =
-            ProxyProviderDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
-        component.action_tx = tx;
-        component.stores = stores();
-        component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
+        component.update(Action::Quit).unwrap();
         drop(component);
-        assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
         assert!(rx.try_recv().is_err());
     }
 
-    #[test]
-    fn quit_flushes_pending_card_width_save() {
+    #[tokio::test]
+    async fn sort_changes_notify_including_reset_to_default() {
         let (tx, mut rx) = unbounded_channel();
         let mut component =
             ProxyProviderDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;
         component.stores = stores();
-        component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
-        component.update(Action::Quit).unwrap();
-        assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
-        drop(component);
+
+        component.toggle_sort_direction();
+        assert!(rx.try_recv().is_err());
+        component.change_sort_field();
+        assert!(matches!(rx.try_recv(), Ok(Action::RuntimeConfigChanged)));
+        component.toggle_sort_direction();
+        assert!(matches!(rx.try_recv(), Ok(Action::RuntimeConfigChanged)));
+        component.change_sort_field();
+        assert!(matches!(rx.try_recv(), Ok(Action::RuntimeConfigChanged)));
+        component.change_sort_field();
+        assert!(matches!(rx.try_recv(), Ok(Action::RuntimeConfigChanged)));
+        assert!(component.stores.detail_setting.read(|setting| setting.sort.is_none()));
         assert!(rx.try_recv().is_err());
     }
 

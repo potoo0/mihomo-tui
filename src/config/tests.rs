@@ -170,7 +170,7 @@ proxy-setting:
   auto-terminate-connections: false
 "#;
     let runtime_config = r#"
-$schema-version: 1
+$schema-version: 2
 ui:
   connections:
     columns: ["Rule", "SourceIP"]
@@ -178,8 +178,10 @@ ui:
     source-ip-alias:
       192.168.1.10: phone
   proxy-detail:
+    sort: { field: Latency, dir: asc }
     card-width: 40
   proxy-provider-detail:
+    sort: { field: Latency, dir: asc }
     card-width: 32
 proxy-setting:
   test-url: https://example.com/runtime
@@ -204,10 +206,10 @@ proxy-setting:
     assert_eq!(aliases.len(), 1);
     let detail = config.ui.as_ref().unwrap().proxy_detail.as_ref().unwrap();
     assert_eq!(detail.card_width, Some(40));
-    assert_eq!(detail.sort.as_ref().map(|sort| sort.field), Some(ProxySortField::Name));
+    assert_eq!(detail.sort.as_ref().map(|sort| sort.field), Some(ProxySortField::Latency));
     let provider_detail = config.ui.as_ref().unwrap().proxy_provider_detail.as_ref().unwrap();
     assert_eq!(provider_detail.card_width, Some(32));
-    assert_eq!(provider_detail.sort.as_ref().map(|sort| sort.field), Some(ProxySortField::Name));
+    assert_eq!(provider_detail.sort.as_ref().map(|sort| sort.field), Some(ProxySortField::Latency));
     assert_eq!(config.proxy_setting.test_url, "https://example.com/runtime");
     assert_eq!(config.proxy_setting.test_timeout.get(), 3000);
     assert_eq!(config.proxy_setting.latency_threshold, LatencyThreshold { medium: 200, high: 800 });
@@ -238,7 +240,7 @@ fn test_disabled_runtime_config_skips_sidecar_and_can_be_reenabled() {
     let cfg_path = dir.path().join("config.yaml");
     let runtime_path = runtime::runtime_path_for(&cfg_path);
     fs::write(&cfg_path, "mihomo-api: http://localhost\nruntime-config: false\nproxy-setting:\n  test-url: https://example.com/base\n").unwrap();
-    let sidecar = "$schema-version: 1\nproxy-setting:\n  test-url: https://example.com/runtime\n";
+    let sidecar = "$schema-version: 2\nproxy-setting:\n  test-url: https://example.com/runtime\n";
     fs::write(&runtime_path, sidecar).unwrap();
 
     let mut config = load(Some(cfg_path)).unwrap();
@@ -272,7 +274,7 @@ proxy-setting:
   test-url: https://example.com/base
 "#;
     fs::write(&cfg_path.0, custom_config).unwrap();
-    fs::write(&runtime_path.0, "$schema-version: 2\n").unwrap();
+    fs::write(&runtime_path.0, "{ unmatched: [\n").unwrap();
 
     let mut config = load(Some(cfg_path.0.clone())).unwrap();
     config.try_apply_runtime();
@@ -284,7 +286,7 @@ proxy-setting:
 }
 
 #[test]
-fn test_config_runtime_empty_connections_does_not_override_config() {
+fn test_config_runtime_empty_connections_clears_base_settings() {
     let cfg_path = TempFile::new(temp_config_path());
     let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));
 
@@ -299,7 +301,7 @@ ui:
       192.168.1.10: phone
 "#;
     let runtime_config = r#"
-$schema-version: 1
+$schema-version: 2
 ui:
   connections: {}
 "#;
@@ -310,23 +312,21 @@ ui:
     config.try_apply_runtime();
 
     let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
-    assert_eq!(connections.columns.as_ref().unwrap(), &vec!["Host"]);
-    assert_eq!(
-        connections.sort.as_ref().map(|sort| (&sort.field, sort.dir)),
-        Some((&"Host".to_owned(), SortDir::Asc))
-    );
-    assert_eq!(
-        connections.source_ip_alias.as_ref().unwrap().get("192.168.1.10"),
-        Some(&"phone".to_owned())
-    );
-    assert_eq!(connections.column_widths.as_ref().unwrap()["Host"].get(), 20);
+    assert!(connections.columns.is_none());
+    assert!(connections.sort.is_none());
+    assert!(connections.source_ip_alias.is_none());
+    assert!(connections.column_widths.is_none());
+    let setting = ConnectionsSetting::try_from(connections).unwrap();
+    assert!(setting.query_state.sort.is_none());
+    assert!(setting.source_ip_alias.is_empty());
+    assert!(setting.column_widths.is_empty());
 
     drop(runtime_path);
     drop(cfg_path);
 }
 
 #[test]
-fn test_config_runtime_partial_connections_preserves_missing_fields() {
+fn test_config_runtime_partial_connections_clears_missing_fields() {
     let cfg_path = TempFile::new(temp_config_path());
     let runtime_path = TempFile::new(runtime::runtime_path_for(&cfg_path.0));
 
@@ -341,7 +341,7 @@ ui:
       192.168.1.10: phone
 "#;
     let runtime_config = r#"
-$schema-version: 1
+$schema-version: 2
 ui:
   connections:
     columns: ["Host", "Rule"]
@@ -355,10 +355,10 @@ ui:
 
     let connections = config.ui.as_ref().unwrap().connections.as_ref().unwrap();
     assert_eq!(connections.columns.as_ref().unwrap(), &vec!["Host", "Rule"]);
-    assert_eq!(connections.sort.as_ref().unwrap().field, "Host");
+    assert!(connections.sort.is_none());
     assert_eq!(connections.column_widths.as_ref().unwrap().len(), 1);
     assert_eq!(connections.column_widths.as_ref().unwrap()["Rule"].get(), 24);
-    assert_eq!(connections.source_ip_alias.as_ref().unwrap()["192.168.1.10"], "phone");
+    assert!(connections.source_ip_alias.is_none());
 }
 
 #[test]
@@ -375,7 +375,7 @@ ui:
       192.168.1.10: phone
 "#;
     let runtime_config = r#"
-$schema-version: 1
+$schema-version: 2
 ui:
   connections:
     column-widths: {}
@@ -1077,7 +1077,7 @@ ui:
   startup-tab: Logs
 "#;
     let runtime_config = r#"
-$schema-version: 1
+$schema-version: 2
 ui:
   startup-tab: Config
 "#;
