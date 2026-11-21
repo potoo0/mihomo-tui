@@ -7,7 +7,7 @@ use ratatui::style::Color;
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::models::Connection;
 use crate::ui::layout::{popup_area, top_title_line};
 use crate::ui::scrollbar::Scroller;
@@ -49,11 +49,13 @@ impl ConnectionDetailComponent {
     }
 }
 
-impl Component for ConnectionDetailComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::ConnectionDetail
+impl PopupComponent for ConnectionDetailComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::ConnectionDetail
     }
+}
 
+impl Component for ConnectionDetailComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
@@ -83,7 +85,7 @@ impl Component for ConnectionDetailComponent {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter => {
                 self.hide();
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             _ => {}
         };

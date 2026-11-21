@@ -24,7 +24,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 
 pub use self::context::ComponentContext;
-pub use self::id::{ComponentId, TABS};
+pub use self::id::{ComponentId, FocusTarget, PopupId, TABS};
 pub use self::root::RootComponent;
 use crate::app::action::Action;
 use crate::ui::shortcut::Shortcut;
@@ -32,20 +32,16 @@ use crate::ui::shortcut::Shortcut;
 const HORIZ_STEP: usize = 4;
 pub const MIN_CARD_WIDTH: u16 = 18;
 
+/// Identity shared by components and their erased trait objects.
+pub trait ComponentIdentity {
+    fn id(&self) -> ComponentId;
+}
+
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
 /// Implementors of this trait can be registered with the main application loop and will be able to
 /// receive events, update state, and be rendered on the screen.
-pub trait Component {
-    /// Get the unique identifier for the component.
-    fn id(&self) -> ComponentId;
-
-    /// Build the action that releases this component's focus.
-    #[must_use]
-    fn unfocus_action(&self) -> Action {
-        Action::Unfocus(self.id())
-    }
-
+pub trait Component: ComponentIdentity {
     /// Get a list of shortcuts associated with the component.
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![]
@@ -112,4 +108,23 @@ pub trait Component {
     ///
     /// * `Result<()>` - An Ok result or an error.
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()>;
+}
+
+/// A popup supplies its typed identity and can request its own closure.
+pub trait PopupComponent: Component {
+    fn popup_id(&self) -> PopupId;
+
+    /// Request closure and destruction of this popup, preserving lower layers.
+    #[must_use]
+    fn close_action(&self) -> Action {
+        self.popup_id().close_action()
+    }
+}
+
+// A popup defines its identity only through PopupId. The blanket implementation
+// prevents a second, inconsistent ComponentId implementation for that type.
+impl<T: PopupComponent> ComponentIdentity for T {
+    fn id(&self) -> ComponentId {
+        ComponentId::Popup(self.popup_id())
+    }
 }

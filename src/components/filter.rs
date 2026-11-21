@@ -11,7 +11,7 @@ use tracing::debug;
 use tui_input::Input;
 
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity, FocusTarget};
 use crate::i18n::column_title;
 use crate::shortcut;
 use crate::ui::input::input_request;
@@ -70,11 +70,13 @@ impl FilterComponent {
     }
 }
 
-impl Component for FilterComponent {
+impl ComponentIdentity for FilterComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Filter
     }
+}
 
+impl Component for FilterComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
@@ -107,7 +109,7 @@ impl Component for FilterComponent {
             KeyCode::Enter | KeyCode::Esc => {
                 self.is_active = false;
                 self.send()?;
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(Action::Unfocus(FocusTarget::Filter)));
             }
             _ => {
                 if let Some(req) = input_request(key) {
@@ -121,7 +123,7 @@ impl Component for FilterComponent {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::Focus(ComponentId::Filter) => self.is_active = true,
+            Action::Focus(FocusTarget::Filter) => self.is_active = true,
             Action::LanguageChanged(_) => {
                 self.shortcuts_full_width = shortcuts_title_width(&self.shortcuts());
             }

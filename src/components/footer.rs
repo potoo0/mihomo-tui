@@ -4,7 +4,7 @@ use ratatui::symbols::line::{BOTTOM_LEFT, BOTTOM_RIGHT};
 use ratatui::text::{Line, Span};
 
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity};
 use crate::ui::shortcut::{Shortcut, ShortcutMode, shortcuts_full_width};
 
 pub struct FooterComponent {
@@ -34,11 +34,13 @@ impl FooterComponent {
     }
 }
 
-impl Component for FooterComponent {
+impl ComponentIdentity for FooterComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Footer
     }
+}
 
+impl Component for FooterComponent {
     fn update(&mut self, action: Action) -> anyhow::Result<Option<Action>> {
         if let Action::Shortcuts(shortcuts) = action {
             self.full_width = shortcuts_full_width(&shortcuts, 2);

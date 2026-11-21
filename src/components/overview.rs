@@ -18,7 +18,7 @@ use tracing::{info, warn};
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity};
 use crate::models::{ConnectionStats, Memory, Traffic};
 use crate::ui::palette;
 use crate::ui::render::RenderRequester;
@@ -297,11 +297,13 @@ impl Drop for OverviewComponent {
     }
 }
 
-impl Component for OverviewComponent {
+impl ComponentIdentity for OverviewComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Overview
     }
+}
 
+impl Component for OverviewComponent {
     fn start(&mut self) -> Result<()> {
         self.watch_connection_stats()?;
         self.load_memory()?;

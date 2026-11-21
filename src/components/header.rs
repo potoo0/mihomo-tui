@@ -13,7 +13,7 @@ use tracing::{error, info, warn};
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId, TABS};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity, TABS};
 use crate::config::Config;
 use crate::ui::render::RenderRequester;
 use crate::ui::shortcut::DEFAULT_HL_COLOR;
@@ -41,6 +41,7 @@ pub struct HeaderComponent {
 
     version: Arc<Mutex<Option<String>>>,
     update_state: SharedVersionUpdateState,
+    refresh_task: Option<JoinHandle<()>>,
     release_checker: Option<JoinHandle<()>>,
 }
 
@@ -54,6 +55,7 @@ impl HeaderComponent {
             selected: Self::component_index(ComponentId::default()),
             version: Default::default(),
             update_state,
+            refresh_task: None,
             release_checker: None,
         }
     }
@@ -79,6 +81,26 @@ impl HeaderComponent {
                 }
             }
         })?;
+        Ok(())
+    }
+
+    fn refresh_versions(&mut self) -> anyhow::Result<()> {
+        if self.refresh_task.as_ref().is_some_and(|task| !task.is_finished()) {
+            return Ok(());
+        }
+
+        let api = Arc::clone(&self.api);
+        let mihomo_repo = self.config.mihomo_repo.clone();
+        let update_state = self.update_state.clone();
+        let render_requester = self.render_requester.clone();
+        let handle =
+            tokio::task::Builder::new().name("app-version-refresher").spawn(async move {
+                if let Err(e) = update_state.refresh(&api, &mihomo_repo).await {
+                    warn!(error = ?e, "Failed to refresh update status");
+                }
+                render_requester.request_render();
+            })?;
+        self.refresh_task = Some(handle);
         Ok(())
     }
 
@@ -157,17 +179,22 @@ impl HeaderComponent {
 
 impl Drop for HeaderComponent {
     fn drop(&mut self) {
+        if let Some(handle) = self.refresh_task.take() {
+            handle.abort();
+        }
         if let Some(handle) = self.release_checker.take() {
             handle.abort();
         }
     }
 }
 
-impl Component for HeaderComponent {
+impl ComponentIdentity for HeaderComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Header
     }
+}
 
+impl Component for HeaderComponent {
     fn start(&mut self) -> anyhow::Result<()> {
         if let Err(e) = self.start_release_checker() {
             warn!(error = ?e, "Failed to start release checker");
@@ -177,6 +204,7 @@ impl Component for HeaderComponent {
 
     fn update(&mut self, action: Action) -> anyhow::Result<Option<Action>> {
         match action {
+            Action::RefreshVersion => self.refresh_versions()?,
             Action::TabSwitch(to) => self.selected = Self::component_index(to),
             Action::CoreVersionUpdated(version) => {
                 *self.version.lock().unwrap() = Some(version.to_string())
@@ -313,6 +341,27 @@ fn visible_tab_range(widths: &[u16], selected: usize, mut overflow_width: u16) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn version_refresh_reuses_running_task_and_allows_retry_after_completion() {
+        let state = SharedVersionUpdateState::default();
+        // Keep this test on the no-network path inside refresh().
+        state.set_refreshing();
+        let mut header = HeaderComponent::new(&ComponentContext::test_ctx(), state);
+        header.update(Action::RefreshVersion).unwrap();
+        let first_id = header.refresh_task.as_ref().unwrap().id();
+
+        // The current-thread runtime cannot poll the task until we yield.
+        for _ in 0..10 {
+            header.update(Action::RefreshVersion).unwrap();
+            assert_eq!(header.refresh_task.as_ref().unwrap().id(), first_id);
+        }
+
+        header.refresh_task.as_mut().unwrap().await.unwrap();
+        header.update(Action::RefreshVersion).unwrap();
+        assert_ne!(header.refresh_task.as_ref().unwrap().id(), first_id);
+        header.refresh_task.as_mut().unwrap().await.unwrap();
+    }
 
     fn width_for(widths: &[u16], range: Range<usize>) -> u16 {
         widths[range.clone()].iter().sum::<u16>() + divider_width(range.len())

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::app::message::AppMessage;
-use crate::components::ComponentId;
+use crate::components::{ComponentId, FocusTarget};
 use crate::models::proxy::Proxy;
 use crate::models::{Connection, Version};
 use crate::ui::shortcut::Shortcut;
@@ -14,9 +14,16 @@ pub enum Action {
     LanguageChanged(crate::i18n::Language),
     Resize(u16, u16),
     Quit,
-    Focus(ComponentId),
-    /// Release focus from the component that emitted this action.
-    Unfocus(ComponentId),
+    Focus(FocusTarget),
+    /// Explicitly end interaction with the target.
+    ///
+    /// - `Filter`: leave input mode and retain the component.
+    /// - `Popup(id)`: **close the popup and destroy its component**, then restore focus to the
+    ///   underlying layer. Other popup instances remain alive.
+    ///
+    /// This is a command, not a notification that focus moved elsewhere.
+    /// Opening a child popup must only send `Focus(child)`, never `Unfocus(parent)`.
+    Unfocus(FocusTarget),
     Info(AppMessage),
     Error(AppMessage),
     AppUpdateRequest,

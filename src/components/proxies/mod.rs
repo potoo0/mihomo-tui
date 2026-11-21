@@ -21,7 +21,7 @@ pub(super) use self::inspect::ProxyInspectComponent;
 pub(super) use self::settings::ProxySettingComponent;
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity};
 use crate::config::LatencyThreshold;
 use crate::shortcut;
 use crate::store::proxies::{Proxies, ProxyView};
@@ -217,11 +217,13 @@ impl Drop for ProxiesComponent {
     }
 }
 
-impl Component for ProxiesComponent {
+impl ComponentIdentity for ProxiesComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Proxies
     }
+}
 
+impl Component for ProxiesComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![

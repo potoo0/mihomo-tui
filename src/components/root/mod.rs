@@ -36,7 +36,10 @@ use crate::components::proxy_providers::{ProxyProviderDetailComponent, ProxyProv
 use crate::components::rule_providers::RuleProvidersComponent;
 use crate::components::rules::RulesComponent;
 use crate::components::updates::UpdatesComponent;
-use crate::components::{Component, ComponentContext, ComponentId, TABS};
+use crate::components::{
+    Component, ComponentContext, ComponentId, ComponentIdentity, FocusTarget, PopupComponent,
+    PopupId, TABS,
+};
 use crate::shortcut;
 use crate::ui::layout::top_title_line;
 use crate::ui::render::RenderRequester;
@@ -62,8 +65,8 @@ pub struct RootComponent {
     /// UI priority (input & render): `msg_box` > `focused` > `popups` > normal.
     /// Message box lifecycle is owned and eagerly cleared by RootComponent
     msg_box: Option<MsgBoxComponent>,
-    focused: Option<ComponentId>,
-    popups: Vec<ComponentId>,
+    focused: Option<FocusTarget>,
+    popups: Vec<PopupId>,
 }
 
 impl RootComponent {
@@ -103,29 +106,14 @@ impl RootComponent {
             ComponentId::Connections => {
                 Box::new(ConnectionsComponent::new(&ctx, self.connections.conns_rx()))
             }
-            ComponentId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::new(&ctx)),
             ComponentId::Proxies => Box::new(ProxiesComponent::new(&ctx)),
-            ComponentId::ProxyDetail => Box::new(ProxyDetailComponent::new(&ctx)),
-            ComponentId::ProxyInspect => Box::new(ProxyInspectComponent::new(&ctx)),
-            ComponentId::ProxySetting => Box::new(ProxySettingComponent::new(&ctx)),
             ComponentId::ProxyProviders => Box::new(ProxyProvidersComponent::new(&ctx)),
-            ComponentId::ProxyProviderDetail => Box::new(ProxyProviderDetailComponent::new(&ctx)),
             ComponentId::Logs => Box::new(LogsComponent::new(&ctx)),
             ComponentId::Rules => Box::new(RulesComponent::new(&ctx)),
             ComponentId::RuleProviders => Box::new(RuleProvidersComponent::new(&ctx)),
             ComponentId::Config => Box::new(CoreConfigComponent::new(&ctx)),
-            ComponentId::Language => Box::new(LanguageComponent::new(&ctx)),
-            ComponentId::Updates => {
-                Box::new(UpdatesComponent::new(&ctx, self.update_state.clone()))
-            }
-            ComponentId::Help => Box::new(HelpComponent::new(&ctx)),
-            ComponentId::ConnectionDetail => Box::new(ConnectionDetailComponent::new(&ctx)),
-            ComponentId::ConnectionBatchTerminate => {
-                Box::new(ConnectionBatchTerminateComponent::new(&ctx))
-            }
-            ComponentId::ConnectionTerminate => Box::new(ConnectionTerminateComponent::new(&ctx)),
             ComponentId::Filter => Box::new(FilterComponent::new(&ctx)),
-            ComponentId::DnsQuery => Box::new(DnsQueryComponent::new(&ctx)),
+            ComponentId::Popup(id) => self.create_popup(id, &ctx),
             _ => bail!("unsupported component `{:?}`", id),
         };
 
@@ -135,7 +123,27 @@ impl RootComponent {
         Ok(component)
     }
 
-    fn get_or_start(&mut self, id: ComponentId) -> Result<&mut Box<dyn Component>> {
+    fn create_popup(&self, id: PopupId, ctx: &ComponentContext) -> Box<dyn PopupComponent> {
+        match id {
+            PopupId::Help => Box::new(HelpComponent::new(ctx)),
+            PopupId::Updates => Box::new(UpdatesComponent::new(ctx, self.update_state.clone())),
+            PopupId::Language => Box::new(LanguageComponent::new(ctx)),
+            PopupId::ConnectionDetail => Box::new(ConnectionDetailComponent::new(ctx)),
+            PopupId::ConnectionTerminate => Box::new(ConnectionTerminateComponent::new(ctx)),
+            PopupId::ConnectionBatchTerminate => {
+                Box::new(ConnectionBatchTerminateComponent::new(ctx))
+            }
+            PopupId::ConnectionsSetting => Box::new(ConnectionsSettingComponent::new(ctx)),
+            PopupId::ProxyDetail => Box::new(ProxyDetailComponent::new(ctx)),
+            PopupId::ProxyInspect => Box::new(ProxyInspectComponent::new(ctx)),
+            PopupId::ProxySetting => Box::new(ProxySettingComponent::new(ctx)),
+            PopupId::ProxyProviderDetail => Box::new(ProxyProviderDetailComponent::new(ctx)),
+            PopupId::DnsQuery => Box::new(DnsQueryComponent::new(ctx)),
+        }
+    }
+
+    fn get_or_start(&mut self, id: impl Into<ComponentId>) -> Result<&mut Box<dyn Component>> {
+        let id = id.into();
         // TODO: Once Polonius is stable, use `get_mut` as an early-return fast path to avoid
         // the second lookup for initialized components (NLL problem case #3).
         if !self.components.contains_key(&id) {
@@ -147,7 +155,7 @@ impl RootComponent {
         Ok(self.components.get_mut(&id).expect("component must exist after initialization"))
     }
 
-    fn open_popup(&mut self, id: ComponentId) -> Result<()> {
+    fn open_popup(&mut self, id: PopupId) -> Result<()> {
         info!(popup = ?id, depth = self.popups.len(), "Opening popup");
 
         // get and init component, send shortcuts of current tab to footer
@@ -158,30 +166,40 @@ impl RootComponent {
         tx.send(Action::Shortcuts(shortcuts))?;
 
         // focus the popup component
-        tx.send(Action::Focus(id))?;
+        tx.send(Action::Focus(FocusTarget::Popup(id)))?;
 
         Ok(())
     }
 
-    fn unfocus(&mut self, id: ComponentId) -> Result<()> {
-        let was_popup = self.popups.contains(&id);
-        self.popups.retain(|popup| *popup != id);
-        if self.focused != Some(id) {
+    fn close_popup(&mut self, id: PopupId) -> Result<()> {
+        if !self.popups.contains(&id) {
             return Ok(());
         }
 
-        if !was_popup {
-            self.focused = None;
+        let should_restore =
+            self.popups.last() == Some(&id) || self.focused == Some(FocusTarget::Popup(id));
+        self.popups.retain(|popup| *popup != id);
+        drop(self.components.remove(&ComponentId::Popup(id)));
+        self.render_requesters.remove(ComponentId::Popup(id));
+
+        if !should_restore {
             return Ok(());
         }
 
         let next_focus = self.popups.last().copied();
-        self.focused = next_focus;
-        let shortcuts = self.get_or_start(next_focus.unwrap_or(self.current_tab))?.shortcuts();
+        self.focused = next_focus.map(FocusTarget::Popup);
+        let shortcuts = if let Some(next) = next_focus {
+            self.components
+                .get(&ComponentId::Popup(next))
+                .context("popup stack must contain existing components")?
+                .shortcuts()
+        } else {
+            self.get_or_start(self.current_tab)?.shortcuts()
+        };
         let tx = &self.ctx.actions;
         tx.send(Action::Shortcuts(shortcuts))?;
         if let Some(next_focus) = next_focus {
-            tx.send(Action::Focus(next_focus))?;
+            tx.send(Action::Focus(FocusTarget::Popup(next_focus)))?;
         }
         Ok(())
     }
@@ -270,11 +288,13 @@ impl RootComponent {
     }
 }
 
-impl Component for RootComponent {
+impl ComponentIdentity for RootComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Root
     }
+}
 
+impl Component for RootComponent {
     fn start(&mut self) -> Result<()> {
         for component in self.components.values_mut() {
             component.start()?;
@@ -352,24 +372,43 @@ impl Component for RootComponent {
                 }
                 action_tx.send(Action::Shortcuts(shortcuts))?;
             }
-            Action::AppUpdateRequest => self.open_popup(ComponentId::Updates)?,
-            Action::Help => self.open_popup(ComponentId::Help)?,
-            Action::LanguageSelect => self.open_popup(ComponentId::Language)?,
-            Action::ConnectionDetail(_) => self.open_popup(ComponentId::ConnectionDetail)?,
-            Action::ConnectionsSetting(_) => self.open_popup(ComponentId::ConnectionsSetting)?,
-            Action::ProxyDetail(_) => self.open_popup(ComponentId::ProxyDetail)?,
-            Action::ProxyInspect(_) => self.open_popup(ComponentId::ProxyInspect)?,
-            Action::ProxySetting => self.open_popup(ComponentId::ProxySetting)?,
-            Action::ProxyProviderDetail(_) => self.open_popup(ComponentId::ProxyProviderDetail)?,
+            Action::AppUpdateRequest => self.open_popup(PopupId::Updates)?,
+            Action::Help => self.open_popup(PopupId::Help)?,
+            Action::LanguageSelect => self.open_popup(PopupId::Language)?,
+            Action::ConnectionDetail(_) => self.open_popup(PopupId::ConnectionDetail)?,
+            Action::ConnectionsSetting(_) => self.open_popup(PopupId::ConnectionsSetting)?,
+            Action::ProxyDetail(_) => self.open_popup(PopupId::ProxyDetail)?,
+            Action::ProxyInspect(_) => self.open_popup(PopupId::ProxyInspect)?,
+            Action::ProxySetting => self.open_popup(PopupId::ProxySetting)?,
+            Action::ProxyProviderDetail(_) => self.open_popup(PopupId::ProxyProviderDetail)?,
             Action::ConnectionTerminateRequest(_) => {
-                self.open_popup(ComponentId::ConnectionTerminate)?
+                self.open_popup(PopupId::ConnectionTerminate)?
             }
             Action::ConnectionBatchTerminateRequest(_) => {
-                self.open_popup(ComponentId::ConnectionBatchTerminate)?
+                self.open_popup(PopupId::ConnectionBatchTerminate)?
             }
-            Action::DnsQuery => self.open_popup(ComponentId::DnsQuery)?,
-            Action::Focus(focused) => self.focused = Some(focused),
-            Action::Unfocus(id) => self.unfocus(id)?,
+            Action::DnsQuery => self.open_popup(PopupId::DnsQuery)?,
+            Action::Focus(target) => {
+                // Queued focus requests must respect the current popup stack.
+                let allowed = match target {
+                    FocusTarget::Filter => self.popups.is_empty(),
+                    FocusTarget::Popup(id) => self.popups.last() == Some(&id),
+                };
+                if !allowed {
+                    return Ok(None);
+                }
+                self.focused = Some(target);
+            }
+            Action::Unfocus(target) => {
+                match target {
+                    FocusTarget::Filter if self.focused == Some(FocusTarget::Filter) => {
+                        self.focused = None;
+                    }
+                    FocusTarget::Filter => (),
+                    FocusTarget::Popup(id) => self.close_popup(id)?,
+                }
+                return Ok(None);
+            }
             _ => {}
         }
 

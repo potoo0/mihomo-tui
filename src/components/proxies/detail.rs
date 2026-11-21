@@ -14,7 +14,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId, MIN_CARD_WIDTH};
+use crate::components::{Component, ComponentContext, MIN_CARD_WIDTH, PopupComponent, PopupId};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
 use crate::shortcut;
@@ -155,7 +155,7 @@ impl ProxyDetailComponent {
 
     fn close(&mut self) {
         self.hide();
-        let _ = self.action_tx.send(self.unfocus_action());
+        let _ = self.action_tx.send(self.close_action());
     }
 
     /// Sync navigation stack with proxy name:
@@ -416,11 +416,19 @@ impl ProxyDetailComponent {
     }
 }
 
-impl Component for ProxyDetailComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::ProxyDetail
+impl Drop for ProxyDetailComponent {
+    fn drop(&mut self) {
+        self.flush_card_width_save();
     }
+}
 
+impl PopupComponent for ProxyDetailComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::ProxyDetail
+    }
+}
+
+impl Component for ProxyDetailComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![Fragment::key("q"), Fragment::sep("/"), Fragment::key("Esc")]),
@@ -666,11 +674,9 @@ mod tests {
         let previous = ProxyDetailSetting::snapshot();
         ProxyDetailSetting::update(|setting| setting.card_width = None);
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyDetailComponent {
-            action_tx: tx,
-            card_area_width: 80,
-            ..ProxyDetailComponent::new(&ComponentContext::test_ctx())
-        };
+        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx());
+        component.action_tx = tx;
+        component.card_area_width = 80;
 
         component.adjust_card_width(1);
         component.update(Action::Tick).unwrap();
@@ -686,15 +692,26 @@ mod tests {
     }
 
     #[test]
+    fn drop_flushes_pending_card_width_save() {
+        let (tx, mut rx) = unbounded_channel();
+        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx());
+        component.action_tx = tx;
+        component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
+        drop(component);
+        assert!(matches!(rx.try_recv(), Ok(Action::ProxyDetailLayoutChanged)));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
     fn quit_flushes_pending_card_width_save() {
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyDetailComponent {
-            action_tx: tx,
-            card_width_save_ticks: CARD_WIDTH_SAVE_TICKS,
-            ..ProxyDetailComponent::new(&ComponentContext::test_ctx())
-        };
+        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx());
+        component.action_tx = tx;
+        component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
         component.update(Action::Quit).unwrap();
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyDetailLayoutChanged)));
+        drop(component);
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]
@@ -706,11 +723,9 @@ mod tests {
         ]);
         Proxies::global().write().unwrap().push(proxies);
 
-        let mut component = ProxyDetailComponent {
-            show: true,
-            proxy_name: Some("group".to_string()),
-            ..ProxyDetailComponent::new(&ComponentContext::test_ctx())
-        };
+        let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx());
+        component.show = true;
+        component.proxy_name = Some("group".to_string());
 
         for (focused, expected_name) in [(Some(0), "node"), (None, "group")] {
             component.navigator.focused = focused;

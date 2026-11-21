@@ -12,7 +12,7 @@ use tracing::{debug, info};
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::shortcut;
 use crate::ui::layout::{popup_area, top_title_line};
 use crate::ui::render::RenderRequester;
@@ -137,11 +137,13 @@ impl Drop for ConnectionBatchTerminateComponent {
     }
 }
 
-impl Component for ConnectionBatchTerminateComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::ConnectionBatchTerminate
+impl PopupComponent for ConnectionBatchTerminateComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::ConnectionBatchTerminate
     }
+}
 
+impl Component for ConnectionBatchTerminateComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             shortcut!("yes", 0, Fragment::key(key::ENTER)),
@@ -155,7 +157,7 @@ impl Component for ConnectionBatchTerminateComponent {
                 if self.phase.read().unwrap().ne(&Phase::Terminating) =>
             {
                 self.hide();
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             KeyCode::Char('y') | KeyCode::Enter
                 if *self.phase.read().unwrap() == Phase::Confirm =>

@@ -8,9 +8,8 @@ use ratatui::widgets::{Block, BorderType, Clear, List, ListItem, ListState, Para
 use strum::{EnumCount, IntoEnumIterator};
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Component, ComponentId};
 use crate::app::action::Action;
-use crate::components::ComponentContext;
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::i18n::{self, Language};
 use crate::ui::layout::{popup_area, top_title_line};
 use crate::ui::scrollbar::Scroller;
@@ -41,11 +40,13 @@ impl LanguageComponent {
     }
 }
 
-impl Component for LanguageComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::Language
+impl PopupComponent for LanguageComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::Language
     }
+}
 
+impl Component for LanguageComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         let mut shortcuts = vec![
             Shortcut::new(vec![
@@ -88,7 +89,7 @@ impl Component for LanguageComponent {
                 self.selected = Language::COUNT - 1
             }
             KeyCode::Esc | KeyCode::Char('q') => {
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             KeyCode::Enter => {
                 let language = Language::iter().nth(self.selected).unwrap();
@@ -97,7 +98,7 @@ impl Component for LanguageComponent {
                 if language != i18n::language() {
                     self.action_tx.send(Action::LanguageChanged(language))?;
                 }
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             _ => {}
         }
@@ -177,6 +178,7 @@ mod tests {
     use crossterm::event::KeyModifiers;
 
     use super::*;
+    use crate::components::FocusTarget;
 
     #[test]
     fn cancel_does_not_apply_candidate() {
@@ -185,7 +187,7 @@ mod tests {
         for key in [KeyCode::Esc, KeyCode::Char('q')] {
             assert!(matches!(
                 component.handle_key_event(KeyEvent::new(key, KeyModifiers::NONE)).unwrap(),
-                Some(Action::Unfocus(ComponentId::Language))
+                Some(Action::Unfocus(FocusTarget::Popup(PopupId::Language)))
             ));
         }
     }

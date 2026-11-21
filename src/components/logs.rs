@@ -19,7 +19,9 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId, HORIZ_STEP};
+use crate::components::{
+    Component, ComponentContext, ComponentId, ComponentIdentity, FocusTarget, HORIZ_STEP,
+};
 use crate::models::LogLevel;
 use crate::store::logs::{LOG_COLS, Logs};
 use crate::ui::layout::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
@@ -245,11 +247,13 @@ impl Drop for LogsComponent {
     }
 }
 
-impl Component for LogsComponent {
+impl ComponentIdentity for LogsComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Logs
     }
+}
 
+impl Component for LogsComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
@@ -284,7 +288,7 @@ impl Component for LogsComponent {
         }
         match key.code {
             KeyCode::Esc => self.live_mode(true),
-            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Filter))),
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(FocusTarget::Filter))),
             KeyCode::Char('e') => self.set_level(LogLevel::Error),
             KeyCode::Char('w') => self.set_level(LogLevel::Warning),
             KeyCode::Char('i') => self.set_level(LogLevel::Info),

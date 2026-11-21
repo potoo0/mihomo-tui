@@ -1,38 +1,154 @@
+use std::sync::{Arc, Mutex};
+
 use futures_util::FutureExt;
+use strum::IntoEnumIterator;
 use tokio::sync::mpsc::{self, unbounded_channel};
 
 use super::*;
 use crate::app::RenderScheduler;
 
-struct TestPopup(ComponentId);
-
-impl Component for TestPopup {
-    fn id(&self) -> ComponentId {
-        self.0
-    }
-
-    fn draw(&mut self, _frame: &mut Frame, _area: Rect) -> Result<()> {
-        Ok(())
-    }
-}
-
-fn popup_test_root() -> (RootComponent, tokio::sync::mpsc::UnboundedReceiver<Action>) {
-    let (tx, rx) = unbounded_channel();
-    let ctx = ComponentContext { actions: tx, ..ComponentContext::test_ctx() };
-    let mut root = RootComponent::new(&ctx, ComponentId::Proxies);
-    for id in [
-        ComponentId::Proxies,
-        ComponentId::Help,
-        ComponentId::Language,
-        ComponentId::ProxyDetail,
-        ComponentId::ProxyInspect,
-    ] {
-        root.components.insert(id, Box::new(TestPopup(id)));
-    }
+fn test_root() -> (RootComponent, mpsc::UnboundedReceiver<Action>) {
+    let (actions, rx) = unbounded_channel();
+    let ctx = ComponentContext { actions, ..ComponentContext::test_ctx() };
+    let mut root = RootComponent::new(&ctx, ComponentId::Logs);
+    // Construct the page without starting network tasks.
+    root.components.insert(ComponentId::Logs, Box::new(LogsComponent::new(&ctx)));
+    root.components.insert(ComponentId::Filter, Box::new(FilterComponent::new(&ctx)));
     (root, rx)
 }
+
+fn dispatch(root: &mut RootComponent, rx: &mut mpsc::UnboundedReceiver<Action>, action: Action) {
+    root.update(action).unwrap();
+    // Apply queued focus and shortcut actions, just as the application loop does.
+    while let Ok(action) = rx.try_recv() {
+        root.update(action).unwrap();
+    }
+}
+
 fn has_render_request(scheduler: &RenderScheduler) -> bool {
     scheduler.wait_for_request().now_or_never().is_some()
+}
+
+#[test]
+fn popup_factory_matches_requested_id() {
+    let ctx = ComponentContext::test_ctx();
+    let root = RootComponent::new(&ctx, ComponentId::Logs);
+    for id in PopupId::iter() {
+        assert_eq!(root.create_popup(id, &ctx).popup_id(), id);
+    }
+}
+
+#[test]
+fn nested_popups_keep_the_parent_and_recreate_after_close() {
+    let (mut root, mut rx) = test_root();
+    let parent_id = ComponentId::Popup(PopupId::Help);
+    let child_id = ComponentId::Popup(PopupId::Language);
+
+    dispatch(&mut root, &mut rx, Action::Help);
+    let parent_instance = std::ptr::from_ref(root.components[&parent_id].as_ref());
+    dispatch(&mut root, &mut rx, Action::LanguageSelect);
+    dispatch(&mut root, &mut rx, Action::LanguageSelect);
+    assert_eq!(root.popups, [PopupId::Help, PopupId::Language]);
+
+    dispatch(&mut root, &mut rx, PopupId::Language.close_action());
+    assert!(!root.components.contains_key(&child_id));
+    assert_eq!(root.focused, Some(FocusTarget::Popup(PopupId::Help)));
+    assert!(std::ptr::eq(parent_instance, root.components[&parent_id].as_ref()));
+
+    // Duplicate closure and delayed focus must not recreate the released child.
+    dispatch(&mut root, &mut rx, PopupId::Language.close_action());
+    dispatch(&mut root, &mut rx, Action::Focus(FocusTarget::Popup(PopupId::Language)));
+    assert!(!root.components.contains_key(&child_id));
+    assert_eq!(root.popups, [PopupId::Help]);
+
+    dispatch(&mut root, &mut rx, PopupId::Help.close_action());
+    assert!(!root.components.contains_key(&parent_id));
+    assert!(root.popups.is_empty());
+    assert_eq!(root.focused, None);
+
+    dispatch(&mut root, &mut rx, Action::Help);
+    assert!(root.components.contains_key(&parent_id));
+    assert_eq!(root.popups, [PopupId::Help]);
+}
+
+#[test]
+fn closing_a_lower_popup_and_dismissing_a_message_keep_the_top_popup() {
+    let (mut root, mut rx) = test_root();
+    dispatch(&mut root, &mut rx, Action::Help);
+    dispatch(&mut root, &mut rx, Action::LanguageSelect);
+
+    dispatch(&mut root, &mut rx, PopupId::Help.close_action());
+    assert!(!root.components.contains_key(&ComponentId::Popup(PopupId::Help)));
+    assert_eq!(root.popups, [PopupId::Language]);
+    assert_eq!(root.focused, Some(FocusTarget::Popup(PopupId::Language)));
+
+    dispatch(&mut root, &mut rx, Action::Error(("titles.error", "test error").into()));
+    root.handle_key_event(KeyEvent::from(KeyCode::Esc)).unwrap();
+    assert!(root.msg_box.is_none());
+    assert!(root.components.contains_key(&ComponentId::Popup(PopupId::Language)));
+    assert_eq!(root.popups, [PopupId::Language]);
+    assert_eq!(root.focused, Some(FocusTarget::Popup(PopupId::Language)));
+}
+
+#[test]
+fn only_valid_focus_commands_reach_components() {
+    struct FocusObserver(Arc<Mutex<Vec<FocusTarget>>>);
+
+    impl ComponentIdentity for FocusObserver {
+        fn id(&self) -> ComponentId {
+            ComponentId::Logs
+        }
+    }
+
+    impl Component for FocusObserver {
+        fn update(&mut self, action: Action) -> Result<Option<Action>> {
+            match action {
+                Action::Focus(target) => self.0.lock().unwrap().push(target),
+                Action::Unfocus(_) => panic!("Root must consume Unfocus commands"),
+                _ => {}
+            }
+            Ok(None)
+        }
+
+        fn draw(&mut self, _frame: &mut Frame, _area: Rect) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    let (mut root, mut rx) = test_root();
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    root.components.insert(ComponentId::Logs, Box::new(FocusObserver(Arc::clone(&observed))));
+    dispatch(&mut root, &mut rx, Action::Help);
+    dispatch(&mut root, &mut rx, Action::LanguageSelect);
+    dispatch(&mut root, &mut rx, Action::Focus(FocusTarget::Popup(PopupId::Help)));
+    dispatch(&mut root, &mut rx, PopupId::Language.close_action());
+    dispatch(&mut root, &mut rx, Action::Focus(FocusTarget::Popup(PopupId::Language)));
+    dispatch(&mut root, &mut rx, Action::Focus(FocusTarget::Filter));
+    dispatch(&mut root, &mut rx, Action::Unfocus(FocusTarget::Filter));
+    assert_eq!(root.focused, Some(FocusTarget::Popup(PopupId::Help)));
+    assert_eq!(observed.lock().unwrap().len(), 3);
+
+    let close = root.handle_key_event(KeyEvent::from(KeyCode::Esc)).unwrap().unwrap();
+    assert!(matches!(close, Action::Unfocus(FocusTarget::Popup(PopupId::Help))));
+    dispatch(&mut root, &mut rx, close);
+    assert!(root.popups.is_empty());
+    assert!(!root.components.contains_key(&ComponentId::Popup(PopupId::Help)));
+
+    dispatch(&mut root, &mut rx, Action::Focus(FocusTarget::Filter));
+    assert_eq!(root.focused, Some(FocusTarget::Filter));
+    dispatch(&mut root, &mut rx, Action::Unfocus(FocusTarget::Filter));
+
+    assert!(root.components.contains_key(&ComponentId::Filter));
+    assert_eq!(root.focused, None);
+    assert_eq!(
+        *observed.lock().unwrap(),
+        [
+            FocusTarget::Popup(PopupId::Help),
+            FocusTarget::Popup(PopupId::Language),
+            FocusTarget::Popup(PopupId::Help),
+            FocusTarget::Filter,
+        ]
+    );
 }
 
 #[test]
@@ -57,21 +173,6 @@ fn constructing_stream_tabs_does_not_require_a_runtime_or_start_work() {
 }
 
 #[test]
-fn lazy_component_is_reused_and_can_be_recreated_after_retirement() {
-    let mut root = RootComponent::new(&ComponentContext::test_ctx(), ComponentId::Logs);
-    assert!(!root.components.contains_key(&ComponentId::Help));
-
-    root.get_or_start(ComponentId::Help).unwrap();
-    let first = root.components[&ComponentId::Help].as_ref() as *const dyn Component;
-    let second = root.get_or_start(ComponentId::Help).unwrap().as_ref() as *const dyn Component;
-    assert!(std::ptr::eq(first, second));
-
-    root.destroy_component(ComponentId::Help);
-    assert!(!root.components.contains_key(&ComponentId::Help));
-    assert_eq!(root.get_or_start(ComponentId::Help).unwrap().id(), ComponentId::Help);
-}
-
-#[test]
 fn language_shortcut_respects_focused_input_and_modifiers() {
     let mut root = RootComponent::new(&ComponentContext::test_ctx(), ComponentId::Proxies);
     assert!(matches!(
@@ -80,7 +181,7 @@ fn language_shortcut_respects_focused_input_and_modifiers() {
     ));
 
     root.components.insert(ComponentId::Filter, Box::new(FilterComponent::new(&root.ctx)));
-    root.focused = Some(ComponentId::Filter);
+    root.focused = Some(FocusTarget::Filter);
     assert!(
         root.handle_key_event(KeyEvent::new(KeyCode::Char('L'), KeyModifiers::NONE))
             .unwrap()
@@ -97,147 +198,24 @@ fn language_shortcut_respects_focused_input_and_modifiers() {
     ));
 }
 
-#[test]
-fn popup_open_stack_cases() {
-    struct Case {
-        name: &'static str,
-        initial: &'static [ComponentId],
-        opened: &'static [ComponentId],
-        expected: &'static [ComponentId],
-    }
+#[tokio::test]
+async fn version_refresh_still_runs_after_updates_popup_is_released() {
+    let scheduler = RenderScheduler::default();
+    let (actions, _rx) = unbounded_channel();
+    let ctx =
+        ComponentContext { actions, render: scheduler.requester(), ..ComponentContext::test_ctx() };
+    let mut root = RootComponent::new(&ctx, ComponentId::Logs);
+    root.components.insert(ComponentId::Logs, Box::new(LogsComponent::new(&ctx)));
+    root.update(Action::AppUpdateRequest).unwrap();
+    root.update(Action::Unfocus(FocusTarget::Popup(PopupId::Updates))).unwrap();
+    assert!(!root.components.contains_key(&ComponentId::Popup(PopupId::Updates)));
 
-    let cases = [
-        Case {
-            name: "opening a popup on an empty stack",
-            initial: &[],
-            opened: &[ComponentId::Help],
-            expected: &[ComponentId::Help],
-        },
-        Case {
-            name: "opening the active popup again",
-            initial: &[],
-            opened: &[ComponentId::Help, ComponentId::Help],
-            expected: &[ComponentId::Help],
-        },
-        Case {
-            name: "opening a child popup",
-            initial: &[ComponentId::Help],
-            opened: &[ComponentId::Language],
-            expected: &[ComponentId::Help, ComponentId::Language],
-        },
-        Case {
-            name: "reopening a popup below the active popup",
-            initial: &[ComponentId::Help, ComponentId::Language],
-            opened: &[ComponentId::Help],
-            expected: &[ComponentId::Language, ComponentId::Help],
-        },
-    ];
-
-    for case in cases {
-        let (mut root, _rx) = popup_test_root();
-        root.popups = case.initial.to_vec();
-        for id in case.opened {
-            root.open_popup(*id).unwrap();
-        }
-        assert_eq!(root.popups, case.expected, "{}", case.name);
-    }
-}
-
-#[test]
-fn popup_unfocus_stack_cases() {
-    struct Case {
-        name: &'static str,
-        initial: &'static [ComponentId],
-        focused: ComponentId,
-        unfocused: ComponentId,
-        expected: &'static [ComponentId],
-        expected_focused: Option<ComponentId>,
-        expect_shortcuts: bool,
-        expected_focus: Option<ComponentId>,
-    }
-
-    let cases = [
-        Case {
-            name: "closing a child popup",
-            initial: &[ComponentId::Help, ComponentId::Language],
-            focused: ComponentId::Language,
-            unfocused: ComponentId::Language,
-            expected: &[ComponentId::Help],
-            expected_focused: Some(ComponentId::Help),
-            expect_shortcuts: true,
-            expected_focus: Some(ComponentId::Help),
-        },
-        Case {
-            name: "closing the last popup",
-            initial: &[ComponentId::Help],
-            focused: ComponentId::Help,
-            unfocused: ComponentId::Help,
-            expected: &[],
-            expected_focused: None,
-            expect_shortcuts: true,
-            expected_focus: None,
-        },
-        Case {
-            name: "unfocusing a non-popup component",
-            initial: &[ComponentId::Help],
-            focused: ComponentId::Filter,
-            unfocused: ComponentId::Filter,
-            expected: &[ComponentId::Help],
-            expected_focused: None,
-            expect_shortcuts: false,
-            expected_focus: None,
-        },
-        Case {
-            name: "closing an inactive popup below the focused popup",
-            initial: &[ComponentId::ProxyDetail, ComponentId::Language],
-            focused: ComponentId::Language,
-            unfocused: ComponentId::ProxyDetail,
-            expected: &[ComponentId::Language],
-            expected_focused: Some(ComponentId::Language),
-            expect_shortcuts: false,
-            expected_focus: None,
-        },
-        Case {
-            name: "closing proxy inspect",
-            initial: &[ComponentId::ProxyDetail, ComponentId::ProxyInspect],
-            focused: ComponentId::ProxyInspect,
-            unfocused: ComponentId::ProxyInspect,
-            expected: &[ComponentId::ProxyDetail],
-            expected_focused: Some(ComponentId::ProxyDetail),
-            expect_shortcuts: true,
-            expected_focus: Some(ComponentId::ProxyDetail),
-        },
-    ];
-
-    for case in cases {
-        let (mut root, mut rx) = popup_test_root();
-        root.popups = case.initial.to_vec();
-        root.focused = Some(case.focused);
-
-        root.update(Action::Unfocus(case.unfocused)).unwrap();
-
-        assert_eq!(root.popups, case.expected, "{}: popup stack", case.name);
-        assert_eq!(root.focused, case.expected_focused, "{}: focused state", case.name);
-        if case.expect_shortcuts {
-            assert!(
-                matches!(rx.try_recv(), Ok(Action::Shortcuts(_))),
-                "{}: expected shortcut refresh",
-                case.name
-            );
-        } else {
-            assert!(rx.try_recv().is_err(), "{}: unexpected shortcut refresh", case.name);
-        }
-        match case.expected_focus {
-            Some(focus) => {
-                assert!(
-                    matches!(rx.try_recv(), Ok(Action::Focus(id)) if id == focus),
-                    "{}: expected focus {focus:?}",
-                    case.name
-                );
-            }
-            None => {
-                assert!(rx.try_recv().is_err(), "{}: unexpected focus action", case.name);
-            }
-        }
-    }
+    // An in-progress refresh is a deterministic no-network path. Header
+    // must still handle the action and notify rendering when it completes.
+    root.update_state.lock().app = crate::version_update::VersionStatus::Refreshing;
+    root.update(Action::RefreshVersion).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(1), scheduler.wait_for_request())
+        .await
+        .unwrap();
+    assert!(!root.components.contains_key(&ComponentId::Popup(PopupId::Updates)));
 }

@@ -15,7 +15,7 @@ use tracing::{debug, error, info};
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::models::Connection;
 use crate::shortcut;
 use crate::store::connections::CONNECTION_COLS;
@@ -132,11 +132,13 @@ impl Drop for ConnectionTerminateComponent {
     }
 }
 
-impl Component for ConnectionTerminateComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::ConnectionTerminate
+impl PopupComponent for ConnectionTerminateComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::ConnectionTerminate
     }
+}
 
+impl Component for ConnectionTerminateComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             shortcut!("yes", 0, Fragment::key(key::ENTER)),
@@ -150,7 +152,7 @@ impl Component for ConnectionTerminateComponent {
                 if self.phase.read().unwrap().ne(&Phase::Terminating) =>
             {
                 self.hide();
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             KeyCode::Char('y') | KeyCode::Enter => {
                 let should_term =

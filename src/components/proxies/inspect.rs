@@ -7,7 +7,7 @@ use ratatui::style::Color;
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::models::proxy::Proxy;
 use crate::ui::layout::{popup_area, top_title_line};
 use crate::ui::scrollbar::Scroller;
@@ -48,11 +48,13 @@ impl ProxyInspectComponent {
     }
 }
 
-impl Component for ProxyInspectComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::ProxyInspect
+impl PopupComponent for ProxyInspectComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::ProxyInspect
     }
+}
 
+impl Component for ProxyInspectComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
@@ -86,7 +88,7 @@ impl Component for ProxyInspectComponent {
             KeyCode::Char('i') | KeyCode::Char('q') | KeyCode::Esc | KeyCode::Enter
         ) {
             self.hide();
-            return Ok(Some(self.unfocus_action()));
+            return Ok(Some(self.close_action()));
         }
         Ok(None)
     }
@@ -128,6 +130,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::components::FocusTarget;
 
     fn proxy() -> Proxy {
         serde_json::from_value(json!({
@@ -150,7 +153,10 @@ mod tests {
 
             let action =
                 component.handle_key_event(KeyEvent::new(close_key, KeyModifiers::NONE)).unwrap();
-            assert!(matches!(action, Some(Action::Unfocus(ComponentId::ProxyInspect))));
+            assert!(matches!(
+                action,
+                Some(Action::Unfocus(FocusTarget::Popup(PopupId::ProxyInspect)))
+            ));
             assert!(!component.show);
         }
     }

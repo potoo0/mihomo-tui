@@ -9,14 +9,12 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
-use super::{Component, ComponentId};
 use crate::api::Api;
 use crate::app::action::Action;
 use crate::app::message::AppMessage;
-use crate::components::ComponentContext;
-use crate::config::Config;
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::shortcut;
 use crate::ui::layout::{popup_area, top_title_line};
 use crate::ui::render::RenderRequester;
@@ -45,7 +43,6 @@ impl UpdateTarget {
 
 pub struct UpdatesComponent {
     api: Arc<Api>,
-    config: Arc<Config>,
     action_tx: UnboundedSender<Action>,
     render_requester: RenderRequester,
 
@@ -58,7 +55,6 @@ impl UpdatesComponent {
     pub fn new(ctx: &ComponentContext, update_state: SharedVersionUpdateState) -> Self {
         Self {
             api: Arc::clone(&ctx.api),
-            config: Arc::clone(&ctx.config),
             action_tx: ctx.actions.clone(),
             render_requester: ctx.render.clone(),
 
@@ -79,21 +75,6 @@ impl UpdatesComponent {
 
     fn toggle_auto_restart(&mut self) {
         self.auto_restart = !self.auto_restart;
-    }
-
-    fn refresh_versions(&self) -> Result<()> {
-        let api = Arc::clone(&self.api);
-        let mihomo_repo = self.config.mihomo_repo.clone();
-        debug!("refresh versions");
-        let update_state = self.update_state.clone();
-        let render_requester = self.render_requester.clone();
-        tokio::task::Builder::new().name("app-version-refresher").spawn(async move {
-            if let Err(e) = update_state.refresh(&api, &mihomo_repo).await {
-                warn!(error = ?e, "Failed to refresh update status");
-            }
-            render_requester.request_render();
-        })?;
-        Ok(())
     }
 
     fn update_core(&self, previous: VersionStatus) -> Result<()> {
@@ -212,11 +193,13 @@ impl UpdatesComponent {
     }
 }
 
-impl Component for UpdatesComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::Updates
+impl PopupComponent for UpdatesComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::Updates
     }
+}
 
+impl Component for UpdatesComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![Fragment::key("q"), Fragment::sep("/"), Fragment::key("Esc")]),
@@ -234,11 +217,11 @@ impl Component for UpdatesComponent {
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             KeyCode::Tab | KeyCode::BackTab => self.selected = self.selected.next(),
             KeyCode::Char(' ') => self.toggle_auto_restart(),
-            KeyCode::Char('r') => self.refresh_versions()?,
+            KeyCode::Char('r') => return Ok(Some(Action::RefreshVersion)),
             KeyCode::Enter => return self.trigger_selected(),
             _ => (),
         }
@@ -247,10 +230,8 @@ impl Component for UpdatesComponent {
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        match action {
-            Action::AppUpdateRequest => self.show(),
-            Action::RefreshVersion => self.refresh_versions()?,
-            _ => (),
+        if matches!(action, Action::AppUpdateRequest) {
+            self.show();
         }
 
         Ok(None)
@@ -293,5 +274,24 @@ fn status_style(status: &VersionStatus) -> Style {
         VersionStatus::Refreshing => Style::default().fg(Color::LightCyan),
         VersionStatus::Unknown => Style::default().fg(Color::DarkGray),
         VersionStatus::UpToDate { .. } => Style::default().fg(Color::Green),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::FocusTarget;
+
+    #[test]
+    fn refresh_is_requested_as_an_action_without_starting_popup_owned_work() {
+        let mut component = UpdatesComponent::new(
+            &ComponentContext::test_ctx(),
+            SharedVersionUpdateState::default(),
+        );
+        // No Tokio runtime: the popup must delegate refresh to the application.
+        let action = component.handle_key_event(KeyEvent::from(KeyCode::Char('r'))).unwrap();
+        assert!(matches!(action, Some(Action::RefreshVersion)));
+        let action = component.handle_key_event(KeyEvent::from(KeyCode::Esc)).unwrap();
+        assert!(matches!(action, Some(Action::Unfocus(FocusTarget::Popup(PopupId::Updates)))));
     }
 }

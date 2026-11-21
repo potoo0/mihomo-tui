@@ -18,7 +18,7 @@ use tracing::{error, info, warn};
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity};
 use crate::config::Config;
 use crate::models::CoreConfig;
 use crate::shortcut;
@@ -455,11 +455,13 @@ impl CoreConfigComponent {
     }
 }
 
-impl Component for CoreConfigComponent {
+impl ComponentIdentity for CoreConfigComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Config
     }
+}
 
+impl Component for CoreConfigComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         match self.active_pane {
             ActivePane::Editor => {

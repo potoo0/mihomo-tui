@@ -14,7 +14,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tui_input::Input;
 
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::config::LatencyThreshold;
 use crate::store::proxy_setting::ProxySetting;
 use crate::ui::input::input_request;
@@ -202,11 +202,13 @@ impl ProxySettingComponent {
     }
 }
 
-impl Component for ProxySettingComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::ProxySetting
+impl PopupComponent for ProxySettingComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::ProxySetting
     }
+}
 
+impl Component for ProxySettingComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.cancel").hidden()]),
@@ -238,7 +240,7 @@ impl Component for ProxySettingComponent {
         match key.code {
             KeyCode::Esc => {
                 self.hide();
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             KeyCode::Tab => self.next(),
             KeyCode::BackTab => self.prev(),
@@ -247,7 +249,7 @@ impl Component for ProxySettingComponent {
                 if self.error.is_none() {
                     self.hide();
                     self.action_tx.send(Action::ProxySettingChanged)?;
-                    return Ok(Some(self.unfocus_action()));
+                    return Ok(Some(self.close_action()));
                 }
             }
             _ => {

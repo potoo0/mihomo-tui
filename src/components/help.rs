@@ -7,9 +7,8 @@ use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
 
-use super::{Component, ComponentId};
 use crate::app::action::Action;
-use crate::components::ComponentContext;
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::config::get_config_path;
 use crate::config::runtime::runtime_path_for;
 use crate::ui::layout::{popup_area, top_title_line};
@@ -232,11 +231,13 @@ impl HelpComponent {
     }
 }
 
-impl Component for HelpComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::Help
+impl PopupComponent for HelpComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::Help
     }
+}
 
+impl Component for HelpComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
@@ -277,7 +278,7 @@ impl Component for HelpComponent {
                     self.horizontal_offset.saturating_add(1).min(self.max_horizontal_offset);
             }
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('?') => {
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             _ => (),
         }

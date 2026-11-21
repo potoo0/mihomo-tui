@@ -18,7 +18,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId, HORIZ_STEP};
+use crate::components::{Component, ComponentContext, HORIZ_STEP, PopupComponent, PopupId};
 use crate::models::dns::{DnsAnswer, DnsQueryRequest, DnsQueryResponse, DnsRecordType};
 use crate::ui::input::{KeyOutcome, input_request};
 use crate::ui::layout::{padded_title, popup_area, top_title_line};
@@ -373,11 +373,13 @@ impl DnsQueryComponent {
     }
 }
 
-impl Component for DnsQueryComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::DnsQuery
+impl PopupComponent for DnsQueryComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::DnsQuery
     }
+}
 
+impl Component for DnsQueryComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         let mut shortcuts = Vec::with_capacity(4);
         shortcuts.extend(vec![
@@ -422,7 +424,7 @@ impl Component for DnsQueryComponent {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
                 self.hide();
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             KeyCode::Tab => self.set_focused(self.focused.next()),
             KeyCode::BackTab => self.set_focused(self.focused.prev()),
@@ -436,7 +438,6 @@ impl Component for DnsQueryComponent {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::DnsQuery => self.show(),
-            Action::Focus(ComponentId::DnsQuery) => self.show(),
             Action::DnsQueryResultReady => self.poll_result(),
             Action::Tick if self.loading.load(Ordering::Relaxed) => self.throbber.calc_next(),
             _ => (),
@@ -476,9 +477,23 @@ mod tests {
     use tokio::sync::mpsc::unbounded_channel;
 
     use super::*;
+    use crate::components::FocusTarget;
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
+    }
+
+    #[test]
+    fn restoring_focus_preserves_the_active_input_field() {
+        let mut component = DnsQueryComponent::new(&ComponentContext::test_ctx());
+        component.update(Action::DnsQuery).unwrap();
+        component.handle_key_event(key(KeyCode::Tab)).unwrap();
+        assert_eq!(component.focused, FocusedField::Name);
+
+        component.update(Action::Focus(FocusTarget::Popup(component.popup_id()))).unwrap();
+
+        assert!(component.show);
+        assert_eq!(component.focused, FocusedField::Name);
     }
 
     #[test]
@@ -591,5 +606,23 @@ mod tests {
         assert!(!component.loading.load(Ordering::Relaxed));
         assert!(component.answers.is_empty());
         assert!(component.error.is_none());
+    }
+
+    #[test]
+    fn releasing_popup_disconnects_pending_results_from_reopened_instance() {
+        let ctx = ComponentContext::test_ctx();
+        let mut component = DnsQueryComponent::new(&ctx);
+        let (tx, rx) = oneshot::channel();
+        component.result_rx = Some(rx);
+        component.loading.store(true, Ordering::Relaxed);
+        drop(component);
+
+        let mut reopened = DnsQueryComponent::new(&ctx);
+        assert!(tx.send(Ok(DnsQueryResponse { answer: Vec::new() })).is_err());
+        // A queued completion notification carries no result into a new popup.
+        reopened.update(Action::DnsQueryResultReady).unwrap();
+        assert!(reopened.result_rx.is_none());
+        assert!(!reopened.loading.load(Ordering::Relaxed));
+        assert!(reopened.answers.is_empty());
     }
 }

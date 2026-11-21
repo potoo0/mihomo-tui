@@ -13,7 +13,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use self::columns::ColumnsSettingPane;
 use self::source_ip_alias::SourceIpAliasSettingPane;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, PopupComponent, PopupId};
 use crate::models::sort::SortSpec;
 use crate::store::connections::with_alive_column;
 use crate::store::connections_setting::ConnectionsSetting;
@@ -183,7 +183,7 @@ impl ConnectionsSettingComponent {
 
         self.hide();
         self.action_tx.send(Action::ConnectionsSettingChanged)?;
-        Ok(Some(self.unfocus_action()))
+        Ok(Some(self.close_action()))
     }
 
     fn render_settings(&mut self, frame: &mut Frame, area: Rect) {
@@ -209,11 +209,13 @@ impl ConnectionsSettingComponent {
     }
 }
 
-impl Component for ConnectionsSettingComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::ConnectionsSetting
+impl PopupComponent for ConnectionsSettingComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::ConnectionsSetting
     }
+}
 
+impl Component for ConnectionsSettingComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
@@ -234,7 +236,7 @@ impl Component for ConnectionsSettingComponent {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => {
                 self.hide();
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             KeyCode::Tab => self.switch_pane(self.active_pane.next()),
             KeyCode::BackTab => self.switch_pane(self.active_pane.prev()),

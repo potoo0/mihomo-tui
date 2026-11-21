@@ -19,7 +19,7 @@ use tracing::{error, info, warn};
 pub(super) use self::detail::ProxyProviderDetailComponent;
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity};
 use crate::shortcut;
 use crate::store::proxy_providers::{ProviderView, ProxyProviders};
 use crate::ui::layout::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT, space_between_many};
@@ -282,11 +282,13 @@ impl Drop for ProxyProvidersComponent {
     }
 }
 
-impl Component for ProxyProvidersComponent {
+impl ComponentIdentity for ProxyProvidersComponent {
     fn id(&self) -> ComponentId {
         ComponentId::ProxyProviders
     }
+}
 
+impl Component for ProxyProvidersComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![

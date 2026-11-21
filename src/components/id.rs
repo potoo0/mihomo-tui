@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use strum::IntoStaticStr;
 
+use crate::app::action::Action;
+
 /// Header tabs in display order; index is used for tab navigation and shortcuts
 pub const TABS: [ComponentId; 8] = [
     ComponentId::Overview,
@@ -16,31 +18,20 @@ pub const TABS: [ComponentId; 8] = [
 
 #[derive(Default, PartialEq, Debug, IntoStaticStr, Clone, Eq, Hash, Copy)]
 pub enum ComponentId {
-    Help,
     Root,
     Header,
     Footer,
-    Updates,
     #[default]
     Overview,
-    ConnectionDetail,
-    ConnectionTerminate,
-    ConnectionBatchTerminate,
     Connections,
-    ConnectionsSetting,
     Proxies,
-    ProxyDetail,
-    ProxyInspect,
-    ProxySetting,
     ProxyProviders,
-    ProxyProviderDetail,
     Logs,
     Rules,
     RuleProviders,
     Config,
-    Language,
-    DnsQuery,
     Filter,
+    Popup(PopupId),
 }
 
 impl FromStr for ComponentId {
@@ -83,6 +74,56 @@ impl ComponentId {
     }
 
     pub fn full_name(self) -> &'static str {
-        self.into()
+        match self {
+            Self::Popup(id) => id.into(),
+            _ => self.into(),
+        }
+    }
+}
+
+/// Popup identities are separate from tabs and persistent components.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IntoStaticStr)]
+#[cfg_attr(test, derive(strum::EnumIter))]
+pub enum PopupId {
+    Help,
+    Updates,
+    Language,
+    ConnectionDetail,
+    ConnectionTerminate,
+    ConnectionBatchTerminate,
+    ConnectionsSetting,
+    ProxyDetail,
+    ProxyInspect,
+    ProxySetting,
+    ProxyProviderDetail,
+    DnsQuery,
+}
+
+impl PopupId {
+    /// Request closure and destruction, rather than temporary loss of focus.
+    pub fn close_action(self) -> Action {
+        Action::Unfocus(FocusTarget::Popup(self))
+    }
+}
+
+impl From<PopupId> for ComponentId {
+    fn from(id: PopupId) -> Self {
+        Self::Popup(id)
+    }
+}
+
+/// Only the filter and popup layers can receive exclusive input focus.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusTarget {
+    Filter,
+    Popup(PopupId),
+}
+
+impl From<FocusTarget> for ComponentId {
+    fn from(target: FocusTarget) -> Self {
+        match target {
+            FocusTarget::Filter => Self::Filter,
+            FocusTarget::Popup(id) => Self::Popup(id),
+        }
     }
 }

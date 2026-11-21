@@ -12,7 +12,7 @@ use tracing::{error, info};
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId, MIN_CARD_WIDTH};
+use crate::components::{Component, ComponentContext, MIN_CARD_WIDTH, PopupComponent, PopupId};
 use crate::config::LatencyThreshold;
 use crate::models::proxy::Proxy;
 use crate::shortcut;
@@ -134,7 +134,7 @@ impl ProxyProviderDetailComponent {
 
     fn close(&mut self) {
         self.hide();
-        let _ = self.action_tx.send(self.unfocus_action());
+        let _ = self.action_tx.send(self.close_action());
     }
 
     fn load_providers(&self) -> anyhow::Result<()> {
@@ -327,11 +327,19 @@ impl ProxyProviderDetailComponent {
     }
 }
 
-impl Component for ProxyProviderDetailComponent {
-    fn id(&self) -> ComponentId {
-        ComponentId::ProxyProviderDetail
+impl Drop for ProxyProviderDetailComponent {
+    fn drop(&mut self) {
+        self.flush_card_width_save();
     }
+}
 
+impl PopupComponent for ProxyProviderDetailComponent {
+    fn popup_id(&self) -> PopupId {
+        PopupId::ProxyProviderDetail
+    }
+}
+
+impl Component for ProxyProviderDetailComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![Fragment::key("q"), Fragment::sep("/"), Fragment::key("Esc")]),
@@ -376,7 +384,7 @@ impl Component for ProxyProviderDetailComponent {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => {
                 self.hide();
-                return Ok(Some(self.unfocus_action()));
+                return Ok(Some(self.close_action()));
             }
             KeyCode::Char('i') => {
                 let focused = self.navigator.focused;
@@ -498,11 +506,9 @@ mod tests {
         let previous = ProxyProviderDetailSetting::snapshot();
         ProxyProviderDetailSetting::update(|setting| setting.card_width = None);
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyProviderDetailComponent {
-            action_tx: tx,
-            card_area_width: 80,
-            ..ProxyProviderDetailComponent::new(&ComponentContext::test_ctx())
-        };
+        let mut component = ProxyProviderDetailComponent::new(&ComponentContext::test_ctx());
+        component.action_tx = tx;
+        component.card_area_width = 80;
 
         component.adjust_card_width(1);
         component.update(Action::Tick).unwrap();
@@ -518,15 +524,26 @@ mod tests {
     }
 
     #[test]
+    fn drop_flushes_pending_card_width_save() {
+        let (tx, mut rx) = unbounded_channel();
+        let mut component = ProxyProviderDetailComponent::new(&ComponentContext::test_ctx());
+        component.action_tx = tx;
+        component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
+        drop(component);
+        assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
     fn quit_flushes_pending_card_width_save() {
         let (tx, mut rx) = unbounded_channel();
-        let mut component = ProxyProviderDetailComponent {
-            action_tx: tx,
-            card_width_save_ticks: CARD_WIDTH_SAVE_TICKS,
-            ..ProxyProviderDetailComponent::new(&ComponentContext::test_ctx())
-        };
+        let mut component = ProxyProviderDetailComponent::new(&ComponentContext::test_ctx());
+        component.action_tx = tx;
+        component.card_width_save_ticks = CARD_WIDTH_SAVE_TICKS;
         component.update(Action::Quit).unwrap();
         assert!(matches!(rx.try_recv(), Ok(Action::ProxyProviderDetailLayoutChanged)));
+        drop(component);
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]
@@ -548,11 +565,9 @@ mod tests {
             .unwrap()
             .push(IndexMap::from([("provider".to_string(), provider)]));
 
-        let mut component = ProxyProviderDetailComponent {
-            show: true,
-            provider_name: Some("provider".to_string()),
-            ..ProxyProviderDetailComponent::new(&ComponentContext::test_ctx())
-        };
+        let mut component = ProxyProviderDetailComponent::new(&ComponentContext::test_ctx());
+        component.show = true;
+        component.provider_name = Some("provider".to_string());
         component.navigator.focused = Some(0);
         let action = component
             .handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE))

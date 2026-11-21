@@ -14,7 +14,7 @@ use tracing::{debug, error, info};
 
 use crate::api::Api;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity, FocusTarget};
 use crate::shortcut;
 use crate::store::rule_providers::{RULE_PROVIDER_COLS, RuleProviders};
 use crate::ui::layout::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
@@ -244,11 +244,13 @@ impl Drop for RuleProvidersComponent {
     }
 }
 
-impl Component for RuleProvidersComponent {
+impl ComponentIdentity for RuleProvidersComponent {
     fn id(&self) -> ComponentId {
         ComponentId::RuleProviders
     }
+}
 
+impl Component for RuleProvidersComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
@@ -279,7 +281,7 @@ impl Component for RuleProvidersComponent {
         }
         match key.code {
             KeyCode::Esc => self.navigator.focused = None,
-            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Filter))),
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(FocusTarget::Filter))),
             KeyCode::Char('r') => self.load_rule_providers()?,
             KeyCode::Char('u') => self.update_rule_providers(),
             _ => (),

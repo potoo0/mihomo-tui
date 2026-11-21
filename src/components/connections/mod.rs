@@ -27,7 +27,7 @@ pub(super) use self::detail::ConnectionDetailComponent;
 pub(super) use self::settings::ConnectionsSettingComponent;
 pub(super) use self::terminate::ConnectionTerminateComponent;
 use crate::app::action::Action;
-use crate::components::{Component, ComponentContext, ComponentId};
+use crate::components::{Component, ComponentContext, ComponentId, ComponentIdentity, FocusTarget};
 use crate::models::Connection;
 use crate::models::sort::SortDir;
 use crate::shortcut;
@@ -466,11 +466,13 @@ impl Drop for ConnectionsComponent {
     }
 }
 
-impl Component for ConnectionsComponent {
+impl ComponentIdentity for ConnectionsComponent {
     fn id(&self) -> ComponentId {
         ComponentId::Connections
     }
+}
 
+impl Component for ConnectionsComponent {
     fn shortcuts(&self) -> Vec<Shortcut> {
         vec![
             Shortcut::new(vec![
@@ -575,7 +577,7 @@ impl Component for ConnectionsComponent {
             KeyCode::Char('c') => self
                 .capture_mode
                 .store(!self.capture_mode.load(Ordering::Relaxed), Ordering::Relaxed),
-            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Filter))),
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(FocusTarget::Filter))),
             KeyCode::Enter => {
                 let action = self
                     .navigator
