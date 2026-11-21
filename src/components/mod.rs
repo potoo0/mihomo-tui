@@ -1,132 +1,36 @@
-mod connection_batch_terminate_component;
-mod connection_detail_component;
-mod connection_terminate_component;
-mod connections_component;
-mod connections_setting_component;
-mod core_config_component;
-mod dns_query_component;
-mod filter_component;
-mod footer_component;
-mod header_component;
-mod help_component;
-mod language_component;
-mod logs_component;
-mod msg_box_component;
-mod overview_component;
-mod proxies_component;
-mod proxy_detail_component;
-mod proxy_inspect_component;
-mod proxy_provider_detail_component;
-mod proxy_providers_component;
-mod proxy_setting_component;
-pub mod root_component;
-mod rule_providers_component;
-mod rules_component;
-mod updates_component;
-
-use std::str::FromStr;
-use std::sync::Arc;
+mod connections;
+mod context;
+mod core_config;
+mod dns_query;
+mod filter;
+mod footer;
+mod header;
+mod help;
+mod id;
+mod language;
+mod logs;
+mod msg_box;
+mod overview;
+mod proxies;
+mod proxy_providers;
+mod root;
+mod rule_providers;
+mod rules;
+mod updates;
 
 use anyhow::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use strum::IntoStaticStr;
-use tokio::sync::mpsc::UnboundedSender;
 
-use crate::action::Action;
-use crate::api::Api;
-use crate::config::Config;
-use crate::render::RenderRequester;
-use crate::widgets::shortcut::Shortcut;
+pub use self::context::ComponentContext;
+pub use self::id::{ComponentId, TABS};
+pub use self::root::RootComponent;
+use crate::app::action::Action;
+use crate::ui::shortcut::Shortcut;
 
 const HORIZ_STEP: usize = 4;
 pub const MIN_CARD_WIDTH: u16 = 18;
-
-/// Header tabs in display order; index is used for tab navigation and shortcuts
-pub const TABS: [ComponentId; 8] = [
-    ComponentId::Overview,
-    ComponentId::Connections,
-    ComponentId::Proxies,
-    ComponentId::ProxyProviders,
-    ComponentId::Logs,
-    ComponentId::Rules,
-    ComponentId::RuleProviders,
-    ComponentId::Config,
-];
-
-#[derive(Default, PartialEq, Debug, IntoStaticStr, Clone, Eq, Hash, Copy)]
-pub enum ComponentId {
-    Help,
-    Root,
-    Header,
-    Footer,
-    Updates,
-    #[default]
-    Overview,
-    ConnectionDetail,
-    ConnectionTerminate,
-    ConnectionBatchTerminate,
-    Connections,
-    ConnectionsSetting,
-    Proxies,
-    ProxyDetail,
-    ProxyInspect,
-    ProxySetting,
-    ProxyProviders,
-    ProxyProviderDetail,
-    Logs,
-    Rules,
-    RuleProviders,
-    Config,
-    Language,
-    DnsQuery,
-    Filter,
-}
-
-impl FromStr for ComponentId {
-    type Err = ();
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        TABS.iter()
-            .copied()
-            .find(|id| {
-                id.full_name().eq_ignore_ascii_case(value)
-                    || id.short_name().is_some_and(|name| name.eq_ignore_ascii_case(value))
-            })
-            .ok_or(())
-    }
-}
-
-impl ComponentId {
-    pub fn supports_filter(self) -> bool {
-        matches!(
-            self,
-            ComponentId::Connections
-                | ComponentId::Logs
-                | ComponentId::Rules
-                | ComponentId::RuleProviders
-        )
-    }
-
-    pub fn short_name(self) -> Option<&'static str> {
-        match self {
-            ComponentId::Overview => Some("View"),
-            ComponentId::Connections => Some("Conn"),
-            ComponentId::Proxies => Some("Pxy"),
-            ComponentId::ProxyProviders => Some("Pxy-Pr"),
-            ComponentId::Logs => Some("Log"),
-            ComponentId::Rules => Some("Rule"),
-            ComponentId::RuleProviders => Some("R-Pr"),
-            ComponentId::Config => Some("Cfg"),
-            _ => Some(self.full_name()),
-        }
-    }
-
-    pub fn full_name(self) -> &'static str {
-        self.into()
-    }
-}
 
 /// `Component` is a trait that represents a visual and interactive element of the user interface.
 ///
@@ -147,57 +51,10 @@ pub trait Component {
         vec![]
     }
 
-    /// Initialize the component with a specified area if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `api` - An mihomo API instance.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn init(&mut self, api: Arc<Api>) -> Result<()> {
-        let _ = api; // to appease clippy
-        Ok(())
-    }
-
-    /// Register an action handler that can send actions for processing if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `tx` - An unbounded sender that can send actions.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
-        let _ = tx; // to appease clippy
-        Ok(())
-    }
-
-    /// Register a configuration handler that provides configuration settings if necessary.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - Configuration settings.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<()>` - An Ok result or an error.
-    fn register_config_handler(&mut self, config: Arc<Config>) -> Result<()> {
-        let _ = config; // to appease clippy
-        Ok(())
-    }
-
-    /// Register a requester that wakes the application after visible state changes.
-    fn register_render_requester(&mut self, requester: RenderRequester) -> Result<()> {
-        let _ = requester; // to appease clippy
-        Ok(())
-    }
-
     /// Start initial loading and background tasks.
     ///
-    /// Called exactly once after [`Component::init`] and all dependencies have been registered.
+    /// Called once by the application or component factory after construction.
+    /// Constructors only assemble dependencies and local state; background work starts here.
     fn start(&mut self) -> Result<()> {
         Ok(())
     }

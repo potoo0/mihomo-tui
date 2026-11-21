@@ -4,24 +4,19 @@ use anyhow::{Context, anyhow};
 
 use crate::version_update::RestartOutcome;
 
-mod action;
 mod api;
 mod app;
-mod app_message;
 mod cli;
 mod components;
 mod config;
 mod i18n;
 mod logging;
 mod models;
-mod palette;
 mod panic;
-mod render;
 mod store;
-mod tui;
+mod ui;
 mod utils;
 mod version_update;
-mod widgets;
 
 rust_i18n::i18n!("locales", fallback = "en");
 

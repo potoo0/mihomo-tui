@@ -11,9 +11,9 @@ use crate::config::{LatencyThreshold, ProxySortConfig};
 use crate::models::proxy::Proxy;
 use crate::models::proxy_provider::ProxyProvider;
 use crate::models::sort::{ProxySortField, SortDir};
-use crate::render::RenderRequester;
 use crate::store::proxy_setting::ProxySetting;
-use crate::widgets::latency::{LatencyQuality, QualityStats};
+use crate::ui::latency::{LatencyQuality, QualityStats};
+use crate::ui::render::RenderRequester;
 
 pub static GLOBAL_PROXIES: OnceLock<RwLock<Proxies>> = OnceLock::new();
 

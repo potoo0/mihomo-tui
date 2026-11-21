@@ -1,0 +1,310 @@
+use std::borrow::Cow;
+use std::cmp::PartialEq;
+use std::num::NonZeroUsize;
+
+use anyhow::Result;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
+use ratatui::layout::{Margin, Rect};
+use ratatui::prelude::{Color, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, BorderType, Clear, Paragraph};
+use strum::{Display, EnumIter, IntoEnumIterator};
+use tokio::sync::mpsc::UnboundedSender;
+use tui_input::Input;
+
+use crate::app::action::Action;
+use crate::components::{Component, ComponentContext, ComponentId};
+use crate::config::LatencyThreshold;
+use crate::store::proxy_setting::ProxySetting;
+use crate::ui::input::input_request;
+use crate::ui::layout::{popup_area, top_title_line};
+use crate::ui::shortcut::{Fragment, Shortcut};
+use crate::ui::symbols::key;
+
+const LINE_HEIGHT: u16 = 3;
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Display, EnumIter)]
+pub enum ProxySettingField {
+    #[default]
+    #[strum(to_string = "proxy_settings.test_url")]
+    TestUrl,
+    #[strum(to_string = "proxy_settings.test_timeout")]
+    TestTimeout,
+    #[strum(to_string = "proxy_settings.threshold")]
+    Threshold,
+    #[strum(to_string = "proxy_settings.auto_terminate")]
+    AutoTerminateConnections,
+}
+
+impl ProxySettingField {
+    pub fn next(&self) -> Self {
+        match self {
+            ProxySettingField::TestUrl => ProxySettingField::TestTimeout,
+            ProxySettingField::TestTimeout => ProxySettingField::Threshold,
+            ProxySettingField::Threshold => ProxySettingField::AutoTerminateConnections,
+            ProxySettingField::AutoTerminateConnections => ProxySettingField::TestUrl,
+        }
+    }
+
+    pub fn prev(&self) -> Self {
+        match self {
+            ProxySettingField::TestUrl => ProxySettingField::AutoTerminateConnections,
+            ProxySettingField::TestTimeout => ProxySettingField::TestUrl,
+            ProxySettingField::Threshold => ProxySettingField::TestTimeout,
+            ProxySettingField::AutoTerminateConnections => ProxySettingField::Threshold,
+        }
+    }
+
+    pub fn value(&self) -> String {
+        let lock = ProxySetting::global();
+        let setting = lock.read().unwrap();
+
+        match self {
+            ProxySettingField::TestUrl => setting.test_url.clone(),
+            ProxySettingField::TestTimeout => setting.test_timeout.to_string(),
+            ProxySettingField::Threshold => setting.latency_threshold.to_string(),
+            ProxySettingField::AutoTerminateConnections => {
+                setting.auto_terminate_connections.to_string()
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ProxySettingComponent {
+    action_tx: UnboundedSender<Action>,
+
+    show: bool,
+    focused: ProxySettingField,
+    input: Input,
+    error: Option<String>,
+}
+
+impl ProxySettingComponent {
+    pub fn new(ctx: &ComponentContext) -> Self {
+        Self {
+            action_tx: ctx.actions.clone(),
+
+            show: Default::default(),
+            focused: Default::default(),
+            input: Default::default(),
+            error: Default::default(),
+        }
+    }
+
+    fn show(&mut self) {
+        self.show = true;
+        self.focused = ProxySettingField::default();
+        self.input = self.focused.value().into();
+        self.error = None;
+    }
+
+    fn hide(&mut self) {
+        self.show = false;
+        self.input.reset();
+        self.error = None;
+    }
+
+    fn submit(&self) -> Result<(), String> {
+        let input = self.input.value().trim();
+        let lock = ProxySetting::global();
+        let mut setting = lock.write().unwrap();
+
+        match self.focused {
+            ProxySettingField::TestUrl => {
+                ProxySetting::validate_test_url(input).map_err(|e| e.to_string())?;
+                setting.test_url = input.into();
+                Ok(())
+            }
+
+            ProxySettingField::TestTimeout => match input.parse::<usize>() {
+                Ok(v) => {
+                    let timeout = NonZeroUsize::new(v)
+                        .ok_or_else(|| "proxy_settings.timeout_invalid".to_string())?;
+                    ProxySetting::validate_test_timeout(timeout).map_err(|e| e.to_string())?;
+                    setting.test_timeout = timeout;
+                    Ok(())
+                }
+                Err(_) => Err("proxy_settings.timeout_invalid".into()),
+            },
+
+            ProxySettingField::Threshold => {
+                let threshold = input.parse::<LatencyThreshold>().map_err(|e| e.to_string())?;
+                ProxySetting::validate_latency_threshold(threshold).map_err(|e| e.to_string())?;
+                setting.latency_threshold = threshold;
+                Ok(())
+            }
+
+            ProxySettingField::AutoTerminateConnections => {
+                // TODO support "true"/"false" or "1"/"0"
+                setting.auto_terminate_connections = input
+                    .parse::<bool>()
+                    .map_err(|_| "proxy_settings.auto_terminate_invalid".to_string())?;
+                Ok(())
+            }
+        }
+    }
+
+    fn next(&mut self) {
+        self.error = self.submit().err();
+        if self.error.is_some() {
+            return;
+        }
+        self.focused = self.focused.next();
+        self.input = self.focused.value().into();
+    }
+
+    fn prev(&mut self) {
+        self.error = self.submit().err();
+        if self.error.is_some() {
+            return;
+        }
+        self.focused = self.focused.prev();
+        self.input = self.focused.value().into();
+    }
+
+    fn render_settings(&self, frame: &mut Frame, mut area: Rect) {
+        area.height = LINE_HEIGHT;
+
+        for field in ProxySettingField::iter() {
+            let focused = self.focused == field;
+            let (border_color, val) = if focused {
+                (Color::Cyan, Cow::from(self.input.value()))
+            } else {
+                (Color::DarkGray, field.value().into())
+            };
+            let field_label = field.to_string();
+            let block = Block::bordered()
+                .title(rust_i18n::t!(field_label.as_str()).into_owned())
+                .border_type(BorderType::Rounded)
+                .border_style(border_color);
+            let line = Line::raw(val);
+            let paragraph = Paragraph::new(line).block(block);
+            frame.render_widget(paragraph, area);
+            if focused {
+                frame.set_cursor_position((
+                    area.x + self.input.visual_cursor() as u16 + 1,
+                    area.y + 1,
+                ));
+            }
+            area.y += LINE_HEIGHT;
+        }
+        if let Some(err) = &self.error {
+            let block = Block::bordered().border_type(BorderType::Rounded).border_style(Color::Red);
+            let line = Line::from(Span::styled(
+                rust_i18n::t!(err.as_str()),
+                Style::default().fg(Color::Red),
+            ));
+            let paragraph = Paragraph::new(line).block(block);
+            frame.render_widget(paragraph, area);
+        }
+    }
+}
+
+impl Component for ProxySettingComponent {
+    fn id(&self) -> ComponentId {
+        ComponentId::ProxySetting
+    }
+
+    fn shortcuts(&self) -> Vec<Shortcut> {
+        vec![
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.cancel").hidden()]),
+            Shortcut::new(vec![Fragment::key(key::ENTER), Fragment::label("shortcuts.confirm")]),
+            Shortcut::new(vec![
+                Fragment::key(key::SHIFT_TAB),
+                Fragment::label("shortcuts.nav").compact_sep("/"),
+                Fragment::key(key::TAB),
+            ]),
+            Shortcut::new(vec![
+                Fragment::key(key::left_with_ctrl()).compact(key::left_or_right()),
+                Fragment::label("shortcuts.move"),
+                Fragment::key(key::right_with_ctrl()).hidden(),
+            ]),
+            Shortcut::new(vec![
+                Fragment::key("Back/C-Back").compact("Back/Del"),
+                Fragment::label("shortcuts.delete").hidden(),
+                Fragment::key("Del/C-Del").hidden(),
+            ]),
+            Shortcut::new(vec![
+                Fragment::key("Home"),
+                Fragment::label("shortcuts.jump").compact_sep("/"),
+                Fragment::key("End"),
+            ]),
+        ]
+    }
+
+    fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        match key.code {
+            KeyCode::Esc => {
+                self.hide();
+                return Ok(Some(self.unfocus_action()));
+            }
+            KeyCode::Tab => self.next(),
+            KeyCode::BackTab => self.prev(),
+            KeyCode::Enter => {
+                self.error = self.submit().err();
+                if self.error.is_none() {
+                    self.hide();
+                    self.action_tx.send(Action::ProxySettingChanged)?;
+                    return Ok(Some(self.unfocus_action()));
+                }
+            }
+            _ => {
+                if let Some(req) = input_request(key) {
+                    let _ = self.input.handle(req);
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        if matches!(action, Action::ProxySetting) {
+            self.show();
+        }
+
+        Ok(None)
+    }
+
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
+        if !self.show {
+            return Ok(());
+        }
+
+        let area = popup_area(area, 80, 80);
+        frame.render_widget(Clear, area); // clears out the background
+        // outer margin
+        let area = area.inner(Margin::new(2, 1));
+
+        let block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Color::LightBlue)
+            .title(top_title_line("titles.proxy_settings", Style::default()));
+        let content_area = block.inner(area);
+        frame.render_widget(block, area);
+        self.render_settings(frame, content_area);
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn q_is_typed_instead_of_closing_proxy_settings() {
+        let mut component = ProxySettingComponent {
+            show: true,
+            ..ProxySettingComponent::new(&ComponentContext::test_ctx())
+        };
+
+        let action = component.handle_key_event(KeyEvent::from(KeyCode::Char('q'))).unwrap();
+
+        assert!(action.is_none());
+        assert!(component.show);
+        assert_eq!(component.input.value(), "q");
+    }
+}

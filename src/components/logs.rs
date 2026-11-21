@@ -1,0 +1,351 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
+use anyhow::Result;
+use crossterm::event::{KeyCode, KeyEvent};
+use futures_util::{StreamExt, TryStreamExt, future};
+use ratatui::Frame;
+use ratatui::layout::{Margin, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, BorderType, List, ListItem, ListState};
+use ringbuffer::RingBuffer;
+use strum::IntoEnumIterator;
+use throbber_widgets_tui::{Throbber, ThrobberState};
+use tokio::sync::mpsc::UnboundedSender;
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, info, warn};
+use unicode_segmentation::UnicodeSegmentation;
+
+use crate::api::Api;
+use crate::app::action::Action;
+use crate::components::{Component, ComponentContext, ComponentId, HORIZ_STEP};
+use crate::models::LogLevel;
+use crate::store::logs::{LOG_COLS, Logs};
+use crate::ui::layout::{TOP_TITLE_LEFT, TOP_TITLE_RIGHT};
+use crate::ui::render::RenderRequester;
+use crate::ui::scrollable_navigator::ScrollableNavigator;
+use crate::ui::shortcut::{DEFAULT_HL_COLOR, Fragment, Shortcut};
+use crate::ui::symbols::arrow;
+use crate::utils::columns::filter_placeholder;
+use crate::utils::filter::FilterPattern;
+
+pub struct LogsComponent {
+    api: Arc<Api>,
+    action_tx: UnboundedSender<Action>,
+    render_requester: RenderRequester,
+
+    token: CancellationToken,
+    store: Arc<Logs>,
+    level: Option<LogLevel>,
+    live_mode: Arc<AtomicBool>,
+    filter_pattern: Arc<Mutex<Option<FilterPattern>>>,
+
+    level_changed: bool,
+    filter_pattern_changed: bool,
+
+    list_state: ListState,
+    horiz_offset: usize,
+    navigator: ScrollableNavigator,
+    throbber_state: ThrobberState,
+}
+
+impl LogsComponent {
+    pub fn new(ctx: &ComponentContext) -> Self {
+        Self {
+            api: Arc::clone(&ctx.api),
+            action_tx: ctx.actions.clone(),
+            render_requester: ctx.render.clone(),
+
+            token: CancellationToken::new(),
+            store: Arc::new(Logs::new(ctx.config.buffer.logs)),
+            level: None,
+            live_mode: Arc::new(AtomicBool::new(true)),
+            filter_pattern: Default::default(),
+
+            level_changed: false,
+            filter_pattern_changed: false,
+
+            list_state: Default::default(),
+            horiz_offset: 0,
+            navigator: Default::default(),
+            throbber_state: Default::default(),
+        }
+    }
+
+    fn recompute_view(&mut self) {
+        let filter_pattern = self.filter_pattern.lock().unwrap();
+        self.store.compute_view(filter_pattern.as_ref());
+        self.filter_pattern_changed = false;
+    }
+
+    fn load_log(&mut self) -> Result<()> {
+        info!("Loading log, with level: {:?}", self.level);
+        let token = self.token.clone();
+        let stream = self.api.stream_logs(self.level)?;
+        let store = Arc::clone(&self.store);
+        let filter_pattern = Arc::clone(&self.filter_pattern);
+        let live_mode = Arc::clone(&self.live_mode);
+        let render_requester = self.render_requester.clone();
+
+        tokio::task::Builder::new().name("log-loader").spawn(async move {
+            stream
+                .take_until(token.cancelled())
+                .inspect_err(|e| warn!("Failed to parse log: {e}"))
+                .filter_map(|res| future::ready(res.ok()))
+                .for_each(|record| {
+                    if live_mode.load(Ordering::Relaxed) {
+                        // Keep log-store updates exclusive with view recomputation.
+                        {
+                            let filter_pattern = filter_pattern.lock().unwrap();
+                            store.push_and_update_view(record, filter_pattern.as_ref());
+                        }
+                        render_requester.request_render();
+                    } else {
+                        store.push(record);
+                    }
+                    future::ready(())
+                })
+                .await;
+        })?;
+        Ok(())
+    }
+
+    fn level_style(level: &LogLevel) -> Style {
+        match level {
+            LogLevel::Error => Style::default().fg(Color::Red),
+            LogLevel::Warning => Style::default().fg(Color::Magenta),
+            LogLevel::Info => Style::default().fg(Color::Yellow),
+            LogLevel::Debug => Style::default().fg(Color::Blue),
+        }
+    }
+
+    fn level_shortcuts<'a>(&mut self) -> Vec<Span<'a>> {
+        let mut vec = Vec::with_capacity(8);
+        vec.push(Span::raw(TOP_TITLE_LEFT));
+        vec.push(Span::raw("level: "));
+        for (idx, lv) in LogLevel::iter().enumerate() {
+            if idx > 0 {
+                vec.push(Span::raw("/"));
+            }
+            let label = lv.into_str();
+            if self.level == Some(lv) {
+                vec.push(Span::styled(label, Self::level_style(&lv)));
+            } else {
+                // Log levels are technical terms; highlight the hotkey prefix.
+                vec.push(Span::styled(&label[..1], Style::default().fg(DEFAULT_HL_COLOR)));
+                vec.push(Span::raw(&label[1..]));
+            }
+        }
+        vec.push(Span::raw(TOP_TITLE_RIGHT));
+        vec
+    }
+
+    fn render_list(&mut self, frame: &mut Frame, area: Rect) {
+        let records = self.store.with_view(|records| {
+            let len = records.len();
+            // update scroller, viewport = area.height - 2 (border)
+            self.navigator.length(len, (area.height - 2) as usize);
+            // NOTE: end_pos() depends on length()
+            let start = len - self.navigator.scroller.end_pos();
+            let end = len - self.navigator.scroller.pos();
+            records.iter().skip(start).take(end - start).cloned().collect::<Vec<_>>()
+        });
+
+        let items: Vec<ListItem> = records
+            .iter()
+            .rev()
+            .map(|item| {
+                let payload_span: Span = if self.horiz_offset == 0 {
+                    Span::raw(&item.payload)
+                } else if self.horiz_offset >= item.payload.len() {
+                    Span::raw("")
+                } else {
+                    item.payload.graphemes(true).skip(self.horiz_offset).collect::<String>().into()
+                };
+                // LOG_COLS.iter().map(|def| (def.accessor)(item)).map(Span::from).collect();
+                let content = vec![
+                    Span::styled(
+                        format!(" {:<9}", item.r#type.into_str()),
+                        Self::level_style(&item.r#type),
+                    ),
+                    payload_span,
+                ];
+                ListItem::new(Line::from(content))
+            })
+            .collect();
+        let mut title_line = Line::from(vec![
+            Span::raw(TOP_TITLE_LEFT),
+            Span::raw(rust_i18n::t!("tabs.logs")),
+            Span::raw(" ("),
+            Span::styled(
+                self.navigator.focused.map(|i| (i + 1).to_string()).unwrap_or("-".into()),
+                Color::LightCyan,
+            ),
+            Span::raw("/"),
+            Span::styled(self.navigator.scroller.content_length().to_string(), Color::Cyan),
+            Span::raw(")"),
+            Span::raw(TOP_TITLE_RIGHT),
+        ]);
+        title_line.extend(self.level_shortcuts());
+        let block = Block::bordered().border_type(BorderType::Rounded).title(title_line);
+        let selected_style = Style::default().add_modifier(Modifier::REVERSED).fg(Color::Cyan);
+        let logs = List::new(items).block(block).highlight_style(selected_style);
+        *self.list_state.selected_mut() =
+            self.navigator.focused.map(|v| v.saturating_sub(self.navigator.scroller.pos()));
+        frame.render_stateful_widget(logs, area, &mut self.list_state);
+
+        let (throbber_label, throbber_color) = if self.live_mode.load(Ordering::Relaxed) {
+            ("status.live", Color::Green)
+        } else {
+            ("status.paused", Color::Red)
+        };
+        let symbol = Throbber::default()
+            .label(rust_i18n::t!(throbber_label))
+            .style(Style::default().bg(throbber_color).bold())
+            .throbber_style(Style::default().bg(throbber_color).bold())
+            .throbber_set(throbber_widgets_tui::BRAILLE_SIX)
+            .use_type(throbber_widgets_tui::WhichUse::Spin);
+        frame.render_stateful_widget(
+            symbol,
+            Rect::new(area.right().saturating_sub(9), area.y, 8, 1),
+            &mut self.throbber_state,
+        );
+    }
+
+    fn live_mode(&mut self, live_mode: bool) {
+        self.live_mode.store(live_mode, Ordering::Relaxed);
+        if live_mode {
+            self.navigator.focused = None;
+            self.navigator.scroller.position(0);
+            // Recompute the view so records collected while paused become visible.
+            // Keep view recomputation exclusive with log-store updates.
+            {
+                let filter_pattern = self.filter_pattern.lock().unwrap();
+                self.store.compute_view(filter_pattern.as_ref());
+            } // release filter_pattern lock
+        }
+    }
+
+    fn set_level(&mut self, level: LogLevel) {
+        if let Some(lv) = &self.level
+            && lv == &level
+        {
+            return;
+        }
+        self.level = Some(level);
+        self.level_changed = true;
+    }
+}
+
+impl Drop for LogsComponent {
+    fn drop(&mut self) {
+        self.token.cancel();
+        info!("`LogsComponent` dropped, background task cancelled");
+    }
+}
+
+impl Component for LogsComponent {
+    fn id(&self) -> ComponentId {
+        ComponentId::Logs
+    }
+
+    fn shortcuts(&self) -> Vec<Shortcut> {
+        vec![
+            Shortcut::new(vec![
+                Fragment::key(arrow::LEFT),
+                Fragment::sep("/"),
+                Fragment::key(arrow::UP),
+                Fragment::sep("/"),
+                Fragment::key("PgUp"),
+                Fragment::sep("/"),
+                Fragment::key("g"),
+                Fragment::label("shortcuts.nav"),
+                Fragment::key("G"),
+                Fragment::sep("/"),
+                Fragment::key("PgDn"),
+                Fragment::sep("/"),
+                Fragment::key(arrow::DOWN),
+                Fragment::sep("/"),
+                Fragment::key(arrow::RIGHT),
+            ]),
+            Shortcut::new(vec![Fragment::key("Esc"), Fragment::label("shortcuts.live")]),
+        ]
+    }
+
+    fn start(&mut self) -> Result<()> {
+        self.load_log()
+    }
+
+    fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        if self.navigator.handle_key_event(false, key).is_consumed() {
+            self.live_mode(false);
+            return Ok(None);
+        }
+        match key.code {
+            KeyCode::Esc => self.live_mode(true),
+            KeyCode::Char('f') => return Ok(Some(Action::Focus(ComponentId::Filter))),
+            KeyCode::Char('e') => self.set_level(LogLevel::Error),
+            KeyCode::Char('w') => self.set_level(LogLevel::Warning),
+            KeyCode::Char('i') => self.set_level(LogLevel::Info),
+            KeyCode::Char('d') => self.set_level(LogLevel::Debug),
+            KeyCode::Char('h') | KeyCode::Left => {
+                self.horiz_offset = self.horiz_offset.saturating_sub(HORIZ_STEP);
+            }
+            KeyCode::Char('l') | KeyCode::Right => {
+                self.horiz_offset = self.horiz_offset.saturating_add(HORIZ_STEP);
+            }
+            _ => (),
+        };
+
+        Ok(None)
+    }
+
+    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        match action {
+            Action::Quit => self.token.cancel(),
+            Action::Tick => {
+                if self.live_mode.load(Ordering::Relaxed) {
+                    self.throbber_state.calc_next();
+                }
+                if self.filter_pattern_changed {
+                    self.recompute_view();
+                }
+                if self.level_changed {
+                    self.token.cancel();
+                    self.token = CancellationToken::new();
+                    self.load_log()?;
+                    self.level_changed = false;
+                }
+            }
+            Action::LanguageChanged(_) => self.recompute_view(),
+            Action::FilterChanged(pattern) => {
+                debug!("handle Action::FilterChanged, got pattern={pattern:?}");
+                *self.filter_pattern.lock().unwrap() = pattern.and_then(FilterPattern::new);
+                self.filter_pattern_changed = true;
+            }
+            Action::TabSwitch(to) if to == self.id() => {
+                let pattern = self
+                    .filter_pattern
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .map(|pattern| pattern.raw().into());
+                debug!("handle Action::TabSwitch, current filter pattern={pattern:?}");
+                self.action_tx
+                    .send(Action::FilterPlaceholder(filter_placeholder(LOG_COLS.iter())))?;
+                return Ok(Some(Action::FilterSet(pattern)));
+            }
+            _ => {}
+        }
+
+        Ok(None)
+    }
+
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
+        self.render_list(frame, area);
+        self.navigator.render(frame, area.inner(Margin::new(0, 1)));
+
+        Ok(())
+    }
+}

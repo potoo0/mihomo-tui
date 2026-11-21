@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::widgets::latency::Latency;
+use crate::ui::latency::Latency;
 
 /// for [Proxy](mihomo/adapter/adapter.go#Proxy)
 #[derive(Debug, Clone, Deserialize, Serialize)]

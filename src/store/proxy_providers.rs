@@ -9,10 +9,10 @@ use crate::api::Api;
 use crate::config::{LatencyThreshold, ProxySortConfig};
 use crate::models::proxy_provider::ProxyProvider;
 use crate::models::sort::{ProxySortField, SortDir};
-use crate::render::RenderRequester;
 use crate::store::proxy_setting::ProxySetting;
+use crate::ui::latency::{LatencyQuality, QualityStats};
+use crate::ui::render::RenderRequester;
 use crate::utils::time::format_datetime;
-use crate::widgets::latency::{LatencyQuality, QualityStats};
 
 pub static GLOBAL_PROXY_PROVIDERS: OnceLock<RwLock<ProxyProviders>> = OnceLock::new();
 

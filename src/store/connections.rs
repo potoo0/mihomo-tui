@@ -14,10 +14,10 @@ use serde_json::Value;
 
 use crate::models::Connection;
 use crate::store::connections_setting::ConnectionsSetting;
+use crate::ui::symbols::dot;
 use crate::utils::byte_size::human_bytes;
 use crate::utils::columns::{ColDef, SortKey, TableColDef, TextResolver};
 use crate::utils::filter::{FilterPattern, RowFilter};
-use crate::utils::symbols::dot;
 use crate::utils::time::format_time_from_now;
 
 pub struct Connections {
