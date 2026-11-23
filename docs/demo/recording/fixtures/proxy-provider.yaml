@@ -1,0 +1,4 @@
+proxies:
+  - { name: Demo East, type: direct }
+  - { name: Demo West, type: direct }
+  - { name: Demo Europe, type: direct }

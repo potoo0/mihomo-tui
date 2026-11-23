@@ -4,3 +4,6 @@
 .specstory/
 
 /target
+
+# Generated demo assets are distributed through GitHub Releases.
+/docs/demo/*.gif
