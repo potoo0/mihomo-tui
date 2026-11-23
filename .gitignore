@@ -5,5 +5,6 @@
 
 /target
 
-# Generated demo assets are distributed through GitHub Releases.
+# Generated media assets are distributed through GitHub Releases.
 /docs/demo/*.gif
+/docs/screenshots/*.png
