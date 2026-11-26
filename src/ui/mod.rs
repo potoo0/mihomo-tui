@@ -3,6 +3,7 @@ pub mod input;
 pub mod latency;
 pub mod layout;
 pub mod palette;
+pub mod proxy_sort;
 pub mod render;
 pub mod scrollable_navigator;
 pub mod scrollbar;

@@ -24,6 +24,7 @@ use crate::store::proxy::ProxySetting;
 use crate::ui::layout::{
     TOP_TITLE_LEFT, TOP_TITLE_RIGHT, padded_styled_title, popup_area, space_between,
 };
+use crate::ui::proxy_sort;
 use crate::ui::render::RenderRequester;
 use crate::ui::scrollable_navigator::ScrollableNavigator;
 use crate::ui::shortcut::{Fragment, Shortcut};
@@ -327,12 +328,16 @@ impl ProxyDetailComponent {
 
     fn title_line(&'_ self, children_len: usize) -> Line<'_> {
         let names = self.layers.iter().map(|l| l.name.as_str()).collect::<Vec<_>>();
+        let sort = self.stores.detail_setting.read(|setting| setting.sort.clone());
+        let sort_label = proxy_sort::label(sort.as_ref()).into_owned();
         Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
             Span::styled(names.join(" > "), Color::Reset),
             Span::raw(" ("),
             Span::styled(format!("{}", children_len), Color::LightCyan),
             Span::raw(")"),
+            Span::styled(" | ", Color::Reset),
+            Span::styled(sort_label, Color::LightCyan),
             Span::raw(TOP_TITLE_RIGHT),
         ])
     }
@@ -734,7 +739,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sort_changes_notify_including_reset_to_default() {
+    async fn sort_changes_notify_including_reset_to_unsorted() {
         let (tx, mut rx) = unbounded_channel();
         let mut component = ProxyDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
         component.action_tx = tx;

@@ -109,6 +109,10 @@ proxy_settings.timeout_invalid: Timeout must be a valid number
 
 proxies.card_width: 'Card width: %{preferred_width} (actual: %{actual_width})'
 
+proxy_sort.unsorted: Unsorted
+proxy_sort.latency: Latency %{arrow}
+proxy_sort.name: Name %{arrow}
+
 proxy_providers.expiry: 'Expire: %{value}'
 proxy_providers.updated_at: 'Updated at: %{value}'
 
@@ -215,7 +219,7 @@ help.proxies.open_settings: open proxy settings
 help.proxies.refresh: refresh proxies
 help.proxies.test: test proxy
 help.proxies.inspect: inspect the current proxy JSON
-help.proxy_detail.change_sort: 'switch sort by: none, latency, name'
+help.proxy_detail.change_sort: 'switch sort: unsorted → latency → name'
 help.proxy_detail.jump_to_current: jump to current selected proxy
 help.proxy_detail.navigate_groups: navigate nested groups
 help.proxy_detail.resize_card: decrease/increase card width

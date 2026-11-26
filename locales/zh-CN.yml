@@ -109,6 +109,10 @@ proxy_settings.timeout_invalid: 超时必须为有效数字
 
 proxies.card_width: '卡片宽度：%{preferred_width}（实际：%{actual_width}）'
 
+proxy_sort.unsorted: 不排序
+proxy_sort.latency: 延迟%{arrow}
+proxy_sort.name: 名称%{arrow}
+
 proxy_providers.expiry: 到期：%{value}
 proxy_providers.updated_at: 更新时间：%{value}
 
@@ -215,7 +219,7 @@ help.proxies.open_settings: 打开代理设置
 help.proxies.refresh: 刷新代理
 help.proxies.test: 测试代理延迟
 help.proxies.inspect: 查看当前代理的完整 JSON
-help.proxy_detail.change_sort: 切换排序：默认、延迟、名称
+help.proxy_detail.change_sort: 切换排序：不排序 → 延迟 → 名称
 help.proxy_detail.jump_to_current: 定位当前使用的代理
 help.proxy_detail.navigate_groups: 切换嵌套代理组
 help.proxy_detail.resize_card: 缩小 / 增大卡片宽度

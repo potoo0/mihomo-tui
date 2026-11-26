@@ -22,6 +22,7 @@ use crate::store::proxy::ProviderView;
 use crate::ui::layout::{
     TOP_TITLE_LEFT, TOP_TITLE_RIGHT, padded_styled_title, popup_area, space_between,
 };
+use crate::ui::proxy_sort;
 use crate::ui::render::RenderRequester;
 use crate::ui::scrollable_navigator::ScrollableNavigator;
 use crate::ui::shortcut::{Fragment, Shortcut};
@@ -219,8 +220,10 @@ impl ProxyProviderDetailComponent {
         }
     }
 
-    fn title_line(provider_view: &'_ ProviderView) -> Line<'_> {
+    fn title_line<'a>(&self, provider_view: &'a ProviderView) -> Line<'a> {
         let provider = &provider_view.provider;
+        let sort = self.stores.detail_setting.read(|setting| setting.sort.clone());
+        let sort_label = proxy_sort::label(sort.as_ref()).into_owned();
         Line::from(vec![
             Span::raw(TOP_TITLE_LEFT),
             Span::styled(provider.name.as_str(), Color::Reset),
@@ -228,6 +231,8 @@ impl ProxyProviderDetailComponent {
             Span::styled(format!("{}", provider.proxies.len()), Color::LightCyan),
             Span::raw(") - "),
             Span::raw(provider.vehicle_type.as_str()),
+            Span::styled(" | ", Color::Reset),
+            Span::styled(sort_label, Color::LightCyan),
             Span::raw(TOP_TITLE_RIGHT),
         ])
     }
@@ -475,7 +480,7 @@ impl Component for ProxyProviderDetailComponent {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
             .border_style(Color::LightBlue)
-            .title(Self::title_line(&provider));
+            .title(self.title_line(&provider));
         let content_area = block.inner(area);
         let block = self.with_width_hint(block, content_area);
         frame.render_widget(block, area);
@@ -547,7 +552,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sort_changes_notify_including_reset_to_default() {
+    async fn sort_changes_notify_including_reset_to_unsorted() {
         let (tx, mut rx) = unbounded_channel();
         let mut component =
             ProxyProviderDetailComponent::new(&ComponentContext::test_ctx()).unwrap();
